@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- `lang="es"` no es decorativo: con `en` el navegador ve una página inglesa
+     con texto español y la traduce sola. Al traducir sustituye los nodos de
+     texto por `<font>`, las referencias que React guarda quedan huérfanas y el
+     siguiente render revienta con NotFoundError en removeChild/insertBefore.
+     `translate="no"` cubre el caso de que alguien la pida a mano. -->
+<html lang="es" translate="no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="google" content="notranslate" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- `viewport-fit=cover` deja que la aplicación llegue a los bordes en
+         pantallas con muesca; los huecos se respetan con env(safe-area-inset-*).
+         No se limita el zoom: es una ayuda de accesibilidad. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d9488" />
+    <meta name="color-scheme" content="light" />
+    <meta name="description" content="Vetora — gestión veterinaria para clínicas de Tarija, Bolivia." />
+    <title>Vetora — Gestión Veterinaria</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

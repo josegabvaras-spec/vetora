@@ -1,0 +1,147 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+}
+
+:root {
+  color-scheme: light;
+  /* Paleta Teal enriquecida (ligeramente más vibrante) */
+  --color-teal-50: #f0fdfa;
+  --color-teal-100: #ccfbf1;
+  --color-teal-200: #99f6e4;
+  --color-teal-300: #5eead4;
+  --color-teal-400: #2dd4bf;
+  --color-teal-500: #14b8a6;
+  --color-teal-600: #0d9488;
+  --color-teal-700: #0f766e;
+  --color-teal-800: #115e59;
+  --color-teal-900: #134e4a;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: #f8fafc; /* Fondo general muy sutil (slate-50) */
+  color: #1e293b; /* slate-800 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* El scroll vive en el <main> de cada layout: si el cuerpo también rebotara,
+     en iOS se arrastraría la página entera bajo la barra fija. */
+  overscroll-behavior-y: none;
+}
+
+/* Táctil: sin destello gris al tocar y sin la espera de 300 ms del doble toque. */
+a,
+button,
+[role='button'],
+label,
+select {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+#root {
+  /* `dvh` y no `vh`: en móvil la barra de direcciones entra y sale, y con
+     `100vh` el pie de página queda siempre por debajo del borde visible. */
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Transiciones globales */
+a, button, select, input, textarea {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Efectos Premium (Glassmorphism & Shadows) */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
+}
+
+.glass-panel-heavy {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+}
+
+.shadow-premium {
+  box-shadow:
+    0 4px 16px -2px rgba(15, 23, 42, 0.04),
+    0 2px 6px -1px rgba(15, 23, 42, 0.02),
+    0 0 0 1px rgba(15, 23, 42, 0.02);
+}
+
+.shadow-premium-hover:hover {
+  box-shadow: 
+    0 20px 40px -8px rgba(20, 184, 166, 0.12),
+    0 8px 16px -4px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(20, 184, 166, 0.05);
+  transform: translateY(-2px);
+}
+
+/* Scrollbar estilizada y moderna */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* slate-300 */
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* slate-400 */
+}
+
+/* Impresión */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr,
+  img {
+    break-inside: avoid;
+  }
+}
+
+/* Utilidad para fondos dinámicos (opcional, p. ej. en Login) */
+.bg-mesh {
+  background-color: #ffffff;
+  background-image: 
+    radial-gradient(at 80% 0%, hsla(170,100%,94%,1) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, hsla(180,100%,96%,1) 0px, transparent 50%);
+}
