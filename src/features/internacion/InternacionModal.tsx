@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Activity, LogOut, Package, Printer } from 'lucide-react'
+import { Activity, LogOut, Package, Plus, Printer } from 'lucide-react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -9,11 +9,11 @@ import { FieldGroup, Input, Textarea } from '../../components/ui/Field'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { SeccionProductos } from '../pacientes/SeccionesConsulta'
 import { useAuth } from '../../context/AuthContext'
-import { darDeAlta, registrarNotaInternacion, registrarProductoInternacion } from '../../services/internacion'
+import { darDeAlta, registrarProductoInternacion } from '../../services/internacion'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDateTime } from '../../lib/datetime'
 import { etiquetaDias } from '../../lib/internacion'
-import { aNumeroOpcional } from '../../lib/numeros'
+import { RegistrarEvolucionModal } from './RegistrarEvolucionModal'
 import type { InternacionConDetalle } from '../../types/views'
 
 /** Par etiqueta/valor de la cabecera de la internación. */
@@ -36,45 +36,15 @@ export function InternacionModal({
   onChanged: () => void
 }) {
   const { usuario } = useAuth()
-  const [nota, setNota] = useState('')
-  const [temperatura, setTemperatura] = useState('')
-  const [frecCardiaca, setFrecCardiaca] = useState('')
-  const [frecRespiratoria, setFrecRespiratoria] = useState('')
-  const [peso, setPeso] = useState('')
   const [indicaciones, setIndicaciones] = useState('')
-  const [guardando, setGuardando] = useState(false)
   const [confirmandoAlta, setConfirmandoAlta] = useState(false)
   const [dandoAlta, setDandoAlta] = useState(false)
+  const [abriendoEvolucion, setAbriendoEvolucion] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const internado = internacion.estado === 'internado'
-  // La evolución es acto clínico: recepción ve la internación, pero no la escribe.
-  const puedeEscribir = internado && usuario?.rol !== 'recepcion'
+  const puedeEscribir = internado
   const total = Number((internacion.costo_estadia_bs + internacion.costo_productos_bs).toFixed(2))
-
-  async function agregarNota() {
-    setGuardando(true)
-    setError(null)
-    try {
-      await registrarNotaInternacion(internacion.id, usuario!.id, {
-        nota,
-        temperatura_c: aNumeroOpcional(temperatura),
-        frecuencia_cardiaca: aNumeroOpcional(frecCardiaca),
-        frecuencia_respiratoria: aNumeroOpcional(frecRespiratoria),
-        peso_kg: aNumeroOpcional(peso),
-      })
-      setNota('')
-      setTemperatura('')
-      setFrecCardiaca('')
-      setFrecRespiratoria('')
-      setPeso('')
-      onChanged()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo registrar la evolución')
-    } finally {
-      setGuardando(false)
-    }
-  }
 
   async function confirmarAlta() {
     setDandoAlta(true)
@@ -129,6 +99,17 @@ export function InternacionModal({
         </dl>
 
         <Seccion titulo="Evolución diaria" icono={<Activity size={13} className="text-teal-600" />}>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-xs text-slate-500 font-medium">
+              Historial de evoluciones del paciente ({internacion.notas.length})
+            </p>
+            {puedeEscribir && (
+              <Button onClick={() => setAbriendoEvolucion(true)} className="shadow-sm">
+                <Plus size={14} /> Registrar evolución
+              </Button>
+            )}
+          </div>
+
           {internacion.notas.length === 0 ? (
             <p className="text-xs text-slate-400">Todavía no hay evoluciones registradas.</p>
           ) : (
@@ -152,49 +133,6 @@ export function InternacionModal({
                 </li>
               ))}
             </ul>
-          )}
-
-          {puedeEscribir && (
-            <div className="space-y-3 border-t border-slate-200 pt-4">
-              <FieldGroup label="Nueva evolución">
-                <Textarea
-                  value={nota}
-                  onChange={(e) => setNota(e.target.value)}
-                  placeholder="Estado del paciente, tratamiento aplicado, respuesta…"
-                />
-              </FieldGroup>
-              <div className="grid gap-3 sm:grid-cols-4">
-                <FieldGroup label="Temperatura (°C)">
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={temperatura}
-                    onChange={(e) => setTemperatura(e.target.value)}
-                  />
-                </FieldGroup>
-                <FieldGroup label="Frec. cardíaca">
-                  <Input type="number" value={frecCardiaca} onChange={(e) => setFrecCardiaca(e.target.value)} />
-                </FieldGroup>
-                <FieldGroup label="Frec. respiratoria">
-                  <Input
-                    type="number"
-                    value={frecRespiratoria}
-                    onChange={(e) => setFrecRespiratoria(e.target.value)}
-                  />
-                </FieldGroup>
-                <FieldGroup label="Peso (kg)">
-                  <Input type="number" step="0.1" value={peso} onChange={(e) => setPeso(e.target.value)} />
-                </FieldGroup>
-              </div>
-              <div className="flex justify-end">
-                <Button variant="secondary" onClick={agregarNota} disabled={!nota.trim() || guardando}>
-                  <Activity size={14} /> {guardando ? 'Registrando…' : 'Registrar evolución'}
-                </Button>
-              </div>
-              <p className="text-xs text-slate-500">
-                Las evoluciones no se editan: forman parte del expediente. Si algo cambia, se registra una nueva.
-              </p>
-            </div>
           )}
         </Seccion>
 
@@ -261,6 +199,17 @@ export function InternacionModal({
           onCancel={() => setConfirmandoAlta(false)}
           onConfirm={confirmarAlta}
           loading={dandoAlta}
+        />
+      )}
+      {abriendoEvolucion && (
+        <RegistrarEvolucionModal
+          internacionId={internacion.id}
+          pacienteNombre={internacion.paciente.nombre}
+          onClose={() => setAbriendoEvolucion(false)}
+          onGuardado={() => {
+            setAbriendoEvolucion(false)
+            onChanged()
+          }}
         />
       )}
     </Modal>

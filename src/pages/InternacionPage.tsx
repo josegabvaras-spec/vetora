@@ -10,24 +10,36 @@ import { useTable } from '../mocks/useDb'
 import { listInternaciones } from '../services/internacion'
 import { InternarModal } from '../features/internacion/InternarModal'
 import { InternacionModal } from '../features/internacion/InternacionModal'
+import { RegistrarEvolucionModal } from '../features/internacion/RegistrarEvolucionModal'
 import { formatBs } from '../lib/currency'
 import { formatClinicDateTime } from '../lib/datetime'
 import { etiquetaDias } from '../lib/internacion'
+import { Activity } from 'lucide-react'
 import type { InternacionConDetalle } from '../types/views'
 
 function TarjetaInternacion({
   internacion,
   onAbrir,
+  onRegistrarEvolucion,
 }: {
   internacion: InternacionConDetalle
   onAbrir: () => void
+  onRegistrarEvolucion?: () => void
 }) {
   const internado = internacion.estado === 'internado'
   const total = Number((internacion.costo_estadia_bs + internacion.costo_productos_bs).toFixed(2))
 
   return (
-    <button
+    <div
       onClick={onAbrir}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onAbrir()
+        }
+      }}
+      role="button"
+      tabIndex={0}
       className="w-full cursor-pointer rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-teal-400 hover:bg-teal-50/30"
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -69,7 +81,22 @@ function TarjetaInternacion({
           <dd className="font-display text-sm font-black text-slate-900">{formatBs(total)}</dd>
         </div>
       </dl>
-    </button>
+
+      {internado && onRegistrarEvolucion && (
+        <div className="mt-3 border-t border-slate-100 pt-2 flex justify-end">
+          <Button
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRegistrarEvolucion()
+            }}
+            className="text-xs py-1 shadow-sm"
+          >
+            <Activity size={13} /> Registrar evolución
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -82,6 +109,7 @@ export function InternacionPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [internaciones, setInternaciones] = useState<InternacionConDetalle[]>([])
   const [seleccionada, setSeleccionada] = useState<InternacionConDetalle | null>(null)
+  const [modalEvolucion, setModalEvolucion] = useState<InternacionConDetalle | null>(null)
   const [internando, setInternando] = useState(false)
 
   // La agenda enlaza aquí con el paciente y la cita ya elegidos.
@@ -144,7 +172,12 @@ export function InternacionPage() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {internados.map((i) => (
-              <TarjetaInternacion key={i.id} internacion={i} onAbrir={() => setSeleccionada(i)} />
+              <TarjetaInternacion
+                key={i.id}
+                internacion={i}
+                onAbrir={() => setSeleccionada(i)}
+                onRegistrarEvolucion={() => setModalEvolucion(i)}
+              />
             ))}
           </div>
         )}
@@ -187,6 +220,18 @@ export function InternacionPage() {
             limpiarParametros()
           }}
           onChanged={recargar}
+        />
+      )}
+
+      {modalEvolucion && (
+        <RegistrarEvolucionModal
+          internacionId={modalEvolucion.id}
+          pacienteNombre={modalEvolucion.paciente.nombre}
+          onClose={() => setModalEvolucion(null)}
+          onGuardado={async () => {
+            setModalEvolucion(null)
+            await recargar()
+          }}
         />
       )}
     </div>

@@ -31,6 +31,8 @@ import { etiquetaDias, ESTADO_INTERNACION_LABEL, ESTADO_INTERNACION_TONE } from 
 import type { CitaConDetalle, FichaPaciente } from '../types/views'
 import { avisoDeCita } from '../services/programados'
 import { MensajeModal } from '../features/asistente/MensajeModal'
+import { InternacionModal } from '../features/internacion/InternacionModal'
+import { RegistrarEvolucionModal } from '../features/internacion/RegistrarEvolucionModal'
 import { TIPO_LABEL, TIPO_TONE, ESTADO_LABEL, ESTADO_TONE } from '../lib/citas'
 
 const ESPECIE_LABEL: Record<string, string> = {
@@ -63,10 +65,12 @@ export function FichaPacientePage() {
   const [creando, setCreando] = useState(false)
   const [nuevoHistorialId, setNuevoHistorialId] = useState<string | null>(null)
   /** Cita cuyo recordatorio se está revisando antes de mandarlo. */
-  const [avisoCita, setAvisoCita] = useState<CitaConDetalle | null>(null)
+  const [avisoCita, setAvisoCita] = useState<{ cita: CitaConDetalle; destino: 'cliente' | 'equipo' } | null>(null)
   const [consultaAbierta, setConsultaAbierta] = useState<string | null>(null)
   const [historialModal, setHistorialModal] = useState<any | null>(null)
   const [abriendoConsultaId, setAbriendoConsultaId] = useState<string | null>(null)
+  const [modalInternacion, setModalInternacion] = useState<any | null>(null)
+  const [modalEvolucion, setModalEvolucion] = useState<{ internacionId: string; pacienteNombre: string } | null>(null)
   const [errorConsulta, setErrorConsulta] = useState<string | null>(null)
   const tarjetaAbiertaRef = useRef<HTMLDivElement | null>(null)
 
@@ -128,9 +132,9 @@ export function FichaPacientePage() {
    * Abre el aviso para revisarlo. El texto lo redacta el asistente y sale por
    * WhatsApp solo cuando alguien lo ha leído (ver features/asistente).
    */
-  function handleEnviarRecordatorio(citaId: string) {
+  function handleEnviarRecordatorio(citaId: string, destino: 'cliente' | 'equipo') {
     const cita = ficha?.citas.find((c) => c.id === citaId)
-    if (cita) setAvisoCita(cita)
+    if (cita) setAvisoCita({ cita, destino })
   }
 
   if (!ficha) {
@@ -254,12 +258,21 @@ export function FichaPacientePage() {
                 Desde el {formatClinicDateTime(internacion.fecha_ingreso)}
               </p>
               <p className="mt-2 text-xs leading-relaxed text-slate-600">{internacion.motivo}</p>
-              <Button
-                className="mt-3 w-full"
-                onClick={() => navigate(`/internacion?internacion=${internacion.id}`)}
-              >
-                <BedDouble size={15} /> Ver internación
-              </Button>
+              <div className="mt-3 flex flex-col gap-2">
+                <Button
+                  onClick={() => setModalEvolucion({ internacionId: internacion.id, pacienteNombre: paciente.nombre })}
+                  className="w-full shadow-sm"
+                >
+                  <Activity size={15} /> Registrar evolución diaria
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => navigate(`/internacion?internacion=${internacion.id}`)}
+                >
+                  <BedDouble size={15} /> Ver detalles de internación
+                </Button>
+              </div>
             </Card>
           )}
 
@@ -443,7 +456,7 @@ export function FichaPacientePage() {
                             {ESTADO_LABEL[c.estado]}
                           </Badge>
                           {historial && (
-                            <Badge tone={historial.editable ? 'teal' : 'slate'} size="sm">
+                           <Badge tone={historial.editable ? 'teal' : 'slate'} size="sm">
                               {historial.editable ? 'Consulta en borrador' : 'Consulta cerrada'}
                             </Badge>
                           )}
@@ -484,12 +497,21 @@ export function FichaPacientePage() {
                           (c.recordatorio_enviado ? (
                             <span className="text-[11px] text-slate-400">✓ Recordatorio enviado</span>
                           ) : (
-                            <button
-                              onClick={() => handleEnviarRecordatorio(c.id)}
-                              className="cursor-pointer font-bold text-teal-600 hover:text-teal-700 hover:underline"
-                            >
-                              → Preparar recordatorio WhatsApp
-                            </button>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={() => handleEnviarRecordatorio(c.id, 'cliente')}
+                                className="cursor-pointer font-bold text-teal-600 hover:text-teal-700 hover:underline"
+                              >
+                                → Avisar a cliente (WhatsApp)
+                              </button>
+                              <span className="hidden text-slate-300 sm:inline">|</span>
+                              <button
+                                onClick={() => handleEnviarRecordatorio(c.id, 'equipo')}
+                                className="cursor-pointer font-bold text-teal-600 hover:text-teal-700 hover:underline"
+                              >
+                                → Avisar a equipo (WhatsApp)
+                              </button>
+                            </div>
                           ))}
 
                         {/* Acciones de la tarjeta: Abrir consulta en modal y descargar informes */}
@@ -536,7 +558,7 @@ export function FichaPacientePage() {
 
                     {desplegada && historial && (
                       <div className="rounded-b-xl border-t border-slate-100 bg-white px-4 py-4">
-                        <FichaConsulta historial={historial} onChanged={recargar} />
+                        <FichaConsulta historial={historial} paciente={paciente} onChanged={recargar} />
                       </div>
                     )}
                   </div>
@@ -600,11 +622,34 @@ export function FichaPacientePage() {
       {/* Recordatorio: se redacta, se revisa y recién entonces sale */}
       {avisoCita && (
         <MensajeModal
-          aviso={avisoDeCita(avisoCita)}
+          aviso={avisoDeCita(avisoCita.cita)}
+          destino={avisoCita.destino}
           onClose={() => setAvisoCita(null)}
           onEnviado={async () => {
             setAvisoCita(null)
             await recargar()
+          }}
+        />
+      )}
+
+      {modalInternacion && (
+        <InternacionModal
+          internacion={modalInternacion}
+          onClose={() => setModalInternacion(null)}
+          onChanged={async () => {
+            if (id) setFicha(await getFichaPaciente(id))
+          }}
+        />
+      )}
+
+      {modalEvolucion && (
+        <RegistrarEvolucionModal
+          internacionId={modalEvolucion.internacionId}
+          pacienteNombre={modalEvolucion.pacienteNombre}
+          onClose={() => setModalEvolucion(null)}
+          onGuardado={async () => {
+            setModalEvolucion(null)
+            if (id) setFicha(await getFichaPaciente(id))
           }}
         />
       )}
@@ -618,6 +663,7 @@ export function FichaPacientePage() {
         >
           <FichaConsulta
             historial={historialModal}
+            paciente={paciente}
             onChanged={async () => {
               await recargar()
               const fichaActualizada = await getFichaPaciente(paciente.id)

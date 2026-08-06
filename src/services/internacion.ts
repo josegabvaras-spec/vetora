@@ -1,4 +1,4 @@
-﻿import { db, newId } from '../mocks/db'
+import { db, newId } from '../mocks/db'
 import type { EstadoInternacion, Internacion, NotaInternacion } from '../types/database'
 import type { InternacionConDetalle, NotaInternacionConDetalle, ProductoUsado } from '../types/views'
 import { diasDeEstadia } from '../lib/internacion'
@@ -162,14 +162,25 @@ export async function registrarNotaInternacion(
   datos: NuevaNotaInternacion,
 ): Promise<NotaInternacion> {
   exigirInternado(internacionId)
-  if (!datos.nota.trim()) throw new Error('Escribe la evolución del paciente')
+
+  const tieneConstantes =
+    datos.temperatura_c != null ||
+    datos.frecuencia_cardiaca != null ||
+    datos.frecuencia_respiratoria != null ||
+    datos.peso_kg != null
+
+  const textoNota = datos.nota?.trim() || (tieneConstantes ? 'Registro de constantes vitales' : '')
+
+  if (!textoNota) {
+    throw new Error('Escribe la evolución del paciente o registra al menos una constante vital')
+  }
 
   const nota: NotaInternacion = {
     id: newId('nota-internacion'),
     clinica_id: db.clinicaActivaId(),
     internacion_id: internacionId,
-    veterinario_id: veterinarioId,
-    nota: datos.nota.trim(),
+    veterinario_id: veterinarioId || db.get('usuarios')[0]?.id || 'vet-1',
+    nota: textoNota,
     temperatura_c: datos.temperatura_c ?? null,
     frecuencia_cardiaca: datos.frecuencia_cardiaca ?? null,
     frecuencia_respiratoria: datos.frecuencia_respiratoria ?? null,
