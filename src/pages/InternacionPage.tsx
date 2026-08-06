@@ -85,12 +85,11 @@ function TarjetaInternacion({
       {internado && onRegistrarEvolucion && (
         <div className="mt-3 border-t border-slate-100 pt-2 flex justify-end">
           <Button
-            size="sm"
             onClick={(e) => {
               e.stopPropagation()
               onRegistrarEvolucion()
             }}
-            className="text-xs py-1 shadow-sm"
+            className="text-xs py-1 px-3 shadow-sm"
           >
             <Activity size={13} /> Registrar evolución
           </Button>

@@ -152,6 +152,9 @@ export function NuevoPacienteModal({
             productos={[]}
             productosPendientes={productosPendientes}
             onAgregarProducto={agregarProductoPendiente}
+            receta={[]}
+            recetaPendientes={[]}
+            onAgregarRecetaItem={async () => {}}
           />
 
           <p className="text-xs text-slate-500">

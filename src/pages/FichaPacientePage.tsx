@@ -338,7 +338,7 @@ export function FichaPacientePage() {
                             </span>
                           ) : (
                             <button
-                              onClick={() => handleEnviarRecordatorio(c.id)}
+                              onClick={() => handleEnviarRecordatorio(c.id, 'cliente')}
                               className="text-teal-600 hover:text-teal-700 hover:underline font-bold text-left flex items-center gap-1 cursor-pointer"
                             >
                               → Preparar recordatorio WhatsApp
@@ -456,7 +456,7 @@ export function FichaPacientePage() {
                             {ESTADO_LABEL[c.estado]}
                           </Badge>
                           {historial && (
-                           <Badge tone={historial.editable ? 'teal' : 'slate'} size="sm">
+                            <Badge tone={historial.editable ? 'teal' : 'slate'} size="sm">
                               {historial.editable ? 'Consulta en borrador' : 'Consulta cerrada'}
                             </Badge>
                           )}

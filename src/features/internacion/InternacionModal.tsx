@@ -5,10 +5,9 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import { Seccion } from '../../components/ui/Seccion'
-import { FieldGroup, Input, Textarea } from '../../components/ui/Field'
+import { FieldGroup, Textarea } from '../../components/ui/Field'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { SeccionProductos } from '../pacientes/SeccionesConsulta'
-import { useAuth } from '../../context/AuthContext'
 import { darDeAlta, registrarProductoInternacion } from '../../services/internacion'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDateTime } from '../../lib/datetime'
@@ -35,7 +34,6 @@ export function InternacionModal({
   onClose: () => void
   onChanged: () => void
 }) {
-  const { usuario } = useAuth()
   const [indicaciones, setIndicaciones] = useState('')
   const [confirmandoAlta, setConfirmandoAlta] = useState(false)
   const [dandoAlta, setDandoAlta] = useState(false)

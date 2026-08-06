@@ -5,8 +5,10 @@ import { FieldGroup, Input, Select } from '../../components/ui/Field'
 import { Seccion } from '../../components/ui/Seccion'
 import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
+import { SeccionRecetario, type RecetaItemPendiente } from './SeccionRecetario'
 import type { DesparasitacionAplicada, VacunaAplicada, ViaDesparasitacion } from '../../types/database'
 import type { ProductoUsado } from '../../types/views'
+import type { RecetaItem } from '../../types/database'
 
 /**
  * Secciones de Vacunas y Productos de la ficha clínica. Funcionan en dos modos
@@ -268,7 +270,7 @@ export function SeccionProductos({
           {registrados.map((p) => (
             <li key={p.movimiento_id} className="flex justify-between gap-2">
               <span className="font-medium">
-                {p.nombre} <span className="text-slate-400">× {p.cantidad}</span>
+                {p.nombre} <span className="text-slate-400">{p.cantidad} ml</span>
               </span>
               <span className="text-slate-500">{formatBs(p.precio_bs * p.cantidad)}</span>
             </li>
@@ -278,7 +280,7 @@ export function SeccionProductos({
             return (
               <li key={`pendiente-${i}`} className="flex justify-between gap-2">
                 <span className="font-medium">
-                  {producto?.nombre ?? 'Producto'} <span className="text-slate-400">× {p.cantidad}</span>
+                  {producto?.nombre ?? 'Producto'} <span className="text-slate-400">{p.cantidad} ml</span>
                 </span>
                 <span className="text-slate-500">{formatBs((producto?.precio_bs ?? 0) * p.cantidad)}</span>
               </li>
@@ -301,9 +303,15 @@ export function SeccionProductos({
               </Select>
             </FieldGroup>
           </div>
-          <div className="sm:w-24">
-            <FieldGroup label="Cantidad">
-              <Input type="number" min="1" value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+          <div className="sm:w-28">
+            <FieldGroup label="Cantidad (ml)">
+              <Input
+                type="number"
+                min="0.1"
+                step="0.1"
+                value={cantidad}
+                onChange={(e) => setCantidad(e.target.value)}
+              />
             </FieldGroup>
           </div>
           <Button variant="secondary" onClick={agregar} disabled={!productoId || guardando}>
@@ -327,6 +335,10 @@ export function SeccionesConsulta(props: {
   productos: ProductoUsado[]
   productosPendientes: ProductoPendiente[]
   onAgregarProducto: (p: ProductoPendiente) => Promise<void>
+  receta: RecetaItem[]
+  recetaPendientes: RecetaItemPendiente[]
+  onAgregarRecetaItem: (item: RecetaItemPendiente) => Promise<void>
+  onEliminarRecetaItem?: (id: string) => Promise<void>
   disabled?: boolean
 }) {
   return (
@@ -347,6 +359,12 @@ export function SeccionesConsulta(props: {
         registrados={props.productos}
         pendientes={props.productosPendientes}
         onAgregar={props.onAgregarProducto}
+        disabled={props.disabled}
+      />
+      <SeccionRecetario
+        registrados={props.receta}
+        pendientes={props.recetaPendientes}
+        onEliminar={props.onEliminarRecetaItem}
         disabled={props.disabled}
       />
     </div>
