@@ -51,7 +51,7 @@ export function AsistentePage() {
 
   const [avisos, setAvisos] = useState<Programado[]>([])
   const [resumen, setResumen] = useState<ResumenDelDia | null>(null)
-  const [seleccionado, setSeleccionado] = useState<Programado | null>(null)
+  const [seleccionado, setSeleccionado] = useState<{ aviso: Programado; destino: 'cliente' | 'equipo' } | null>(null)
 
   const [informe, setInforme] = useState<Redaccion | null>(null)
   const [textoInforme, setTextoInforme] = useState('')
@@ -142,15 +142,25 @@ export function AsistentePage() {
       movil: 'acciones',
       alineadaDerecha: true,
       celda: (a) => (
-        <Button
-          variant="secondary"
-          className="px-3 py-1.5 text-xs"
-          onClick={() => setSeleccionado(a)}
-          disabled={!a.whatsapp}
-        >
-          <MessageCircle size={14} />
-          {a.whatsapp ? 'Preparar aviso' : 'Sin WhatsApp'}
-        </Button>
+        <div className="flex flex-col gap-1 sm:flex-row sm:justify-end">
+          <Button
+            variant="secondary"
+            className="px-3 py-1.5 text-xs"
+            onClick={() => setSeleccionado({ aviso: a, destino: 'cliente' })}
+            disabled={!a.whatsapp}
+          >
+            <MessageCircle size={14} />
+            {a.whatsapp ? 'Avisar a cliente' : 'Sin WhatsApp'}
+          </Button>
+          <Button
+            variant="secondary"
+            className="px-3 py-1.5 text-xs border-teal-200 text-teal-700 hover:bg-teal-50 hover:text-teal-800"
+            onClick={() => setSeleccionado({ aviso: a, destino: 'equipo' })}
+          >
+            <MessageCircle size={14} />
+            Avisar a equipo
+          </Button>
+        </div>
       ),
     },
   ]
@@ -262,7 +272,8 @@ export function AsistentePage() {
 
       {seleccionado && (
         <MensajeModal
-          aviso={seleccionado}
+          aviso={seleccionado.aviso}
+          destino={seleccionado.destino}
           onClose={() => setSeleccionado(null)}
           onEnviado={async () => {
             setSeleccionado(null)

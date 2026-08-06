@@ -154,6 +154,19 @@ export function ConsultaImprimirPage() {
               formatBs(p.precio_bs * p.cantidad),
             ])}
           />
+
+          <TablaListado
+            titulo="Recetario médico"
+            cabeceras={['Medicamento', 'Dosis', 'Vía', 'Frecuencia', 'Duración', 'Indicaciones']}
+            filas={(consulta.receta ?? []).map((r) => [
+              r.medicamento,
+              r.dosis,
+              r.via,
+              r.frecuencia,
+              r.duracion,
+              r.indicaciones || VACIO,
+            ])}
+          />
         </article>
 
         <footer className="mt-8 border-t border-slate-300 pt-3 text-center text-[9px] text-slate-500">

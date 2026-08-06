@@ -293,6 +293,19 @@ export function HistorialImprimirPage() {
             />
 
             <TablaListado
+              titulo="Recetario médico"
+              cabeceras={['Medicamento', 'Dosis', 'Vía', 'Frecuencia', 'Duración', 'Indicaciones']}
+              filas={(h.receta ?? []).map((r) => [
+                r.medicamento,
+                r.dosis,
+                r.via,
+                r.frecuencia,
+                r.duracion,
+                r.indicaciones || VACIO,
+              ])}
+            />
+
+            <TablaListado
               titulo="Productos usados"
               cabeceras={['Producto', 'Cantidad', 'Precio unit.', 'Subtotal']}
               filas={h.productosUsados.map((p) => [

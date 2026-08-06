@@ -55,6 +55,7 @@ export interface Plan {
 export interface Clinica {
   id: string
   nombre: string
+  logo_url?: string | null
   plan_id: string
   /** Contacto de quien contrató el servicio. */
   responsable: string
@@ -266,6 +267,29 @@ export interface DesparasitacionAplicada {
   fecha_aplicacion: string
   /** Fecha de la siguiente dosis; alimenta los avisos programados (PRD Épica 4). */
   fecha_proxima?: string | null
+  created_at: string
+}
+
+export type ViaAdministracion = 'oral' | 'intramuscular' | 'subcutanea' | 'intravenosa' | 'topica' | 'oftalmica' | 'otica'
+
+/**
+ * Ítem de una receta médica emitida por el veterinario durante una consulta.
+ * Solo se puede insertar mientras el historial es borrador (editable = true).
+ * Al igual que las vacunas y desparasitaciones, es un registro clínico que
+ * no se modifica: solo se agrega o elimina antes del cierre.
+ */
+export interface RecetaItem {
+  id: string
+  clinica_id: string
+  historial_id: string
+  paciente_id: string
+  medicamento: string
+  dosis: string
+  via: ViaAdministracion
+  frecuencia: string
+  duracion: string
+  /** Notas adicionales para el propietario/a (ej. "con comida", "no partir"). */
+  indicaciones?: string | null
   created_at: string
 }
 

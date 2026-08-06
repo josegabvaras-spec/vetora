@@ -15,7 +15,7 @@ import { CONSULTA_MD } from '../hooks/useMediaQuery'
 import type { CitaConDetalle } from '../types/views'
 import { clsx } from 'clsx'
 
-type Vista = 'dia' | 'semana'
+type Vista = 'dia' | 'semana' | 'mes'
 
 function startOfWeek(date: Date): Date {
   const d = new Date(date)
@@ -63,8 +63,18 @@ export function AgendaPage() {
 
   const dias = useMemo(() => {
     if (vista === 'dia') return [fechaRef]
-    const inicio = startOfWeek(fechaRef)
-    return Array.from({ length: 5 }, (_, i) => {
+    if (vista === 'semana') {
+      const inicio = startOfWeek(fechaRef)
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(inicio)
+        d.setDate(d.getDate() + i)
+        return d
+      })
+    }
+    // vista mes
+    const primerDiaMes = new Date(fechaRef.getFullYear(), fechaRef.getMonth(), 1)
+    const inicio = startOfWeek(primerDiaMes)
+    return Array.from({ length: 42 }, (_, i) => {
       const d = new Date(inicio)
       d.setDate(d.getDate() + i)
       return d
@@ -73,16 +83,25 @@ export function AgendaPage() {
 
   function irA(delta: number) {
     const d = new Date(fechaRef)
-    d.setDate(d.getDate() + delta * (vista === 'dia' ? 1 : 7))
+    if (vista === 'dia') {
+      d.setDate(d.getDate() + delta)
+    } else if (vista === 'semana') {
+      d.setDate(d.getDate() + delta * 7)
+    } else {
+      d.setMonth(d.getMonth() + delta)
+    }
     setFechaRef(d)
   }
 
   // Mes y año como referencia principal; el detalle del período va como subtítulo.
-  const tituloPeriodo = dias[0].toLocaleDateString('es-BO', { month: 'long', year: 'numeric' })
+  const referenceDate = vista === 'mes' ? fechaRef : dias[0]
+  const tituloPeriodo = referenceDate.toLocaleDateString('es-BO', { month: 'long', year: 'numeric' })
   const subtituloPeriodo =
     vista === 'dia'
       ? dias[0].toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long' })
-      : `${formatClinicDate(dias[0].toISOString())} — ${formatClinicDate(dias[4].toISOString())}`
+      : vista === 'semana'
+        ? `${formatClinicDate(dias[0].toISOString())} — ${formatClinicDate(dias[6].toISOString())}`
+        : 'Vista mensual'
 
   return (
     <div className="space-y-5">
@@ -137,7 +156,7 @@ export function AgendaPage() {
         </div>
 
         <div className="flex w-full rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 shadow-inner shadow-slate-200/50 backdrop-blur-sm sm:w-auto">
-          {(['dia', 'semana'] as Vista[]).map((v) => (
+          {(['dia', 'semana', 'mes'] as Vista[]).map((v) => (
             <button
               key={v}
               onClick={() => setVista(v)}
@@ -152,131 +171,255 @@ export function AgendaPage() {
         </div>
       </div>
 
-      {/* La semana son 5 días (lunes a viernes) para no necesitar scroll horizontal.
-          En celular ni siquiera eso cabe —cinco columnas en 360 px dejan 65 px por
-          día—, así que se apilan; la rejilla vuelve desde `md`. */}
-      <div className={clsx(vista === 'semana' && 'pb-2')}>
+      {/* La semana son 7 días (lunes a domingo).
+          El usuario solicitó que quepan los 7 días en la pantalla sin scroll. */}
+      <div className={clsx(vista !== 'dia' && 'pb-2')}>
+        {vista === 'mes' && (
+          <div className="grid grid-cols-7 gap-1 sm:gap-2 md:gap-3 mb-1 sm:mb-2 md:mb-3">
+            {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
+              <div key={d} className="text-center font-bold text-xs text-slate-500 uppercase tracking-widest">
+                <span className="hidden md:inline">{d}</span>
+                <span className="md:hidden">{d.charAt(0)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div
           className={clsx(
-            'grid gap-3',
-            vista === 'semana' ? 'grid-cols-1 md:grid-cols-5' : 'grid-cols-1',
+            'grid gap-1 sm:gap-2 md:gap-3',
+            vista === 'dia' ? 'grid-cols-1' : 'grid-cols-7',
           )}
         >
           {dias.map((dia) => {
-          const citasDelDia = citas.filter((c) => sameDay(c.fecha_hora, dia))
-          const esHoy = sameDay(new Date().toISOString(), dia)
-          const esFinDeSemana = dia.getDay() === 0 || dia.getDay() === 6
-          const dayNumber = dia.toLocaleDateString('es-BO', { day: 'numeric' })
-          // Apilada la tarjeta ocupa el ancho: cabe el día entero. En la rejilla
-          // de cinco columnas hay que abreviarlo.
-          const diaLargo = dia.toLocaleDateString('es-BO', { weekday: 'long' })
-          const diaCorto = dia.toLocaleDateString('es-BO', { weekday: 'short' }).replace('.', '').substring(0, 3)
+            const citasDelDia = citas.filter((c) => sameDay(c.fecha_hora, dia))
+            const esHoy = sameDay(new Date().toISOString(), dia)
+            const esMesActual = vista === 'mes' ? dia.getMonth() === fechaRef.getMonth() : true
+            const esFinDeSemana = dia.getDay() === 0 || dia.getDay() === 6
+            const dayNumber = dia.toLocaleDateString('es-BO', { day: 'numeric' })
+            const diaLargo = dia.toLocaleDateString('es-BO', { weekday: 'long' })
+            const diaCorto = dia.toLocaleDateString('es-BO', { weekday: 'short' }).replace('.', '').substring(0, 3)
 
-          return (
-            <Card
-              key={dia.toISOString()}
-              padding="none"
-              className={clsx(
-                // Sin alto mínimo en celular: apilados, cinco días vacíos de 12 rem
-                // serían media pantalla de scroll para nada.
-                'flex min-w-0 flex-col p-3 transition-colors duration-200 md:min-h-48 md:p-2 xl:p-3',
-                esHoy
-                  ? 'border-teal-500 ring-2 ring-teal-500/15'
-                  : esFinDeSemana
-                    ? 'bg-slate-50'
-                    : 'hover:border-slate-300',
-              )}
-            >
-              {/* Cabecera del día */}
-              <div
+            const esVistaDia = vista === 'dia'
+
+            return (
+              <Card
+                key={dia.toISOString()}
+                padding="none"
                 className={clsx(
-                  'mb-2 flex items-center justify-between gap-2 border-b pb-2 md:flex-col md:justify-center md:gap-1 md:pb-1.5 xl:flex-row xl:justify-between',
-                  esHoy ? 'border-teal-200' : 'border-slate-200',
+                  'flex min-w-0 flex-col transition-colors duration-200',
+                  esVistaDia
+                    ? 'p-4 sm:p-5 shadow-sm min-h-60'
+                    : vista === 'semana'
+                      ? 'p-1 md:min-h-48 md:p-2 xl:p-3'
+                      : 'p-1 min-h-24 md:min-h-32 md:p-1.5',
+                  !esMesActual && 'opacity-50',
+                  esHoy
+                    ? 'border-teal-500 ring-2 ring-teal-500/15 bg-white'
+                    : esFinDeSemana || !esMesActual
+                      ? 'bg-slate-50'
+                      : 'hover:border-slate-300 bg-white',
                 )}
               >
-                <div className="flex min-w-0 items-baseline gap-2 md:flex-col md:items-center md:gap-0 xl:flex-row xl:items-baseline xl:gap-2">
-                  <span
+                {/* Cabecera del día */}
+                {esVistaDia ? (
+                  <div
                     className={clsx(
-                      'truncate text-[11px] font-extrabold uppercase tracking-widest md:text-[10px]',
-                      esHoy ? 'text-teal-700' : 'text-slate-400',
+                      'mb-4 flex items-center justify-between border-b pb-3',
+                      esHoy ? 'border-teal-200' : 'border-slate-200',
                     )}
                   >
-                    <span className="md:hidden">{diaLargo}</span>
-                    <span className="hidden md:inline">{diaCorto}</span>
-                  </span>
-                  {citasDelDia.length > 0 && (
-                    <span className="shrink-0 text-[10px] font-semibold text-slate-400">
-                      {citasDelDia.length}{' '}
-                      <span className="md:hidden xl:inline">{citasDelDia.length === 1 ? 'cita' : 'citas'}</span>
-                    </span>
-                  )}
-                </div>
-                <span
-                  className={clsx(
-                    'flex h-6 w-6 shrink-0 select-none items-center justify-center rounded-full font-display text-xs font-black',
-                    esHoy ? 'bg-teal-600 text-white' : 'text-slate-800',
-                  )}
-                >
-                  {dayNumber}
-                </span>
-              </div>
-
-              {/* Citas del día: con scroll propio para que un día cargado no estire la
-                  fila. `scrollbar-gutter: stable` reserva el hueco de la barra en TODOS
-                  los días, para que el día con scroll no tenga chips más estrechos. */}
-              <div className="min-w-0 flex-1 space-y-2.5 overflow-y-auto pr-0.5 [scrollbar-gutter:stable] lg:max-h-80">
-                {citasDelDia.length === 0 && (
-                  <p className="py-6 text-center text-[11px] text-slate-400">Sin citas</p>
-                )}
-                {citasDelDia.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setCitaSeleccionada(c)}
-                    className="w-full min-w-0 cursor-pointer overflow-hidden rounded-lg border border-slate-200 bg-white p-2.5 text-left shadow-sm outline-none transition-colors duration-200 hover:border-teal-400 hover:bg-teal-50/40 md:p-2"
-                  >
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <span className="shrink-0 text-[11px] font-bold text-slate-800">
-                        {formatClinicTime(c.fecha_hora)}
+                    <div className="flex items-center gap-2">
+                      <span className="font-display text-base font-extrabold capitalize text-slate-800 sm:text-lg">
+                        {diaLargo}
                       </span>
-                      <span
-                        className="ml-auto shrink-0"
-                        title={
-                          c.recordatorio_enviado
-                            ? 'Recordatorio de WhatsApp enviado'
-                            : 'Recordatorio de WhatsApp pendiente'
-                        }
-                      >
-                        <MessageCircle
-                          size={12}
-                          className={clsx(c.recordatorio_enviado ? 'text-emerald-600' : 'text-slate-300')}
-                        />
+                      <span className="text-xs font-semibold text-slate-400">
+                        ({citasDelDia.length} {citasDelDia.length === 1 ? 'cita' : 'citas'})
                       </span>
                     </div>
-
-                    <p className="mt-1 truncate text-sm font-bold leading-tight text-slate-900 md:text-xs">
-                      {c.paciente.nombre}
-                    </p>
-
-                    {/* Apilada la tarjeta tiene ancho de sobra para las etiquetas en
-                        fila; en la columna de la semana bajan una sobre otra. */}
-                    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1 md:mt-1.5 md:flex-col md:items-start">
-                      <Badge tone={TIPO_TONE[c.tipo_cita]} size="sm">
-                        {TIPO_LABEL[c.tipo_cita]}
-                      </Badge>
-                      <Badge tone={ESTADO_TONE[c.estado]} size="sm">
-                        {ESTADO_LABEL[c.estado]}
-                      </Badge>
-                      {c.tipo_cita === 'cirugia' && !c.consentimiento && (
-                        <Badge tone="rose" size="sm">
-                          Sin firma
-                        </Badge>
+                    <span
+                      className={clsx(
+                        'flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-full font-display text-xs font-black',
+                        esHoy ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-800',
+                      )}
+                    >
+                      {dayNumber}
+                    </span>
+                  </div>
+                ) : (
+                  <div
+                    className={clsx(
+                      'mb-1 flex flex-col items-center justify-center gap-1 border-b pb-1 md:mb-2 md:flex-col md:justify-center md:gap-1 md:pb-1.5 xl:flex-row xl:justify-between',
+                      esHoy ? 'border-teal-200' : 'border-slate-200',
+                    )}
+                  >
+                    <div className="flex min-w-0 items-baseline gap-2 md:flex-col md:items-center md:gap-0 xl:flex-row xl:items-baseline xl:gap-2">
+                      {vista !== 'mes' && (
+                        <span
+                          className={clsx(
+                            'truncate text-[9px] font-extrabold uppercase tracking-widest md:text-[10px]',
+                            esHoy ? 'text-teal-700' : 'text-slate-400',
+                          )}
+                        >
+                          <span className="hidden md:inline xl:hidden">{diaCorto}</span>
+                          <span className="md:hidden">{diaCorto.charAt(0)}</span>
+                          <span className="hidden xl:inline">{diaLargo}</span>
+                        </span>
+                      )}
+                      {citasDelDia.length > 0 && (
+                        <span className="hidden shrink-0 text-[10px] font-semibold text-slate-400 md:inline">
+                          {citasDelDia.length}{' '}
+                          <span className="hidden xl:inline">{citasDelDia.length === 1 ? 'cita' : 'citas'}</span>
+                        </span>
                       )}
                     </div>
-                  </button>
-                ))}
-              </div>
-            </Card>
-          )
+                    <span
+                      className={clsx(
+                        'flex h-5 w-5 shrink-0 select-none items-center justify-center rounded-full font-display text-[10px] font-black md:h-6 md:w-6 md:text-xs',
+                        esHoy ? 'bg-teal-600 text-white' : 'text-slate-800',
+                      )}
+                    >
+                      {dayNumber}
+                    </span>
+                  </div>
+                )}
+
+                {/* Citas del día */}
+                <div
+                  className={clsx(
+                    'min-w-0 flex-1 overflow-y-auto pr-0.5 [scrollbar-gutter:stable]',
+                    esVistaDia ? 'space-y-3' : 'space-y-1 md:space-y-2.5 lg:max-h-80',
+                  )}
+                >
+                  {citasDelDia.length === 0 && (
+                    <p className={clsx(
+                      'text-center text-slate-400',
+                      esVistaDia ? 'py-10 text-sm font-medium' : 'py-2 text-[9px] md:py-6 md:text-[11px]'
+                    )}>
+                      Sin citas agendadas
+                    </p>
+                  )}
+                  {citasDelDia.map((c) =>
+                    esVistaDia ? (
+                      /* Vista DÍA: Tarjeta amplia, visible y detallada para celular y desktop */
+                      <button
+                        key={c.id}
+                        onClick={() => setCitaSeleccionada(c)}
+                        className="w-full min-w-0 cursor-pointer text-left rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4 shadow-sm hover:border-teal-400 hover:shadow-md transition-all space-y-2.5 outline-none"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-display text-sm font-black text-slate-900 flex items-center gap-1.5">
+                            <span className="text-teal-600">🕒</span> {formatClinicTime(c.fecha_hora)}
+                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge tone={TIPO_TONE[c.tipo_cita]} size="sm">
+                              {TIPO_LABEL[c.tipo_cita]}
+                            </Badge>
+                            <Badge tone={ESTADO_TONE[c.estado]} size="sm">
+                              {ESTADO_LABEL[c.estado]}
+                            </Badge>
+                            {c.tipo_cita === 'cirugia' && !c.consentimiento && (
+                              <Badge tone="rose" size="sm">
+                                Sin firma
+                              </Badge>
+                            )}
+                            <span title={c.recordatorio_enviado ? 'WhatsApp enviado' : 'WhatsApp pendiente'}>
+                              <MessageCircle
+                                size={14}
+                                className={c.recordatorio_enviado ? 'text-emerald-600' : 'text-slate-300'}
+                              />
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-base font-bold text-slate-900 leading-tight">
+                            {c.paciente.nombre}
+                            {c.paciente.especie && (
+                              <span className="ml-2 text-xs font-semibold text-slate-500 capitalize">
+                                ({c.paciente.especie}{c.paciente.raza ? ` · ${c.paciente.raza}` : ''})
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-slate-500 font-medium mt-1">
+                            Dueño: <span className="text-slate-700 font-semibold">{c.paciente.cliente.nombre}</span>
+                            {c.veterinario_nombre && (
+                              <> · Vet: <span className="text-slate-700 font-semibold">{c.veterinario_nombre}</span></>
+                            )}
+                          </p>
+                        </div>
+
+                        {(c.servicio_nombre || c.notas) && (
+                          <div className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 border border-slate-100">
+                            {c.servicio_nombre && <p className="font-semibold text-teal-800">{c.servicio_nombre}</p>}
+                            {c.notas && <p className="italic text-slate-500 mt-0.5">{c.notas}</p>}
+                          </div>
+                        )}
+                      </button>
+                    ) : (
+                      /* Vista SEMANA o MES: Rejilla compacta de 7 días */
+                      <button
+                        key={c.id}
+                        onClick={() => setCitaSeleccionada(c)}
+                        className={clsx(
+                          "w-full min-w-0 cursor-pointer overflow-hidden flex justify-center md:block border border-slate-200 bg-white p-1 text-left shadow-sm outline-none transition-colors duration-200 hover:border-teal-400 hover:bg-teal-50/40",
+                          vista === 'mes' ? 'rounded md:rounded md:p-1' : 'rounded md:rounded-lg md:p-2'
+                        )}
+                      >
+                        <div className="flex min-w-0 flex-col items-center md:flex-row md:items-center md:gap-1.5">
+                          <span className={clsx(
+                            "shrink-0 font-bold text-slate-800",
+                            vista === 'mes' ? 'text-[8px] md:text-[9px]' : 'text-[9px] md:text-[11px]'
+                          )}>
+                            {formatClinicTime(c.fecha_hora)}
+                          </span>
+                          {vista !== 'mes' && (
+                            <span
+                              className="ml-auto shrink-0"
+                              title={
+                                c.recordatorio_enviado
+                                  ? 'Recordatorio de WhatsApp enviado'
+                                  : 'Recordatorio de WhatsApp pendiente'
+                              }
+                            >
+                              <MessageCircle
+                                size={10}
+                                className={clsx(
+                                  'md:h-3 md:w-3',
+                                  c.recordatorio_enviado ? 'text-emerald-600' : 'text-slate-300'
+                                )}
+                              />
+                            </span>
+                          )}
+                        </div>
+
+                        <p className={clsx(
+                          "hidden truncate font-bold leading-tight text-slate-900 md:block",
+                          vista === 'mes' ? 'mt-0.5 text-[9px]' : 'mt-1 text-xs'
+                        )}>
+                          {c.paciente.nombre}
+                        </p>
+
+                        {vista !== 'mes' && (
+                          <div className="mt-1 hidden min-w-0 flex-col items-start gap-1 md:flex md:mt-1.5">
+                            <Badge tone={TIPO_TONE[c.tipo_cita]} size="sm">
+                              {TIPO_LABEL[c.tipo_cita]}
+                            </Badge>
+                            <Badge tone={ESTADO_TONE[c.estado]} size="sm">
+                              {ESTADO_LABEL[c.estado]}
+                            </Badge>
+                            {c.tipo_cita === 'cirugia' && !c.consentimiento && (
+                              <Badge tone="rose" size="sm">
+                                Sin firma
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    )
+                  )}
+                </div>
+              </Card>
+            )
           })}
         </div>
       </div>

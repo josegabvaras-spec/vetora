@@ -27,6 +27,7 @@ create table planes (
 create table clinicas (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
+  logo_url text,
   plan_id uuid not null references planes (id),
   -- Contacto de quien contrató el servicio.
   responsable text not null default '',
@@ -141,6 +142,10 @@ create table pacientes (
 -- 3. Clínico (inmutable tras cierre)
 -- =========================================================
 
+create or replace function get_citas_end_time(start_time timestamptz) returns timestamptz as $$
+  select start_time + interval '30 minutes';
+$$ language sql immutable;
+
 create table citas (
   id uuid primary key default gen_random_uuid(),
   clinica_id uuid not null references clinicas (id) on delete cascade,
@@ -173,7 +178,7 @@ create table citas (
   -- Las citas canceladas liberan el espacio.
   constraint citas_sin_solapamiento exclude using gist (
     veterinario_id with =,
-    tstzrange(fecha_hora, fecha_hora + interval '30 minutes') with &&
+    tstzrange(fecha_hora, get_citas_end_time(fecha_hora)) with &&
   ) where (estado <> 'cancelada')
 );
 

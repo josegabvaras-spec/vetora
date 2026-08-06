@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
 
@@ -43,14 +44,14 @@ export function Modal({ title, onClose, children, widthClassName = 'max-w-lg' }:
     }
   }, [])
 
-  return (
+  return createPortal(
     // En celular es una hoja anclada abajo (el pulgar llega al borde inferior);
     // desde `sm` vuelve a ser el cuadro centrado de siempre.
     <div
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 backdrop-blur-xs duration-200 animate-in fade-in sm:items-center sm:p-4"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/40 backdrop-blur-xs duration-200 animate-in fade-in sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
@@ -73,6 +74,7 @@ export function Modal({ title, onClose, children, widthClassName = 'max-w-lg' }:
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

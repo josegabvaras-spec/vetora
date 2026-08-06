@@ -15,6 +15,7 @@ import type {
   Cobro,
   CobroLinea,
   Producto,
+  RecetaItem,
   Servicio,
   Sucursal,
   TurnoCaja,
@@ -36,6 +37,7 @@ import {
   seedPacientes,
   seedPlanes,
   seedProductos,
+  seedRecetas,
   seedServicios,
   seedSucursales,
   seedTurnosCaja,
@@ -64,6 +66,7 @@ export interface Tables {
   consentimientos_cirugia: ConsentimientoCirugia[]
   vacunas_aplicadas: VacunaAplicada[]
   desparasitaciones_aplicadas: DesparasitacionAplicada[]
+  recetas: RecetaItem[]
   productos: Producto[]
   movimientos_inventario: MovimientoInventario[]
   internaciones: Internacion[]
@@ -77,8 +80,8 @@ export interface Tables {
 // La versión sube cuando el modelo cambia de forma que una base guardada con la
 // anterior quedaría inconsistente (columnas obligatorias nuevas, referencias
 // que cambian de nombre). Al subirla, la demostración parte de datos frescos.
-// v5: cada usuario tiene correo y su cuenta con contraseña.
-const STORAGE_KEY = 'vetora-mock-db-v5'
+// v6: tabla recetas agregada al modelo de datos.
+const STORAGE_KEY = 'vetora-mock-db-v6'
 
 function loadInitialState(): Tables {
   const seed: Tables = {
@@ -95,6 +98,7 @@ function loadInitialState(): Tables {
     consentimientos_cirugia: seedConsentimientos,
     vacunas_aplicadas: seedVacunas,
     desparasitaciones_aplicadas: seedDesparasitaciones,
+    recetas: seedRecetas,
     productos: seedProductos,
     movimientos_inventario: seedMovimientos,
     internaciones: seedInternaciones,

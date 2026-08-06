@@ -76,19 +76,46 @@ export async function resumenPlataforma(): Promise<ResumenPlataforma> {
   const activas = clinicas.filter((c) => c.estado === 'activa')
   const enMora = clinicas.filter((c) => c.estado_pago === 'en_mora')
 
+  const ingresoMensual = Number(activas.reduce((n, c) => n + c.precio_acordado_bs, 0).toFixed(2))
+
+  // Generar un historial mock basado en el ingreso actual (crecimiento constante ficticio)
+  const meses = ['Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago']
+  let baseMrr = ingresoMensual * 0.6 // Hace 6 meses era el 60%
+  const historial_mrr = meses.map((mes) => {
+    baseMrr += ingresoMensual * 0.08 + (Math.random() * 200 - 100) // Crece ~8% por mes + ruido
+    return { mes, mrr: Math.round(baseMrr) }
+  })
+  // Forzamos el último mes al MRR real
+  historial_mrr[historial_mrr.length - 1].mrr = ingresoMensual
+
+  const crecimiento = ((ingresoMensual - historial_mrr[historial_mrr.length - 2].mrr) / historial_mrr[historial_mrr.length - 2].mrr) * 100
+
   return delay({
     clinicas_activas: activas.length,
     clinicas_suspendidas: clinicas.filter((c) => c.estado === 'suspendida').length,
-    ingreso_mensual_bs: Number(activas.reduce((n, c) => n + c.precio_acordado_bs, 0).toFixed(2)),
+    ingreso_mensual_bs: ingresoMensual,
     en_mora: enMora.length,
     importe_en_mora_bs: Number(enMora.reduce((n, c) => n + c.precio_acordado_bs, 0).toFixed(2)),
     whatsapp_enviados: clinicas.reduce((n, c) => n + c.whatsapp_mensajes_enviados, 0),
     whatsapp_limite: clinicas.reduce((n, c) => n + (getPlan(c.plan_id)?.whatsapp_limite ?? 0), 0),
+    mrr_crecimiento_pct: Number(crecimiento.toFixed(1)),
+    usuarios_totales: db.get('usuarios').length,
+    pacientes_totales: db.get('pacientes').length,
+    citas_totales: db.get('citas').length,
+    errores_plataforma: 12, // mock
+    uptime_pct: 99.98,
+    servicios_estado: {
+      base_datos: 'operativo',
+      whatsapp_api: 'operativo',
+      storage: 'operativo',
+    },
+    historial_mrr,
   })
 }
 
 export interface DatosClinica {
   nombre: string
+  logo_url?: string | null
   responsable: string
   whatsapp: string
   ciudad: string
@@ -147,12 +174,13 @@ export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinica
   if (!input.sucursalNombre.trim()) throw new Error('Indica el nombre de la primera sucursal')
   if (!input.adminNombre.trim()) throw new Error('Indica el nombre del administrador de la clínica')
   exigirWhatsapp(input.adminWhatsapp, 'del administrador')
-  const adminEmail = exigirEmailLibre(input.adminEmail)
+  const adminEmail = await exigirEmailLibre(input.adminEmail)
 
   const hoy = new Date().toISOString().slice(0, 10)
   const clinica: Clinica = {
     id: newId('clinica'),
     nombre: input.nombre.trim(),
+    logo_url: input.logo_url,
     plan_id: input.plan_id,
     responsable: input.responsable.trim(),
     whatsapp: input.whatsapp.trim(),
@@ -217,6 +245,7 @@ export async function actualizarClinica(clinicaId: string, datos: DatosClinica):
         ? {
             ...c,
             nombre: datos.nombre.trim(),
+            logo_url: datos.logo_url,
             responsable: datos.responsable.trim(),
             whatsapp: datos.whatsapp.trim(),
             ciudad: datos.ciudad.trim(),
@@ -297,7 +326,7 @@ export async function crearUsuario(clinicaId: string, datos: DatosUsuario): Prom
   const limites = limitesDe(clinicaId)
   if (!datos.nombre.trim()) throw new Error('Indica el nombre del usuario')
   exigirWhatsapp(datos.whatsapp, 'del usuario')
-  const email = exigirEmailLibre(datos.email)
+  const email = await exigirEmailLibre(datos.email)
   if (datos.rol === 'superadmin') throw new Error('El rol de plataforma no se asigna a una clínica')
   if (limites.usuarios.usados >= limites.usuarios.maximo) {
     throw new Error(
@@ -325,7 +354,7 @@ export async function actualizarUsuario(usuarioId: string, datos: DatosUsuario):
   if (!usuario) throw new Error('Usuario no encontrado')
   if (!datos.nombre.trim()) throw new Error('Indica el nombre del usuario')
   exigirWhatsapp(datos.whatsapp, 'del usuario')
-  const email = exigirEmailLibre(datos.email, usuarioId)
+  const email = await exigirEmailLibre(datos.email, usuarioId)
   if (datos.rol === 'superadmin') throw new Error('El rol de plataforma no se asigna a una clínica')
 
   db.set(

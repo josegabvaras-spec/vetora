@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
@@ -158,6 +158,7 @@ function NuevaClinicaModal({
 }) {
   const [planes, setPlanes] = useState<Plan[]>([])
   const [nombre, setNombre] = useState('')
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [responsable, setResponsable] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
   const [ciudad, setCiudad] = useState('Tarija')
@@ -199,6 +200,7 @@ function NuevaClinicaModal({
     setError(null)
     const input: AltaClinicaInput = {
       nombre,
+      logo_url: logoUrl,
       responsable,
       whatsapp,
       ciudad,
@@ -228,6 +230,26 @@ function NuevaClinicaModal({
           <div className="grid gap-4 sm:grid-cols-2">
             <FieldGroup label="Nombre de la clínica">
               <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Veterinaria Sur" required />
+            </FieldGroup>
+            <FieldGroup label="Logo de la clínica">
+              <div className="flex items-center gap-3">
+                {logoUrl && (
+                  <img src={logoUrl} alt="Logo" className="h-10 w-10 shrink-0 rounded-lg object-contain bg-slate-50 border border-slate-200" />
+                )}
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      const reader = new FileReader()
+                      reader.onloadend = () => setLogoUrl(reader.result as string)
+                      reader.readAsDataURL(file)
+                    }
+                  }}
+                  className="flex-1"
+                />
+              </div>
             </FieldGroup>
             <FieldGroup label="Ciudad">
               <Input value={ciudad} onChange={(e) => setCiudad(e.target.value)} />

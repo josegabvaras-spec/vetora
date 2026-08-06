@@ -1,19 +1,22 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Printer } from 'lucide-react'
+import { ClipboardList, Printer } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import {
   actualizarBorradorHistorial,
+  eliminarRecetaItem,
   finalizarHistorial,
   registrarDesparasitacion,
   registrarProductoUsado,
+  registrarRecetaItem,
   registrarVacuna,
 } from '../../services/historial'
 import { formatClinicDateTime } from '../../lib/datetime'
 import { FormularioClinico, aCamposHistorial, datosClinicosDesde } from './FormularioClinico'
 import { SeccionesConsulta } from './SeccionesConsulta'
-import type { HistorialConDetalle } from '../../types/views'
+import { RecetarioModal } from './RecetarioModal'
+import type { HistorialConDetalle, PacienteConDueno } from '../../types/views'
 
 /**
  * La ficha clínica de una consulta: anamnesis, examen físico, vacunas y
@@ -23,16 +26,21 @@ import type { HistorialConDetalle } from '../../types/views'
  */
 export function FichaConsulta({
   historial,
+  paciente,
   onChanged,
+  onFinalized,
 }: {
   historial: HistorialConDetalle
+  paciente: PacienteConDueno
   onChanged: () => void
+  onFinalized?: () => void
 }) {
   const [datos, setDatos] = useState(() => datosClinicosDesde(historial))
   const [guardando, setGuardando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [finalizando, setFinalizando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [verReceta, setVerReceta] = useState(false)
 
   const cerrado = !historial.editable
 
@@ -57,6 +65,7 @@ export function FichaConsulta({
       await finalizarHistorial(historial.id)
       setConfirmando(false)
       onChanged()
+      onFinalized?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo finalizar el historial')
       setConfirmando(false)
@@ -74,14 +83,24 @@ export function FichaConsulta({
             Registrada el {formatClinicDateTime(historial.created_at)} · Dr(a). {historial.veterinario_nombre}
           </p>
         </div>
-        <Link
-          to={`/pacientes/${historial.paciente_id}/consulta/${historial.id}/imprimir`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          <Printer size={14} /> Imprimir
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Abre el recetario como modal en la misma ventana */}
+          <button
+            type="button"
+            onClick={() => setVerReceta(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-teal-300 bg-teal-50 px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-100"
+          >
+            <ClipboardList size={14} /> Recetario
+          </button>
+          <Link
+            to={`/pacientes/${historial.paciente_id}/consulta/${historial.id}/imprimir`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+          >
+            <Printer size={14} /> Imprimir informe
+          </Link>
+        </div>
       </div>
 
       {(historial.origen || historial.procedimiento) && (
@@ -104,22 +123,32 @@ export function FichaConsulta({
       <FormularioClinico datos={datos} onChange={setDatos} disabled={cerrado} />
 
       <SeccionesConsulta
-        vacunas={historial.vacunas}
+        vacunas={historial.vacunas ?? []}
         vacunasPendientes={[]}
         onAgregarVacuna={async (v) => {
           await registrarVacuna(historial.id, v.nombre_vacuna, v.fecha_refuerzo)
           onChanged()
         }}
-        desparasitaciones={historial.desparasitaciones}
+        desparasitaciones={historial.desparasitaciones ?? []}
         desparasitacionesPendientes={[]}
         onAgregarDesparasitacion={async (d) => {
           await registrarDesparasitacion(historial.id, d.producto, d.via, d.fecha_proxima)
           onChanged()
         }}
-        productos={historial.productosUsados}
+        productos={historial.productosUsados ?? []}
         productosPendientes={[]}
         onAgregarProducto={async (p) => {
           await registrarProductoUsado(historial.id, p.producto_id, p.cantidad)
+          onChanged()
+        }}
+        receta={historial.receta ?? []}
+        recetaPendientes={[]}
+        onAgregarRecetaItem={async (item) => {
+          await registrarRecetaItem(historial.id, item)
+          onChanged()
+        }}
+        onEliminarRecetaItem={async (id) => {
+          await eliminarRecetaItem(id, historial.id)
           onChanged()
         }}
         disabled={cerrado}
@@ -132,7 +161,21 @@ export function FichaConsulta({
           <Button variant="secondary" onClick={guardarBorrador} disabled={guardando}>
             {guardando ? 'Guardando borrador…' : 'Guardar borrador'}
           </Button>
-          <Button variant="success" onClick={() => setConfirmando(true)}>
+          <Button
+            variant="success"
+            onClick={() => {
+              if (!datos.motivo?.trim()) {
+                setError('El motivo de la consulta no puede quedar vacío')
+                return
+              }
+              if (!datos.diagnostico?.trim() || !datos.tratamiento?.trim()) {
+                setError('Completa diagnóstico y tratamiento antes de cerrar el historial')
+                return
+              }
+              setError(null)
+              setConfirmando(true)
+            }}
+          >
             Finalizar y cerrar historial
           </Button>
         </div>
@@ -148,6 +191,17 @@ export function FichaConsulta({
           loading={finalizando}
         />
       )}
+
+      {/* Modal de receta — se renderiza sobre todo lo demás */}
+      {verReceta && (
+        <RecetarioModal
+          historial={historial}
+          paciente={paciente}
+          onClose={() => setVerReceta(false)}
+          onChanged={onChanged}
+        />
+      )}
     </div>
   )
 }
+

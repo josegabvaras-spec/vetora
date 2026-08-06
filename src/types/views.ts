@@ -17,6 +17,7 @@ import type {
   Paciente,
   Plan,
   Producto,
+  RecetaItem,
   TipoCita,
   Usuario,
   VacunaAplicada,
@@ -54,6 +55,24 @@ export interface ResumenPlataforma {
   importe_en_mora_bs: number
   whatsapp_enviados: number
   whatsapp_limite: number
+  
+  // Nuevas métricas
+  mrr_crecimiento_pct: number
+  usuarios_totales: number
+  pacientes_totales: number
+  citas_totales: number
+  
+  // Sistema / Salud
+  errores_plataforma: number
+  uptime_pct: number
+  servicios_estado: {
+    base_datos: 'operativo' | 'degradado' | 'caido'
+    whatsapp_api: 'operativo' | 'degradado' | 'caido'
+    storage: 'operativo' | 'degradado' | 'caido'
+  }
+  
+  // Gráficos
+  historial_mrr: { mes: string; mrr: number }[]
 }
 
 /** Estadía en curso de un paciente, para señalarla allá donde aparezca. */
@@ -108,6 +127,7 @@ export interface HistorialConDetalle extends HistorialClinico {
   vacunas: VacunaAplicada[]
   desparasitaciones: DesparasitacionAplicada[]
   productosUsados: ProductoUsado[]
+  receta: RecetaItem[]
   /** Tipo de la cita que originó la consulta (consulta, reconsulta, cirugía…). */
   tipo_cita: TipoCita
   /** Procedimiento concreto, cuando la cita apuntaba a uno del catálogo. */

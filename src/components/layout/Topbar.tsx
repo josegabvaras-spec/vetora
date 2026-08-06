@@ -1,4 +1,5 @@
 import { LogOut, Menu, MessageCircle, Building2, RotateCcw, ArrowLeft } from 'lucide-react'
+import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTable } from '../../mocks/useDb'
@@ -7,6 +8,7 @@ import { Badge } from '../ui/Badge'
 import { Select } from '../ui/Field'
 import { getCuotaWhatsapp } from '../../services/whatsapp'
 import { useMultiSucursal, usePlanActivo } from '../../hooks/usePlanActivo'
+import { PerfilModal } from '../../features/auth/PerfilModal'
 import { clsx } from 'clsx'
 
 const ROL_LABEL: Record<string, string> = {
@@ -106,6 +108,7 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
   const { usuario, logout } = useAuth()
   const clinica = useTable('clinicas')[0]
   const plan = usePlanActivo()
+  const [mostrarPerfil, setMostrarPerfil] = useState(false)
 
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -141,9 +144,13 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
 
       {/* Clínica y sucursal */}
       <div className="flex min-w-0 items-center gap-3">
-        <div className="hidden h-9 w-9 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 text-slate-500 sm:flex">
-          <Building2 size={16} />
-        </div>
+        {clinica.logo_url ? (
+          <img src={clinica.logo_url} alt="Logo" className="hidden h-9 w-9 items-center justify-center rounded-lg border border-slate-100 bg-white object-contain sm:flex" />
+        ) : (
+          <div className="hidden h-9 w-9 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 text-slate-500 sm:flex">
+            <Building2 size={16} />
+          </div>
+        )}
         <div className="min-w-0">
           <p className="truncate text-sm font-bold leading-tight text-slate-900">{clinica.nombre}</p>
           <p className="truncate text-xs font-medium text-slate-400">
@@ -163,12 +170,13 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
             <p className="text-sm font-bold leading-tight text-slate-800">{usuario.nombre}</p>
             <Badge tone="teal">{ROL_LABEL[usuario.rol]}</Badge>
           </div>
-          <div
+          <button
+            onClick={() => setMostrarPerfil(true)}
             title={`${usuario.nombre} · ${ROL_LABEL[usuario.rol]}`}
-            className="flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-xl border border-teal-500/20 bg-gradient-to-tr from-teal-500/10 to-teal-600/10 font-display text-xs font-bold text-teal-700 shadow-xs"
+            className="flex h-10 w-10 shrink-0 cursor-pointer select-none items-center justify-center rounded-xl border border-teal-500/20 bg-gradient-to-tr from-teal-500/10 to-teal-600/10 font-display text-xs font-bold text-teal-700 shadow-xs transition-colors hover:from-teal-500/20 hover:to-teal-600/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40"
           >
             {usuario.nombre.substring(0, 2).toUpperCase()}
-          </div>
+          </button>
           <button
             onClick={reiniciarDemo}
             title="Restablecer base de datos de prueba"
@@ -186,6 +194,8 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
           </button>
         </div>
       </div>
+      
+      {mostrarPerfil && <PerfilModal onClose={() => setMostrarPerfil(false)} />}
     </header>
   )
 }

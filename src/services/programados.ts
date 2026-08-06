@@ -184,10 +184,22 @@ function tieneCitaFutura(citas: Cita[], pacienteId: string, tipo: Cita['tipo_cit
  * `enviarMensajeWhatsapp`; aquí solo se marca la cita como avisada, que es lo
  * único que el esquema permite actualizar.
  */
-export async function enviarAviso(aviso: Programado, mensaje: string): Promise<string> {
-  const enlace = await enviarMensajeWhatsapp(aviso.whatsapp, mensaje)
+export async function enviarAviso(
+  aviso: Programado, 
+  mensaje: string, 
+  destino: 'cliente' | 'equipo' = 'cliente'
+): Promise<string> {
+  let numeroDestino = aviso.whatsapp
+  if (destino === 'equipo') {
+    const clinica = db.get('clinicas')[0]
+    if (!clinica?.whatsapp) throw new Error('La clínica no tiene un WhatsApp registrado para recibir avisos internos.')
+    numeroDestino = clinica.whatsapp
+  }
 
-  if (aviso.tipo === 'recordatorio_cita' || aviso.tipo === 'preparacion_cirugia') {
+  const enlace = await enviarMensajeWhatsapp(numeroDestino, mensaje)
+
+  // Solo marcamos como avisado si el mensaje fue para el cliente.
+  if (destino === 'cliente' && (aviso.tipo === 'recordatorio_cita' || aviso.tipo === 'preparacion_cirugia')) {
     db.set(
       'citas',
       db.get('citas').map((c) => (c.id === aviso.referencia_id ? { ...c, recordatorio_enviado: true } : c)),

@@ -1,10 +1,9 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from 'react'
 import { db } from '../mocks/db'
 import { motivoDeBloqueo } from '../services/sesion'
 import { verificarCredenciales } from '../services/cuentas'
+import { supabase } from '../lib/supabase'
 import type { Usuario } from '../types/database'
-
-const SESSION_KEY = 'vetora-mock-session'
 
 interface AuthContextValue {
   usuario: Usuario | null
@@ -42,27 +41,51 @@ function activarClinicaDe(usuario: Usuario | null) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [usuarioId, setUsuarioId] = useState<string | null>(() => {
-    const guardado = localStorage.getItem(SESSION_KEY)
-    // Se resuelve antes del primer render: las páginas llaman a los servicios
-    // nada más montarse y ya deben estar acotadas a su clínica.
-    activarClinicaDe(buscarUsuario(guardado))
-    return guardado
-  })
+  const [usuario, setUsuario] = useState<Usuario | null>(null)
+  const [cargando, setCargando] = useState(true)
   const [sucursalOverride, setSucursalOverride] = useState<string | null>(null)
+
+  useEffect(() => {
+    let montado = true
+    async function inicializar() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const { data } = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+        
+        if (data && montado) {
+          activarClinicaDe(data as Usuario)
+          setUsuario(data as Usuario)
+        }
+      }
+      if (montado) setCargando(false)
+    }
+
+    inicializar()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        activarClinicaDe(null)
+        setUsuario(null)
+      }
+    })
+
+    return () => {
+      montado = false
+      subscription.unsubscribe()
+    }
+  }, [])
 
   function abrirSesion(verificado: Usuario) {
     const bloqueo = motivoDeBloqueo(verificado)
     if (bloqueo) throw new Error(bloqueo)
 
     activarClinicaDe(verificado)
-    localStorage.setItem(SESSION_KEY, verificado.id)
-    setUsuarioId(verificado.id)
+    setUsuario(verificado)
   }
-
-  // Solo lectura: la clínica activa se fija al entrar y al restaurar la sesión,
-  // nunca durante el render (cambiarla notifica al store y React lo prohíbe).
-  const usuario = useMemo(() => buscarUsuario(usuarioId), [usuarioId])
 
   const value: AuthContextValue = {
     usuario,
@@ -76,13 +99,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       abrirSesion(verificado)
     },
     entrarComo: (usuarioVerificado: Usuario) => abrirSesion(usuarioVerificado),
-    logout: () => {
-      localStorage.removeItem(SESSION_KEY)
+    logout: async () => {
+      await supabase.auth.signOut()
       db.setClinicaActiva(null)
-      setUsuarioId(null)
+      setUsuario(null)
     },
     setSucursalActivaId: (id: string) => setSucursalOverride(id),
   }
+
+  if (cargando) return null // O un spinner si prefieres
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

@@ -1,12 +1,8 @@
-import { db, newId } from '../mocks/db'
-import { derivarHash, generarSalt, verificarHash } from '../lib/password'
+import { supabase } from '../lib/supabase'
 import type { Usuario } from '../types/database'
 
 /**
- * Cuentas de acceso. En producción esto es Supabase Auth
- * (`supabase.auth.signInWithPassword`) y la aplicación nunca ve una contraseña;
- * aquí se simula sobre la tabla `credenciales` para poder previsualizar el
- * login sin un proyecto real.
+ * Cuentas de acceso utilizando Supabase Auth real.
  */
 
 /** El correo se guarda y se compara normalizado: nadie escribe siempre igual. */
@@ -25,14 +21,21 @@ export function validarEmail(email: string): string {
 }
 
 /** El correo identifica la cuenta en todo el sistema, no dentro de una clínica. */
-export function emailDisponible(email: string, ignorarUsuarioId?: string): boolean {
+export async function emailDisponible(email: string, ignorarUsuarioId?: string): Promise<boolean> {
   const normalizado = normalizarEmail(email)
-  return !db.getGlobal('usuarios').some((u) => u.id !== ignorarUsuarioId && normalizarEmail(u.email) === normalizado)
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id, email')
+    .eq('email', normalizado)
+  
+  if (error) throw new Error(error.message)
+  return !data.some((u) => u.id !== ignorarUsuarioId)
 }
 
-export function exigirEmailLibre(email: string, ignorarUsuarioId?: string): string {
+export async function exigirEmailLibre(email: string, ignorarUsuarioId?: string): Promise<string> {
   const normalizado = validarEmail(email)
-  if (!emailDisponible(normalizado, ignorarUsuarioId)) {
+  const disponible = await emailDisponible(normalizado, ignorarUsuarioId)
+  if (!disponible) {
     throw new Error('Ya hay una cuenta con ese correo electrónico')
   }
   return normalizado
@@ -40,7 +43,10 @@ export function exigirEmailLibre(email: string, ignorarUsuarioId?: string): stri
 
 /** Un usuario recién creado todavía no tiene contraseña: la fija con su enlace. */
 export function tienePassword(usuarioId: string): boolean {
-  return db.getGlobal('credenciales').some((c) => c.usuario_id === usuarioId)
+  // En Supabase Auth, si el usuario existe y se loguea o usa un token, ya gestiona su acceso.
+  // Para verificar si tiene password real, no se puede hacer desde el cliente por seguridad.
+  // Por ahora devolvemos true asumiendo que el flujo de invitaciones forzará el setup.
+  return true
 }
 
 const MINIMO = 8
@@ -55,47 +61,65 @@ function validarPassword(password: string, email: string) {
 }
 
 /**
- * Fija (o reemplaza) la contraseña de una cuenta. Reemplazarla invalida la
- * anterior, que es lo que hace que reenviar el enlace sirva como recuperación.
+ * Fija (o reemplaza) la contraseña de una cuenta logueada actualmente.
  */
 export async function establecerPassword(usuarioId: string, password: string): Promise<void> {
-  const usuario = db.getGlobal('usuarios').find((u) => u.id === usuarioId)
-  if (!usuario) throw new Error('Usuario no encontrado')
-  validarPassword(password, usuario.email)
+  const { data: authData } = await supabase.auth.getUser()
+  if (!authData.user) throw new Error('No hay sesión activa')
+  validarPassword(password, authData.user.email!)
 
-  const salt = generarSalt()
-  const hash = await derivarHash(password, salt)
-  const anterior = db.getGlobal('credenciales').find((c) => c.usuario_id === usuarioId)
-
-  const credencial = {
-    id: anterior?.id ?? newId('credencial'),
-    usuario_id: usuarioId,
-    email: normalizarEmail(usuario.email),
-    salt,
-    hash,
-    actualizada_at: new Date().toISOString(),
-  }
-
-  db.set('credenciales', [
-    ...db.getGlobal('credenciales').filter((c) => c.usuario_id !== usuarioId),
-    credencial,
-  ])
+  const { error } = await supabase.auth.updateUser({
+    password: password
+  })
+  
+  if (error) throw new Error(error.message)
 }
 
 /**
- * Verifica correo y contraseña. El mensaje es **el mismo** para un correo que no
- * existe y para una contraseña equivocada: distinguirlos permitiría averiguar
- * qué correos tienen cuenta.
+ * Verifica correo y contraseña e inicia sesión.
  */
 export async function verificarCredenciales(email: string, password: string): Promise<Usuario> {
-  const generico = new Error('Correo o contraseña incorrectos')
   const normalizado = normalizarEmail(email)
 
-  const credencial = db.getGlobal('credenciales').find((c) => normalizarEmail(c.email) === normalizado)
-  if (!credencial) throw generico
-  if (!(await verificarHash(password, credencial.salt, credencial.hash))) throw generico
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalizado,
+    password,
+  })
 
-  const usuario = db.getGlobal('usuarios').find((u) => u.id === credencial.usuario_id)
-  if (!usuario) throw generico
-  return usuario
+  if (error || !data.user) {
+    throw new Error('Correo o contraseña incorrectos')
+  }
+
+  const { data: usuario, error: userError } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('id', data.user.id)
+    .single()
+
+  if (userError || !usuario) {
+    throw new Error('No se encontró el perfil del usuario')
+  }
+
+  return usuario as Usuario
+}
+
+/**
+ * Cambia la contraseña de un usuario logueado, exigiendo la contraseña actual para seguridad.
+ */
+export async function cambiarMiPassword(usuarioId: string, actual: string, nueva: string): Promise<void> {
+  const { data: authData } = await supabase.auth.getUser()
+  if (!authData.user) throw new Error('Usuario no encontrado')
+
+  // Re-autenticar para verificar la contraseña actual
+  const { error: authError } = await supabase.auth.signInWithPassword({
+    email: authData.user.email!,
+    password: actual,
+  })
+
+  if (authError) {
+    throw new Error('La contraseña actual es incorrecta')
+  }
+
+  // Si la actual es correcta, establecemos la nueva
+  await establecerPassword(usuarioId, nueva)
 }

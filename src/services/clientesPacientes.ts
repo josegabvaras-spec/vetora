@@ -80,6 +80,7 @@ export async function getFichaPaciente(pacienteId: string): Promise<FichaPacient
   const desparasitaciones = db.get('desparasitaciones_aplicadas')
   const movimientos = db.get('movimientos_inventario')
   const productos = db.get('productos')
+  const recetas = db.get('recetas')
 
   const citas = db.get('citas')
   const servicios = db.get('servicios')
@@ -110,6 +111,7 @@ export async function getFichaPaciente(pacienteId: string): Promise<FichaPacient
         vacunas: vacunas.filter((v) => v.historial_id === h.id),
         desparasitaciones: desparasitaciones.filter((d) => d.historial_id === h.id),
         productosUsados,
+        receta: recetas.filter((r) => r.historial_id === h.id),
         tipo_cita: cita?.tipo_cita ?? 'consulta',
         procedimiento: servicios.find((s) => s.id === cita?.servicio_id)?.nombre ?? null,
         origen: cita ? consultaOrigenDe(cita) : null,

@@ -670,6 +670,7 @@ export function FichaPacientePage() {
               const h = fichaActualizada?.historiales.find((item) => item.id === historialModal.id)
               if (h) setHistorialModal(h)
             }}
+            onFinalized={() => setHistorialModal(null)}
           />
         </Modal>
       )}

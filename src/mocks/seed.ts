@@ -15,6 +15,7 @@ import type {
   Cobro,
   CobroLinea,
   Producto,
+  RecetaItem,
   Servicio,
   Sucursal,
   TurnoCaja,
@@ -692,3 +693,6 @@ export const seedNotasInternacion: NotaInternacion[] = [
     created_at: iso(-1, 9),
   },
 ]
+
+/** Recetas: vacío al iniciar la demo; se generan desde la ficha clínica. */
+export const seedRecetas: RecetaItem[] = []

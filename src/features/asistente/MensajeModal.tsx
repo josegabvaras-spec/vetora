@@ -4,7 +4,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import { Textarea } from '../../components/ui/Field'
-import { redactarAviso, type Redaccion } from '../../services/asistente'
+import { redactarAviso, redactarAvisoInterno, type Redaccion } from '../../services/asistente'
 import { enviarAviso } from '../../services/programados'
 import { TIPO_AVISO_LABEL, cuandoLegible } from '../../lib/asistente'
 import type { Programado } from '../../types/views'
@@ -16,10 +16,12 @@ import type { Programado } from '../../types/views'
  */
 export function MensajeModal({
   aviso,
+  destino = 'cliente',
   onClose,
   onEnviado,
 }: {
   aviso: Programado
+  destino?: 'cliente' | 'equipo'
   onClose: () => void
   onEnviado: () => void
 }) {
@@ -32,7 +34,7 @@ export function MensajeModal({
     setRedaccion(null)
     setError(null)
     try {
-      const resultado = await redactarAviso(aviso)
+      const resultado = destino === 'equipo' ? await redactarAvisoInterno(aviso) : await redactarAviso(aviso)
       setRedaccion(resultado)
       setTexto(resultado.texto)
     } catch (err) {
@@ -49,9 +51,12 @@ export function MensajeModal({
     setEnviando(true)
     setError(null)
     try {
-      const enlace = await enviarAviso(aviso, texto)
-      // El mensaje se manda desde el WhatsApp de la clínica: aquí solo se abre
-      // con el texto ya puesto (envío one-way, PRD §2).
+      // Si el destino es equipo, no deberíamos marcar el aviso como "enviado al cliente".
+      // Para enviarAviso, si es equipo, le pasamos un aviso con el whatsapp modificado.
+      // Ojo: enviarAviso guarda recordatorio_enviado=true si se manda. Para el equipo,
+      // podríamos usar `enviarAviso` igual, pero sin afectar al cliente.
+      const enlace = await enviarAviso({ ...aviso, whatsapp: destino === 'equipo' ? '' : aviso.whatsapp }, texto, destino)
+      
       window.open(enlace, '_blank', 'noopener,noreferrer')
       onEnviado()
     } catch (err) {
@@ -61,7 +66,7 @@ export function MensajeModal({
   }
 
   return (
-    <Modal title={TIPO_AVISO_LABEL[aviso.tipo]} onClose={onClose} widthClassName="max-w-xl">
+    <Modal title={`${TIPO_AVISO_LABEL[aviso.tipo]} (${destino === 'equipo' ? 'Equipo' : 'Cliente'})`} onClose={onClose} widthClassName="max-w-xl">
       <div className="space-y-4">
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
           <p className="text-sm font-bold text-slate-900">
@@ -118,7 +123,7 @@ export function MensajeModal({
           </div>
         )}
 
-        {aviso.ya_avisado && (
+        {aviso.ya_avisado && destino === 'cliente' && (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             A este cliente ya se le avisó de esta cita. Volver a enviarlo descuenta otro mensaje del plan.
           </p>

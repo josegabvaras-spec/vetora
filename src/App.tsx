@@ -11,6 +11,7 @@ import { InventarioPage } from './pages/InventarioPage'
 import { ConsentimientoPage } from './pages/ConsentimientoPage'
 import { HistorialImprimirPage } from './pages/HistorialImprimirPage'
 import { ConsultaImprimirPage } from './pages/ConsultaImprimirPage'
+import { RecetarioImprimirPage } from './pages/RecetarioImprimirPage'
 import { InformeImprimirPage } from './pages/InformeImprimirPage'
 import { RolRoute } from './components/layout/RolRoute'
 import { CajaPage } from './pages/CajaPage'
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/consentimientos/:citaId" element={<ConsentimientoPage />} />
             <Route path="/pacientes/:id/historial/imprimir" element={<HistorialImprimirPage />} />
             <Route path="/pacientes/:pacienteId/consulta/:consultaId/imprimir" element={<ConsultaImprimirPage />} />
+            <Route path="/pacientes/:pacienteId/consulta/:consultaId/receta/imprimir" element={<RecetarioImprimirPage />} />
             <Route path="/pacientes/:pacienteId/reporte/:tipo" element={<InformeImprimirPage />} />
             <Route path="/pacientes/:pacienteId/reporte/:tipo/:itemId" element={<InformeImprimirPage />} />
             <Route path="/recibos/:cobroId" element={<ReciboPage />} />

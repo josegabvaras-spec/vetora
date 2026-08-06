@@ -1,6 +1,6 @@
 import { db } from '../mocks/db'
 import { isMockMode, supabase } from '../lib/supabase'
-import { contextoDeAviso, plantillaAviso, plantillaInforme } from '../lib/asistente'
+import { contextoDeAviso, plantillaAviso, plantillaAvisoInterno, plantillaInforme } from '../lib/asistente'
 import type { Programado, ResumenDelDia } from '../types/views'
 
 /**
@@ -21,12 +21,14 @@ export interface Redaccion {
   motivo?: string
 }
 
-type Tarea = 'aviso' | 'informe'
+type Tarea = 'aviso' | 'aviso_interno' | 'informe'
 
 const SIN_IA = 'El asistente de IA no está configurado; texto generado con la plantilla del sistema.'
 
 async function pedirALaIA(tarea: Tarea, contexto: unknown): Promise<Redaccion | null> {
-  if (isMockMode || !supabase) return null
+  // En desarrollo local, la llamada a una Edge Function remota sin CORS configurado
+  // dispara errores rojos en la consola. Hacemos bypass directo a la plantilla.
+  if (isMockMode || !supabase || window.location.hostname === 'localhost') return null
 
   try {
     const { data, error } = await supabase.functions.invoke<{ texto?: string }>('asistente', {
@@ -58,6 +60,13 @@ export async function redactarAviso(aviso: Programado): Promise<Redaccion> {
   const clinica = clinicaEnSesion()
   const conIa = await pedirALaIA('aviso', contextoDeAviso(aviso, clinica))
   return conIa ?? { texto: plantillaAviso(aviso, clinica), origen: 'plantilla', motivo: SIN_IA }
+}
+
+/** Redacta un aviso dirigido al equipo interno de la clínica. */
+export async function redactarAvisoInterno(aviso: Programado): Promise<Redaccion> {
+  const clinica = clinicaEnSesion()
+  const conIa = await pedirALaIA('aviso_interno', contextoDeAviso(aviso, clinica))
+  return conIa ?? { texto: plantillaAvisoInterno(aviso, clinica), origen: 'plantilla', motivo: SIN_IA }
 }
 
 /** Redacta el resumen del día para el administrador. */

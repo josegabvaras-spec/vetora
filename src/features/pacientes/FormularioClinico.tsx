@@ -292,18 +292,21 @@ export function FormularioClinico({ datos, onChange, disabled }: Props) {
               onChange={(e) => set('diagnostico')(e.target.value)}
               disabled={disabled}
               placeholder="Escribe el diagnóstico oficial…"
+              className="min-h-[120px]"
             />
           </FieldGroup>
-          <FieldGroup label="Tratamiento o recetario">
+          <FieldGroup label="Tratamiento">
             <Textarea
               value={datos.tratamiento}
               onChange={(e) => set('tratamiento')(e.target.value)}
               disabled={disabled}
-              placeholder="Detalla la dosis y el medicamento recomendado…"
+              placeholder="Describe el tratamiento a seguir…"
+              className="min-h-[120px]"
             />
           </FieldGroup>
         </div>
       </Seccion>
+
     </div>
   )
 }

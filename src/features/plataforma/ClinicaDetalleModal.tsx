@@ -80,6 +80,7 @@ export function ClinicaDetalleModal({
 
   // Datos de la cuenta
   const [nombre, setNombre] = useState(clinica.nombre)
+  const [logoUrl, setLogoUrl] = useState<string | null | undefined>(clinica.logo_url)
   const [responsable, setResponsable] = useState(clinica.responsable)
   const [whatsapp, setWhatsapp] = useState(clinica.whatsapp)
   const [ciudad, setCiudad] = useState(clinica.ciudad)
@@ -116,6 +117,7 @@ export function ClinicaDetalleModal({
     setGuardando(true)
     const datos: DatosClinica = {
       nombre,
+      logo_url: logoUrl,
       responsable,
       whatsapp,
       ciudad,
@@ -163,6 +165,26 @@ export function ClinicaDetalleModal({
           <div className="grid gap-4 sm:grid-cols-2">
             <FieldGroup label="Nombre">
               <Input value={nombre} onChange={(e) => setNombre(e.target.value)} />
+            </FieldGroup>
+            <FieldGroup label="Logo de la clínica">
+              <div className="flex items-center gap-3">
+                {logoUrl && (
+                  <img src={logoUrl} alt="Logo" className="h-10 w-10 shrink-0 rounded-lg object-contain bg-slate-50 border border-slate-200" />
+                )}
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      const reader = new FileReader()
+                      reader.onloadend = () => setLogoUrl(reader.result as string)
+                      reader.readAsDataURL(file)
+                    }
+                  }}
+                  className="flex-1"
+                />
+              </div>
             </FieldGroup>
             <FieldGroup label="Ciudad">
               <Input value={ciudad} onChange={(e) => setCiudad(e.target.value)} />

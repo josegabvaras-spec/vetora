@@ -1,10 +1,12 @@
-﻿import { db, newId } from '../mocks/db'
+import { db, newId } from '../mocks/db'
 import type {
   Cita,
   DesparasitacionAplicada,
   HistorialClinico,
+  RecetaItem,
   TipoCita,
   VacunaAplicada,
+  ViaAdministracion,
   ViaDesparasitacion,
 } from '../types/database'
 import { consultaOrigenDe } from './citas'
@@ -251,6 +253,63 @@ export async function finalizarHistorial(id: string): Promise<void> {
   db.set(
     'historial_clinico',
     db.get('historial_clinico').map((h) => (h.id === id ? { ...h, editable: false } : h)),
+  )
+  return delay(undefined)
+}
+
+export interface RecetaItemInput {
+  medicamento: string
+  dosis: string
+  via: ViaAdministracion
+  frecuencia: string
+  duracion: string
+  indicaciones?: string | null
+}
+
+/**
+ * Agrega un ítem a la receta de una consulta en borrador.
+ * La receta es parte del expediente clínico: no se edita, solo se inserta
+ * mientras la consulta está abierta (editable = true).
+ */
+export async function registrarRecetaItem(
+  historialId: string,
+  input: RecetaItemInput,
+): Promise<RecetaItem> {
+  const historial = exigirBorrador(historialId)
+  if (!input.medicamento.trim()) throw new Error('Indica el nombre del medicamento')
+  if (!input.dosis.trim()) throw new Error('Indica la dosis')
+  if (!input.frecuencia.trim()) throw new Error('Indica la frecuencia de administración')
+  if (!input.duracion.trim()) throw new Error('Indica la duración del tratamiento')
+
+  const item: RecetaItem = {
+    id: newId('receta'),
+    clinica_id: db.clinicaActivaId(),
+    historial_id: historialId,
+    paciente_id: historial.paciente_id,
+    medicamento: input.medicamento.trim(),
+    dosis: input.dosis.trim(),
+    via: input.via,
+    frecuencia: input.frecuencia.trim(),
+    duracion: input.duracion.trim(),
+    indicaciones: input.indicaciones?.trim() || null,
+    created_at: new Date().toISOString(),
+  }
+  db.set('recetas', [...db.get('recetas'), item])
+  return delay(item)
+}
+
+/**
+ * Elimina un ítem de la receta de una consulta en borrador.
+ * Solo disponible mientras el historial no ha sido cerrado.
+ */
+export async function eliminarRecetaItem(
+  recetaItemId: string,
+  historialId: string,
+): Promise<void> {
+  exigirBorrador(historialId)
+  db.set(
+    'recetas',
+    db.get('recetas').filter((r) => r.id !== recetaItemId),
   )
   return delay(undefined)
 }

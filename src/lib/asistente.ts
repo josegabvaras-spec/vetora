@@ -101,6 +101,39 @@ export function plantillaAviso(aviso: Programado, clinicaNombre: string): string
   }
 }
 
+/**
+ * Texto de respaldo dirigido al equipo interno (recepción / médicos).
+ */
+export function plantillaAvisoInterno(aviso: Programado, clinicaNombre: string): string {
+  const c = contextoDeAviso(aviso, clinicaNombre)
+  
+  switch (aviso.tipo) {
+    case 'recordatorio_cita':
+      return (
+        `Atención equipo: Hoy tenemos programada la cita de ${c.paciente} (Dueño: ${c.dueno}) ` +
+        `a las ${c.hora_legible}.` +
+        `\n\nMotivo: ${c.detalle}.`
+      )
+    case 'preparacion_cirugia':
+      return (
+        `Atención equipo: Tenemos agendada la cirugía de ${c.paciente} (Dueño: ${c.dueno}) ` +
+        `para el ${c.fecha_legible} a las ${c.hora_legible}.` +
+        `\n\nProcedimiento: ${c.detalle}.` +
+        `\nPor favor, confirmar ayuno con el cliente si aún no se hizo.`
+      )
+    case 'refuerzo_vacuna':
+      return c.vencido
+        ? `Atención equipo: El refuerzo de ${c.detalle} de ${c.paciente} (Dueño: ${c.dueno}) venció el ${c.fecha_legible}. ` +
+            `Contactar al cliente para reprogramar.`
+        : `Atención equipo: A ${c.paciente} (Dueño: ${c.dueno}) le toca el refuerzo de ${c.detalle} el ${c.fecha_legible}. ` +
+            `Revisar si ya se agendó.`
+    case 'proxima_desparasitacion':
+      return c.vencido
+        ? `Atención equipo: La desparasitación de ${c.paciente} (Dueño: ${c.dueno}) estaba prevista para el ${c.fecha_legible} y sigue pendiente. Contactar.`
+        : `Atención equipo: A ${c.paciente} (Dueño: ${c.dueno}) le toca desparasitación el ${c.fecha_legible}.`
+  }
+}
+
 /** Informe de respaldo para el administrador, con la misma información que vería en pantalla. */
 export function plantillaInforme(resumen: ResumenDelDia, clinicaNombre: string): string {
   const lineas = [
