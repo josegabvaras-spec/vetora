@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { PawPrint, RotateCcw, Sparkles } from 'lucide-react'
+import { Eye, EyeOff, PawPrint, RotateCcw, Sparkles } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTable } from '../mocks/useDb'
 import { db } from '../mocks/db'
@@ -24,6 +24,7 @@ export function LoginPage() {
   const credenciales = useTable('credenciales')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [mostrarPassword, setMostrarPassword] = useState(false)
   const [entrando, setEntrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -85,17 +86,28 @@ export function LoginPage() {
           </FieldGroup>
 
           <FieldGroup label="Contraseña">
-            <Input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value)
-                setError(null)
-              }}
-              placeholder="••••••••"
-              required
-            />
+            <div className="relative flex items-center">
+              <Input
+                type={mostrarPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setError(null)
+                }}
+                placeholder="••••••••"
+                required
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarPassword(!mostrarPassword)}
+                className="absolute right-3 text-slate-400 hover:text-slate-600 focus:outline-none"
+                title={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {mostrarPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </FieldGroup>
 
           {error && <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
