@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { db } from '../mocks/db'
 import { motivoDeBloqueo } from '../services/sesion'
 import { verificarCredenciales } from '../services/cuentas'
@@ -23,13 +23,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function buscarUsuario(id: string | null): Usuario | null {
-  if (!id) return null
-  // Lectura global a propósito: para saber a qué clínica pertenece quien entra
-  // hay que mirar antes de tener clínica. No muta nada, así que puede llamarse
-  // durante el render sin notificar a los suscriptores del store.
-  return db.getGlobal('usuarios').find((u) => u.id === id) ?? null
-}
+
 
 /**
  * Fija en la "base de datos" el inquilino de la sesión. A partir de ahí, cada

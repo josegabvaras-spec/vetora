@@ -42,7 +42,7 @@ export async function exigirEmailLibre(email: string, ignorarUsuarioId?: string)
 }
 
 /** Un usuario recién creado todavía no tiene contraseña: la fija con su enlace. */
-export function tienePassword(usuarioId: string): boolean {
+export function tienePassword(_usuarioId: string): boolean {
   // En Supabase Auth, si el usuario existe y se loguea o usa un token, ya gestiona su acceso.
   // Para verificar si tiene password real, no se puede hacer desde el cliente por seguridad.
   // Por ahora devolvemos true asumiendo que el flujo de invitaciones forzará el setup.
@@ -63,7 +63,7 @@ function validarPassword(password: string, email: string) {
 /**
  * Fija (o reemplaza) la contraseña de una cuenta logueada actualmente.
  */
-export async function establecerPassword(usuarioId: string, password: string): Promise<void> {
+export async function establecerPassword(_usuarioId: string, password: string): Promise<void> {
   const { data: authData } = await supabase.auth.getUser()
   if (!authData.user) throw new Error('No hay sesión activa')
   validarPassword(password, authData.user.email!)

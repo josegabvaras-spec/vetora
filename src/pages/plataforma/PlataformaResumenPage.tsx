@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  AlertTriangle,
   Building2,
   MessageCircle,
   TrendingUp,
   Activity,
   Users,
-  CalendarDays,
   PawPrint,
   Server,
   Database,
@@ -186,7 +184,7 @@ export function PlataformaResumenPage() {
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(value) => `${value}`} />
                   <Tooltip
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                    formatter={(value: number) => [formatBs(value), 'Ingreso']}
+                    formatter={(value: any) => [formatBs(Number(value)), 'Ingreso']}
                   />
                   <Area type="monotone" dataKey="mrr" stroke="#0d9488" strokeWidth={3} fillOpacity={1} fill="url(#colorMrr)" />
                 </AreaChart>
