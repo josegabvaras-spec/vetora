@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { Download, X } from 'lucide-react'
-import { Button } from './Button'
 
 // Extender la interfaz de Window para admitir BeforeInstallPromptEvent
 interface BeforeInstallPromptEvent extends Event {

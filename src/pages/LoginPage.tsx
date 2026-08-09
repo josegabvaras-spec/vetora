@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Eye, EyeOff, PawPrint, RotateCcw, Sparkles } from 'lucide-react'
+import { Eye, EyeOff, RotateCcw, Sparkles } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useTable } from '../mocks/useDb'
 import { db } from '../mocks/db'

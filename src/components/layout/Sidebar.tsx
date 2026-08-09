@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { CalendarDays, PawPrint, Boxes, Stethoscope, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, BellRing, X } from 'lucide-react'
+import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, BellRing, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { PanelLateral } from './PanelLateral'
 import type { Rol } from '../../types/database'
