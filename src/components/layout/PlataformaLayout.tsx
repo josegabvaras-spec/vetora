@@ -5,6 +5,7 @@ import { Building2, LayoutDashboard, LogOut, Menu, ShieldCheck, Tags, X } from '
 import { useAuth } from '../../context/AuthContext'
 import { PanelLateral } from './PanelLateral'
 import { useEsEscritorio } from '../../hooks/useMediaQuery'
+import { PWAInstallPrompt } from '../ui/PWAInstallPrompt'
 
 /**
  * Área del dueño de la plataforma. Deliberadamente **no** comparte el menú
@@ -124,6 +125,7 @@ export function PlataformaLayout() {
           <Outlet />
         </main>
       </div>
+      <PWAInstallPrompt />
     </div>
   )
 }

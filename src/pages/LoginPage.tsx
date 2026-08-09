@@ -58,14 +58,8 @@ export function LoginPage() {
 
       <Card className="relative z-10 w-full max-w-md border-0 bg-white/80 p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur-2xl ring-1 ring-slate-200/50">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-teal-600 to-teal-400 text-white shadow-xl shadow-teal-500/30 ring-4 ring-white/50 transition-transform duration-500 hover:scale-105 hover:rotate-3">
-            <PawPrint size={32} strokeWidth={2.5} />
-          </div>
-          <h1 className="font-display text-4xl font-extrabold tracking-tight text-slate-900 drop-shadow-sm">Vetora</h1>
-          <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-teal-600/80">
-            Gestión Veterinaria
-          </p>
-          <p className="mt-2 max-w-[280px] text-sm text-slate-500">
+          <img src="/vetoralogo.png" alt="Vetora" className="mb-4 w-56 sm:w-72 h-auto drop-shadow-sm hover:scale-105 transition-transform duration-500" />
+          <p className="mt-1 max-w-[280px] text-sm text-slate-500">
             Entra con la cuenta que te dieron al registrarte.
           </p>
         </div>
@@ -169,7 +163,7 @@ export function LoginPage() {
         )}
 
         <div className="mt-8 text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-          Tarija · Bolivia · MVP v0.1
+          Bolivia · v0.1
         </div>
       </Card>
     </div>

@@ -154,7 +154,7 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
         <div className="min-w-0">
           <p className="truncate text-sm font-bold leading-tight text-slate-900">{clinica.nombre}</p>
           <p className="truncate text-xs font-medium text-slate-400">
-            {plan ? `Plan ${plan.nombre}` : 'Sin plan'} · {clinica?.ciudad || 'Tarija'}
+            {plan ? `Plan ${plan.nombre}` : 'Sin plan'} · {clinica?.ciudad || 'Bolivia'}
           </p>
         </div>
       </div>

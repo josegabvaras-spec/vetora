@@ -69,18 +69,8 @@ export function Sidebar({
       className="border-r border-slate-200/50 bg-white/95 backdrop-blur-xl md:bg-white/60"
     >
       {/* Marca */}
-      <div className="flex items-center gap-3.5 border-b border-slate-200/50 px-5 py-5 sm:px-6 sm:py-6">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-teal-600 to-teal-400 text-white shadow-lg shadow-teal-500/30 ring-1 ring-white/20 ring-inset">
-          <Stethoscope size={22} strokeWidth={2.5} />
-        </div>
-        <div className="flex min-w-0 flex-col">
-          <span className="font-display text-[22px] font-extrabold tracking-tight text-slate-900">
-            Vetora
-          </span>
-          <span className="-mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-teal-600/90">
-            SaaS Clínico
-          </span>
-        </div>
+      <div className="flex items-center justify-between gap-3.5 border-b border-slate-200/50 px-5 py-5 sm:px-6 sm:py-6">
+        <img src="/vetoraicono.png" alt="Vetora" className="h-28 w-28 object-contain drop-shadow-md" />
         <button
           onClick={onCerrar}
           aria-label="Cerrar menú"
@@ -133,9 +123,9 @@ export function Sidebar({
       <div className="border-t border-slate-100 px-6 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-md:hidden">
         <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-center">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Ubicación</p>
-          <p className="mt-0.5 text-xs font-semibold text-slate-700">Tarija, Bolivia</p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-700">Bolivia</p>
           <span className="mt-2 inline-block rounded-full border border-teal-200/50 bg-teal-50 px-2.5 py-0.5 text-[10px] font-bold text-teal-700">
-            v0.1 MVP
+            v0.1
           </span>
         </div>
       </div>

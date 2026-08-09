@@ -161,7 +161,7 @@ function NuevaClinicaModal({
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [responsable, setResponsable] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
-  const [ciudad, setCiudad] = useState('Tarija')
+  const [ciudad, setCiudad] = useState('')
   const [planId, setPlanId] = useState('')
   const [precio, setPrecio] = useState('')
   const [proximoCobro, setProximoCobro] = useState(() => {
@@ -251,8 +251,19 @@ function NuevaClinicaModal({
                 />
               </div>
             </FieldGroup>
-            <FieldGroup label="Ciudad">
-              <Input value={ciudad} onChange={(e) => setCiudad(e.target.value)} />
+            <FieldGroup label="Departamento">
+              <Select value={ciudad} onChange={(e) => setCiudad(e.target.value)} required>
+                <option value="">Seleccione un departamento...</option>
+                <option value="Beni">Beni</option>
+                <option value="Chuquisaca">Chuquisaca</option>
+                <option value="Cochabamba">Cochabamba</option>
+                <option value="La Paz">La Paz</option>
+                <option value="Oruro">Oruro</option>
+                <option value="Pando">Pando</option>
+                <option value="Potosí">Potosí</option>
+                <option value="Santa Cruz">Santa Cruz</option>
+                <option value="Tarija">Tarija</option>
+              </Select>
             </FieldGroup>
             <FieldGroup label="Responsable">
               <Input

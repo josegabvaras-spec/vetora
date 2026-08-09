@@ -184,7 +184,7 @@ export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinica
     plan_id: input.plan_id,
     responsable: input.responsable.trim(),
     whatsapp: input.whatsapp.trim(),
-    ciudad: input.ciudad.trim() || 'Tarija',
+    ciudad: input.ciudad.trim() || 'Bolivia',
     whatsapp_mensajes_enviados: 0,
     estado: 'activa',
     precio_acordado_bs: input.precio_acordado_bs,

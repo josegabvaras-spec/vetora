@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { ControlesMovil, Topbar } from './Topbar'
 import { MobileNav } from './MobileNav'
+import { PWAInstallPrompt } from '../ui/PWAInstallPrompt'
 import { useAuth } from '../../context/AuthContext'
 import { useEsEscritorio } from '../../hooks/useMediaQuery'
 
@@ -35,6 +36,7 @@ export function AppLayout() {
         </main>
       </div>
       <MobileNav onAbrirMenu={() => setMenuAbierto(true)} />
+      <PWAInstallPrompt />
     </div>
   )
 }

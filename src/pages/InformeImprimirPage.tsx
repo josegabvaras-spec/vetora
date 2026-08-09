@@ -74,7 +74,7 @@ export function InformeImprimirPage() {
         <header className="mb-6 border-b-2 border-teal-700 pb-4 text-center">
           <h1 className="text-lg font-black uppercase tracking-wider text-slate-900">{tituloInforme}</h1>
           <p className="mt-1 text-xs font-bold text-teal-700">{clinica.nombre}</p>
-          <p className="text-[11px] text-slate-500">Tarija, Bolivia · Emisión: {formatClinicDate(new Date().toISOString())}</p>
+          <p className="text-[11px] text-slate-500">Bolivia · Emisión: {formatClinicDate(new Date().toISOString())}</p>
         </header>
 
         {/* Datos del Paciente y Propietario */}

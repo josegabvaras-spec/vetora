@@ -51,11 +51,11 @@ export function Modal({ title, onClose, children, widthClassName = 'max-w-lg' }:
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/40 backdrop-blur-xs duration-200 animate-in fade-in sm:items-center sm:p-4"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/40 backdrop-blur-sm animate-fade-in sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
-        className={`flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-slate-100 bg-white shadow-2xl duration-200 animate-in slide-in-from-bottom-4 sm:max-h-[90dvh] sm:rounded-2xl sm:zoom-in-95 sm:slide-in-from-bottom-2 ${widthClassName}`}
+        className={`flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-slate-100 bg-white shadow-2xl animate-slide-up sm:max-h-[90dvh] sm:rounded-2xl sm:animate-scale-in ${widthClassName}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 sm:px-6 sm:py-4">
