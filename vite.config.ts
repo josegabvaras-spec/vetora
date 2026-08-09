@@ -18,6 +18,8 @@ export default defineConfig({
         theme_color: '#0d9488',
         background_color: '#f8fafc',
         display: 'standalone',
+        scope: '/',
+        start_url: '/',
         icons: [
           {
             src: 'vetoraicono.png',
@@ -31,6 +33,9 @@ export default defineConfig({
             purpose: 'any maskable'
           }
         ]
+      },
+      devOptions: {
+        enabled: true
       }
     })
   ],
