@@ -97,6 +97,9 @@ export async function verificarCredenciales(email: string, password: string): Pr
     .single()
 
   if (userError || !usuario) {
+    // La contraseña era correcta, así que hay sesión abierta; sin cerrarla
+    // quedaría un JWT autenticado y huérfano, válido contra la API.
+    await supabase.auth.signOut()
     throw new Error('No se encontró el perfil del usuario')
   }
 

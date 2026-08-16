@@ -113,19 +113,16 @@ export async function registrarMovimiento(
   const { data: producto } = await supabase.from('productos').select('*').eq('id', productoId).single()
   if (!producto) throw new Error('Producto no encontrado')
 
+  // Aviso temprano para dar un mensaje decente; NO es la barrera. La de verdad
+  // es `check (stock_actual >= 0)`, que sí resiste dos egresos simultáneos.
   if (tipo === 'egreso' && cantidad > producto.stock_actual) {
     throw new Error('Stock insuficiente')
   }
 
-  const nuevoStock = tipo === 'ingreso' ? producto.stock_actual + cantidad : producto.stock_actual - cantidad
-
-  const { error: updateError } = await supabase
-    .from('productos')
-    .update({ stock_actual: nuevoStock })
-    .eq('id', productoId)
-
-  if (updateError) throw new Error(`Error al actualizar stock: ${updateError.message}`)
-
+  // El stock lo ajusta `trg_aplicar_movimiento_inventario` al insertar el
+  // movimiento. Aplicarlo también aquí lo descontaba dos veces, y si el CHECK
+  // abortaba el insert el ajuste manual ya estaba confirmado: stock movido sin
+  // movimiento que lo respalde. El trigger es la única autoridad.
   const { error: insertError } = await supabase
     .from('movimientos_inventario')
     .insert({
@@ -138,5 +135,11 @@ export async function registrarMovimiento(
       usuario_id: origen.usuarioId ?? null,
     } as any)
 
-  if (insertError) throw new Error(`Error al registrar movimiento: ${insertError.message}`)
+  if (insertError) {
+    // 23514 = violación de CHECK: el egreso dejaría el stock bajo cero.
+    if ((insertError as { code?: string }).code === '23514') {
+      throw new Error('Stock insuficiente')
+    }
+    throw new Error(`Error al registrar movimiento: ${insertError.message}`)
+  }
 }

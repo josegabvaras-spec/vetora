@@ -12,6 +12,73 @@ export interface NotificacionPortal {
   estado: 'pendiente' | 'atrasada' | 'hoy';
 }
 
+/** Lo único que un anónimo puede saber de una clínica: cómo se llama. */
+export interface ClinicaParaRegistro {
+  id: string
+  nombre: string
+}
+
+/**
+ * El listado sale de una función `security definer`, no de la tabla: quien está
+ * en el formulario de registro no tiene sesión y la RLS no le deja leer
+ * `clinicas`. La función devuelve solo `id` y `nombre` — ni WhatsApp, ni
+ * responsable, ni estado, ni plan contratado.
+ */
+export async function listClinicasParaRegistro(): Promise<ClinicaParaRegistro[]> {
+  const { data, error } = await supabase.rpc('clinicas_para_registro')
+  if (error) throw new Error('No se pudieron cargar las clínicas')
+  return (data ?? []) as ClinicaParaRegistro[]
+}
+
+export interface DatosRegistroPortal {
+  clinica_id: string
+  nombre: string
+  email: string
+  password: string
+  ci: string
+  whatsapp: string
+}
+
+/**
+ * Alta de una cuenta del portal.
+ *
+ * Pasa por la Edge Function `registro-portal` porque **el rol y la clínica no
+ * pueden venir del navegador**: allí `rol: 'cliente'` es una constante del
+ * servidor y la clínica se valida contra la base. Insertar en `usuarios` desde
+ * aquí sería mandar el rol en una petición HTTP que cualquiera puede reescribir.
+ *
+ * La función tampoco devuelve sesión: se inicia después con la contraseña
+ * recién elegida, igual que en el canje de invitación.
+ */
+export async function registrarClientePortal(datos: DatosRegistroPortal): Promise<void> {
+  const { data, error } = await supabase.functions.invoke<{ error?: string }>('registro-portal', {
+    body: datos,
+  })
+
+  if (error) {
+    const contexto = (error as { context?: Response }).context
+    let motivo: string | null = null
+    if (contexto && typeof contexto.json === 'function') {
+      try {
+        const cuerpo = await contexto.clone().json()
+        if (typeof cuerpo?.error === 'string') motivo = cuerpo.error
+      } catch {
+        motivo = null
+      }
+    }
+    throw new Error(motivo ?? 'No se pudo completar el registro')
+  }
+  if (data?.error) throw new Error(data.error)
+
+  const { error: errorSesion } = await supabase.auth.signInWithPassword({
+    email: datos.email.trim().toLowerCase(),
+    password: datos.password,
+  })
+  if (errorSesion) {
+    throw new Error('Tu cuenta se creó, pero no se pudo iniciar sesión. Entra desde el inicio de sesión.')
+  }
+}
+
 export async function getPacientesPortal(clinicaId: string, usuarioId: string): Promise<Paciente[]> {
   const { data: cliente } = await supabase
     .from('clientes')
