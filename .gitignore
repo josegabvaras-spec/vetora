@@ -12,13 +12,23 @@ dist
 dist-ssr
 *.local
 
+# Salida de vite-plugin-pwa en desarrollo (devOptions.enabled)
+dev-dist
+
+# Scripts sueltos de carga manual a GitHub: el repo ya se maneja con git
+_*.ps1
+
 # Secretos (PRD §5.2: nunca trackear credenciales)
 .env
 .env.*
 !.env.example
 
-# Configuración local de Claude Code (permisos de la máquina, no del proyecto)
-.claude/
+# Configuración local de Claude Code (permisos de la máquina, no del proyecto).
+# Los agentes sí son del proyecto y se versionan: git no desciende en un
+# directorio excluido, así que hay que excluir el contenido y reabrir la
+# subcarpeta, no basta con `.claude/` + `!.claude/agents/`.
+.claude/*
+!.claude/agents/
 
 # Editor directories and files
 .vscode/*

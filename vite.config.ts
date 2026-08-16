@@ -34,11 +34,23 @@ export default defineConfig({
           }
         ]
       },
+      // El service worker solo en producción. Registrarlo en desarrollo deja
+      // cacheado el origen y sobrevive a los reinicios de Vite: es lo que hacía
+      // que Workbox respondiera `/` con recursos de un puerto ya muerto.
+      // Para probar el PWA en local: npm run build && npm run preview.
       devOptions: {
-        enabled: true
+        enabled: false
       }
     })
   ],
+  server: {
+    watch: {
+      // El watcher vigila la raíz entera y tumbaba el servidor con
+      // `EBUSY: resource busy or locked` al toparse con .agents/. Nada de esto
+      // lo importa la aplicación, así que no hay motivo para vigilarlo.
+      ignored: ['**/.agents/**', '**/.claude/**', '**/dev-dist/**', '**/supabase/**'],
+    },
+  },
   build: {
     chunkSizeWarningLimit: 1600,
   },
