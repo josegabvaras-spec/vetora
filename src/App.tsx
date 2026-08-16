@@ -70,11 +70,16 @@ export default function App() {
             </Route>
 
             <Route element={<AppLayout />}>
-              <Route path="/agenda" element={<AgendaPage />} />
-              <Route path="/pacientes" element={<PacientesListPage />} />
-              <Route path="/pacientes/:id" element={<FichaPacientePage />} />
-              <Route path="/internacion" element={<InternacionPage />} />
-              <Route path="/inventario" element={<InventarioPage />} />
+              {/* Área clínica: es del personal de la clínica. Sin este RolRoute,
+                  una cuenta del portal («cliente») entraba en las mismas
+                  pantallas que el veterinario. */}
+              <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion']} />}>
+                <Route path="/agenda" element={<AgendaPage />} />
+                <Route path="/pacientes" element={<PacientesListPage />} />
+                <Route path="/pacientes/:id" element={<FichaPacientePage />} />
+                <Route path="/internacion" element={<InternacionPage />} />
+                <Route path="/inventario" element={<InventarioPage />} />
+              </Route>
 
               {/* Caja para recepción y administración; los movimientos, solo administración */}
               <Route element={<RolRoute roles={['recepcion', 'admin']} />}>

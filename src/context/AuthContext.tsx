@@ -61,7 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function abrirSesion(verificado: Usuario) {
     const bloqueo = await motivoDeBloqueo(verificado)
-    if (bloqueo) throw new Error(bloqueo)
+    if (bloqueo) {
+      // `verificarCredenciales` ya abrió sesión en Supabase, así que sin este
+      // signOut el JWT seguiría siendo válido contra PostgREST aunque la
+      // interfaz dijera que la cuenta está bloqueada: la suspensión sería un
+      // control solo de fachada.
+      await supabase.auth.signOut()
+      throw new Error(bloqueo)
+    }
 
     setUsuario(verificado)
   }
