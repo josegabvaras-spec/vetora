@@ -125,7 +125,7 @@ async function motivoDelFallo(error: unknown): Promise<string | null> {
   const contexto = (error as { context?: Response }).context
   if (!contexto || typeof contexto.json !== 'function') return null
   try {
-    const cuerpo = await contexto.json()
+    const cuerpo = await contexto.clone().json()
     return typeof cuerpo?.error === 'string' ? cuerpo.error : null
   } catch {
     return null
