@@ -24,7 +24,7 @@ export function RegistroClientePage() {
 
   useEffect(() => {
     async function cargarClinicas() {
-      const { data } = await supabase.from('clinicas').select('*').eq('estado', 'activa')
+      const { data } = await supabase.rpc('clinicas_para_registro')
       if (data) setClinicas(data as any)
     }
     cargarClinicas()
