@@ -105,7 +105,7 @@ export function AgendaPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Agenda</h1>
           <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-teal-600/80">

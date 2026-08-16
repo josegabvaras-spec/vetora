@@ -23,6 +23,7 @@ export interface EnlaceClinico {
  * las primeras entradas visibles son las que llegan a la barra inferior.
  */
 export const ENLACES_CLINICOS: EnlaceClinico[] = [
+  { to: '/caja', label: 'Caja', icon: Wallet, roles: ['recepcion', 'admin'] },
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/pacientes', label: 'Pacientes', icon: PawPrint },
   {
@@ -33,8 +34,7 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
   },
   { to: '/internacion', label: 'Internación', icon: BedDouble, etiquetaCorta: 'Internac.' },
   { to: '/inventario', label: 'Inventario', icon: Boxes },
-  { to: '/caja', label: 'Caja', icon: Wallet, roles: ['recepcion', 'admin'] },
-  { to: '/metricas', label: 'Métricas', icon: BarChart3, roles: ['recepcion', 'admin'] },
+  { to: '/metricas', label: 'Métricas', icon: BarChart3, roles: ['admin'] },
   { to: '/respaldo', label: 'Respaldo', icon: Download, roles: ['recepcion', 'admin'] },
   { to: '/servicios', label: 'Servicios', icon: Tags, roles: ['admin'] },
   { to: '/movimientos', label: 'Movimientos', icon: ArrowLeftRight, roles: ['admin'] },

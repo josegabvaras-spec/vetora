@@ -15,6 +15,8 @@ import {
   FlaskConical,
   Activity,
   Scissors,
+  Syringe,
+  ChevronDown,
 } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
@@ -72,7 +74,21 @@ export function FichaPacientePage() {
   const [modalInternacion, setModalInternacion] = useState<any | null>(null)
   const [modalEvolucion, setModalEvolucion] = useState<{ internacionId: string; pacienteNombre: string } | null>(null)
   const [errorConsulta, setErrorConsulta] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'historial' | 'vacunas' | 'internaciones'>('historial')
   const tarjetaAbiertaRef = useRef<HTMLDivElement | null>(null)
+  
+  const [menuImpresionAbierto, setMenuImpresionAbierto] = useState(false)
+  const menuImpresionRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuImpresionRef.current && !menuImpresionRef.current.contains(event.target as Node)) {
+        setMenuImpresionAbierto(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Al llegar desde la Agenda ("Registrar historial clínico") se abre esa consulta.
   const historialDestacado = searchParams.get('historial') ?? nuevoHistorialId
@@ -158,47 +174,69 @@ export function FichaPacientePage() {
         >
           <ArrowLeft size={14} /> Volver a pacientes
         </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to={`/pacientes/${paciente.id}/historial/imprimir`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50"
+        <div className="relative" ref={menuImpresionRef}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setMenuImpresionAbierto(!menuImpresionAbierto)}
+            className="flex items-center gap-2 bg-white"
           >
-            <Printer size={14} /> Historial
-          </Link>
-          <Link
-            to={`/pacientes/${paciente.id}/reporte/consulta`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50/70 px-3 py-2 text-xs font-bold text-teal-800 hover:bg-teal-100"
-          >
-            <Stethoscope size={14} /> Inf. Consulta
-          </Link>
-          <Link
-            to={`/pacientes/${paciente.id}/reporte/laboratorio`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-bold text-indigo-800 hover:bg-indigo-100"
-          >
-            <FlaskConical size={14} /> Inf. Laboratorio
-          </Link>
-          <Link
-            to={`/pacientes/${paciente.id}/reporte/imagenologia`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50/70 px-3 py-2 text-xs font-bold text-purple-800 hover:bg-purple-100"
-          >
-            <Activity size={14} /> Inf. Imagenología
-          </Link>
-          <Link
-            to={`/pacientes/${paciente.id}/reporte/cirugia`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100"
-          >
-            <Scissors size={14} /> Inf. Cirugía
-          </Link>
+            <Printer size={16} /> Imprimir Informes <ChevronDown size={14} className={clsx("transition-transform", menuImpresionAbierto && "rotate-180")} />
+          </Button>
+
+          {menuImpresionAbierto && (
+            <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden py-1">
+              <Link
+                to={`/pacientes/${paciente.id}/historial/imprimir`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuImpresionAbierto(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <Printer size={15} className="text-slate-400" /> Historial Clínico Completo
+              </Link>
+              <div className="h-px bg-slate-100 my-1 mx-3" />
+              <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Informes Específicos
+              </div>
+              <Link
+                to={`/pacientes/${paciente.id}/reporte/consulta`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuImpresionAbierto(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-700 transition-colors"
+              >
+                <Stethoscope size={15} className="text-teal-500" /> Consulta General
+              </Link>
+              <Link
+                to={`/pacientes/${paciente.id}/reporte/laboratorio`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuImpresionAbierto(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+              >
+                <FlaskConical size={15} className="text-indigo-500" /> Laboratorio
+              </Link>
+              <Link
+                to={`/pacientes/${paciente.id}/reporte/imagenologia`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuImpresionAbierto(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+              >
+                <Activity size={15} className="text-purple-500" /> Imagenología
+              </Link>
+              <Link
+                to={`/pacientes/${paciente.id}/reporte/cirugia`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuImpresionAbierto(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-rose-50 hover:text-rose-700 transition-colors"
+              >
+                <Scissors size={15} className="text-rose-500" /> Cirugía
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
@@ -390,232 +428,343 @@ export function FichaPacientePage() {
 
         {/* Columna del historial */}
         <div className="space-y-4 lg:col-span-2">
-          <Card className="border border-teal-100 bg-teal-50/20">
-            <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-800">
-              <Stethoscope size={15} className="text-teal-600" /> Iniciar nueva consulta médica
-            </h2>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Input
-                className="flex-1"
-                placeholder="Motivo (ej. control de rutina, vacunas, herida, vómitos…)"
-                value={motivoNuevaConsulta}
-                onChange={(e) => setMotivoNuevaConsulta(e.target.value)}
-              />
-              <Button
-                onClick={handleNuevaConsulta}
-                disabled={creando || !motivoNuevaConsulta.trim()}
-                className="shrink-0 shadow-md shadow-teal-500/10"
+          
+          {/* Navegación por Pestañas */}
+          <div className="border-b border-slate-200">
+            <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
+              <button
+                onClick={() => setActiveTab('historial')}
+                className={clsx(
+                  activeTab === 'historial'
+                    ? 'border-teal-500 text-teal-600'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                  'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+                )}
               >
-                {creando ? 'Iniciando…' : 'Iniciar consulta'}
-              </Button>
-            </div>
-          </Card>
+                Historial Clínico
+              </button>
+              <button
+                onClick={() => setActiveTab('vacunas')}
+                className={clsx(
+                  activeTab === 'vacunas'
+                    ? 'border-teal-500 text-teal-600'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                  'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+                )}
+              >
+                Esquema de Vacunación
+              </button>
+              <button
+                onClick={() => setActiveTab('internaciones')}
+                className={clsx(
+                  activeTab === 'internaciones'
+                    ? 'border-teal-500 text-teal-600'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                  'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+                )}
+              >
+                Internaciones Pasadas
+              </button>
+            </nav>
+          </div>
 
-          {/* Citas y consultas: la ficha clínica se despliega dentro de su propia cita */}
-          <div>
-            <div className="mb-3 flex items-baseline justify-between gap-2">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Citas e historial clínico</h2>
-              <span className="text-xs text-slate-400">
-                {citas.length} {citas.length === 1 ? 'cita' : 'citas'} · {historiales.length}{' '}
-                {historiales.length === 1 ? 'consulta' : 'consultas'}
-              </span>
-            </div>
-
-            {errorConsulta && (
-              <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
-                {errorConsulta}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              {citas.map((c) => {
-                const esCirugia = c.tipo_cita === 'cirugia'
-                const esPendiente = c.estado === 'pendiente' || c.estado === 'confirmada'
-                const historial = historialPorCita.get(c.id)
-                const desplegada = !!historial && historial.id === consultaAbierta
-
-                return (
-                  <div
-                    key={c.id}
-                    ref={desplegada ? tarjetaAbiertaRef : null}
-                    className={clsx(
-                      'rounded-xl border bg-white shadow-sm transition-colors',
-                      desplegada ? 'border-teal-300 ring-1 ring-teal-300/20' : 'border-slate-200',
-                    )}
+          {activeTab === 'historial' && (
+            <>
+              <Card className="border border-teal-100 bg-teal-50/20">
+                <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-800">
+                  <Stethoscope size={15} className="text-teal-600" /> Iniciar nueva consulta médica
+                </h2>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Input
+                    className="flex-1"
+                    placeholder="Motivo (ej. control de rutina, vacunas, herida, vómitos…)"
+                    value={motivoNuevaConsulta}
+                    onChange={(e) => setMotivoNuevaConsulta(e.target.value)}
+                  />
+                  <Button
+                    onClick={handleNuevaConsulta}
+                    disabled={creando || !motivoNuevaConsulta.trim()}
+                    className="shrink-0 shadow-md shadow-teal-500/10"
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3 p-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-bold text-slate-800">
-                            {formatClinicDate(c.fecha_hora)} {formatClinicTime(c.fecha_hora)}
-                          </span>
-                          <Badge tone={TIPO_TONE[c.tipo_cita]} size="sm">
-                            {c.servicio_nombre || TIPO_LABEL[c.tipo_cita]}
-                          </Badge>
-                          <Badge tone={ESTADO_TONE[c.estado]} size="sm">
-                            {ESTADO_LABEL[c.estado]}
-                          </Badge>
-                          {historial && (
-                            <Badge tone={historial.editable ? 'teal' : 'slate'} size="sm">
-                              {historial.editable ? 'Consulta en borrador' : 'Consulta cerrada'}
-                            </Badge>
-                          )}
+                    {creando ? 'Iniciando…' : 'Iniciar consulta'}
+                  </Button>
+                </div>
+              </Card>
+
+              {/* Citas y consultas: la ficha clínica se despliega dentro de su propia cita */}
+              <div>
+                <div className="mb-3 flex items-baseline justify-between gap-2">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Citas e historial clínico</h2>
+                  <span className="text-xs text-slate-400">
+                    {citas.length} {citas.length === 1 ? 'cita' : 'citas'} · {historiales.length}{' '}
+                    {historiales.length === 1 ? 'consulta' : 'consultas'}
+                  </span>
+                </div>
+
+                {errorConsulta && (
+                  <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+                    {errorConsulta}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {citas.map((c) => {
+                    const esCirugia = c.tipo_cita === 'cirugia'
+                    const esPendiente = c.estado === 'pendiente' || c.estado === 'confirmada'
+                    const historial = historialPorCita.get(c.id)
+                    const desplegada = !!historial && historial.id === consultaAbierta
+
+                    return (
+                      <div
+                        key={c.id}
+                        ref={desplegada ? tarjetaAbiertaRef : null}
+                        className={clsx(
+                          'rounded-xl border bg-white shadow-sm transition-colors',
+                          desplegada ? 'border-teal-300 ring-1 ring-teal-300/20' : 'border-slate-200',
+                        )}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3 p-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-bold text-slate-800">
+                                {formatClinicDate(c.fecha_hora)} {formatClinicTime(c.fecha_hora)}
+                              </span>
+                              <Badge tone={TIPO_TONE[c.tipo_cita]} size="sm">
+                                {c.servicio_nombre || TIPO_LABEL[c.tipo_cita]}
+                              </Badge>
+                              <Badge tone={ESTADO_TONE[c.estado]} size="sm">
+                                {ESTADO_LABEL[c.estado]}
+                              </Badge>
+                              {historial && (
+                                <Badge tone={historial.editable ? 'teal' : 'slate'} size="sm">
+                                  {historial.editable ? 'Consulta en borrador' : 'Consulta cerrada'}
+                                </Badge>
+                              )}
+                            </div>
+
+                            <p className="mt-1.5 text-xs font-medium text-slate-500">
+                              Veterinario: <span className="font-semibold text-slate-700">{c.veterinario_nombre}</span>
+                            </p>
+
+                            {c.notas && (
+                              <p className="mt-1 rounded-lg border border-slate-100 bg-slate-50 p-2 text-xs text-slate-600">
+                                <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                  Notas de agenda:
+                                </span>
+                                {c.notas}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex shrink-0 flex-col items-end justify-center gap-1.5 text-xs">
+                            {/* Generación/visualización de consentimiento de cirugía */}
+                            {esCirugia &&
+                              (c.consentimiento ? (
+                                <span className="text-[11px] font-semibold text-emerald-600">
+                                  ✓ Consentimiento firmado
+                                </span>
+                              ) : (
+                                <Link
+                                  to={`/consentimientos/${c.id}`}
+                                  className="font-bold text-rose-600 hover:text-rose-700 hover:underline"
+                                >
+                                  → Generar consentimiento
+                                </Link>
+                              ))}
+
+                            {/* Recordatorio de WhatsApp */}
+                            {esPendiente &&
+                              (c.recordatorio_enviado ? (
+                                <span className="text-[11px] text-slate-400">✓ Recordatorio enviado</span>
+                              ) : (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    onClick={() => handleEnviarRecordatorio(c.id, 'cliente')}
+                                    className="cursor-pointer font-bold text-teal-600 hover:text-teal-700 hover:underline"
+                                  >
+                                    → Avisar a cliente (WhatsApp)
+                                  </button>
+                                  <span className="hidden text-slate-300 sm:inline">|</span>
+                                  <button
+                                    onClick={() => handleEnviarRecordatorio(c.id, 'equipo')}
+                                    className="cursor-pointer font-bold text-teal-600 hover:text-teal-700 hover:underline"
+                                  >
+                                    → Avisar a equipo (WhatsApp)
+                                  </button>
+                                </div>
+                              ))}
+
+                            {/* Acciones de la tarjeta: Abrir consulta en modal y descargar informes */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              {historial ? (
+                                <button
+                                  onClick={() => setHistorialModal(historial)}
+                                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 hover:bg-teal-100"
+                                >
+                                  <Stethoscope size={13} /> Ver consulta médica
+                                </button>
+                              ) : (
+                                c.estado !== 'cancelada' && (
+                                  <button
+                                    onClick={() => handleRegistrarConsulta(c.id)}
+                                    disabled={abriendoConsultaId === c.id}
+                                    className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 hover:bg-teal-100 disabled:opacity-50"
+                                  >
+                                    → {abriendoConsultaId === c.id ? 'Abriendo…' : 'Registrar consulta médica'}
+                                  </button>
+                                )
+                              )}
+
+                              {/* Enlace directo para descargar/imprimir informe según tipo */}
+                              <Link
+                                to={
+                                  esCirugia
+                                    ? `/pacientes/${paciente.id}/reporte/cirugia/${c.id}`
+                                    : c.servicio_nombre?.toLowerCase().includes('lab')
+                                      ? `/pacientes/${paciente.id}/reporte/laboratorio/${c.id}`
+                                      : c.servicio_nombre?.toLowerCase().includes('eco') || c.servicio_nombre?.toLowerCase().includes('rayo')
+                                        ? `/pacientes/${paciente.id}/reporte/imagenologia/${c.id}`
+                                        : `/pacientes/${paciente.id}/reporte/consulta/${historial?.id || c.id}`
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                              >
+                                <Printer size={12} /> Informes PDF
+                              </Link>
+                            </div>
+                          </div>
                         </div>
 
-                        <p className="mt-1.5 text-xs font-medium text-slate-500">
-                          Veterinario: <span className="font-semibold text-slate-700">{c.veterinario_nombre}</span>
-                        </p>
-
-                        {c.notas && (
-                          <p className="mt-1 rounded-lg border border-slate-100 bg-slate-50 p-2 text-xs text-slate-600">
-                            <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                              Notas de agenda:
-                            </span>
-                            {c.notas}
-                          </p>
+                        {desplegada && historial && (
+                          <div className="rounded-b-xl border-t border-slate-100 bg-white px-4 py-4">
+                            <FichaConsulta historial={historial} paciente={paciente} onChanged={recargar} />
+                          </div>
                         )}
                       </div>
+                    )
+                  })}
 
-                      <div className="flex shrink-0 flex-col items-end justify-center gap-1.5 text-xs">
-                        {/* Generación/visualización de consentimiento de cirugía */}
-                        {esCirugia &&
-                          (c.consentimiento ? (
-                            <span className="text-[11px] font-semibold text-emerald-600">
-                              ✓ Consentimiento firmado
-                            </span>
-                          ) : (
-                            <Link
-                              to={`/consentimientos/${c.id}`}
-                              className="font-bold text-rose-600 hover:text-rose-700 hover:underline"
-                            >
-                              → Generar consentimiento
-                            </Link>
-                          ))}
+                  {citas.length === 0 && (
+                    <Card className="border border-dashed border-slate-200 py-6 text-center">
+                      <p className="text-sm text-slate-400">No hay citas registradas para este paciente.</p>
+                    </Card>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
-                        {/* Recordatorio de WhatsApp */}
-                        {esPendiente &&
-                          (c.recordatorio_enviado ? (
-                            <span className="text-[11px] text-slate-400">✓ Recordatorio enviado</span>
-                          ) : (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <button
-                                onClick={() => handleEnviarRecordatorio(c.id, 'cliente')}
-                                className="cursor-pointer font-bold text-teal-600 hover:text-teal-700 hover:underline"
-                              >
-                                → Avisar a cliente (WhatsApp)
-                              </button>
-                              <span className="hidden text-slate-300 sm:inline">|</span>
-                              <button
-                                onClick={() => handleEnviarRecordatorio(c.id, 'equipo')}
-                                className="cursor-pointer font-bold text-teal-600 hover:text-teal-700 hover:underline"
-                              >
-                                → Avisar a equipo (WhatsApp)
-                              </button>
-                            </div>
-                          ))}
+          {activeTab === 'vacunas' && (
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <Syringe size={16} className="text-teal-600" /> Esquema de Vacunación
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">Registro de vacunas aplicadas y refuerzos programados.</p>
+                </div>
+                <Button onClick={() => alert('Para registrar una vacuna, abre una nueva Consulta Médica.')} size="sm" variant="secondary">
+                  + Nueva Vacuna
+                </Button>
+              </div>
 
-                        {/* Acciones de la tarjeta: Abrir consulta en modal y descargar informes */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          {historial ? (
-                            <button
-                              onClick={() => setHistorialModal(historial)}
-                              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 hover:bg-teal-100"
-                            >
-                              <Stethoscope size={13} /> Ver consulta médica
-                            </button>
-                          ) : (
-                            c.estado !== 'cancelada' && (
-                              <button
-                                onClick={() => handleRegistrarConsulta(c.id)}
-                                disabled={abriendoConsultaId === c.id}
-                                className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 hover:bg-teal-100 disabled:opacity-50"
-                              >
-                                → {abriendoConsultaId === c.id ? 'Abriendo…' : 'Registrar consulta médica'}
-                              </button>
-                            )
-                          )}
-
-                          {/* Enlace directo para descargar/imprimir informe según tipo */}
-                          <Link
-                            to={
-                              esCirugia
-                                ? `/pacientes/${paciente.id}/reporte/cirugia/${c.id}`
-                                : c.servicio_nombre?.toLowerCase().includes('lab')
-                                  ? `/pacientes/${paciente.id}/reporte/laboratorio/${c.id}`
-                                  : c.servicio_nombre?.toLowerCase().includes('eco') || c.servicio_nombre?.toLowerCase().includes('rayo')
-                                    ? `/pacientes/${paciente.id}/reporte/imagenologia/${c.id}`
-                                    : `/pacientes/${paciente.id}/reporte/consulta/${historial?.id || c.id}`
-                            }
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                          >
-                            <Printer size={12} /> Informes PDF
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-
-                    {desplegada && historial && (
-                      <div className="rounded-b-xl border-t border-slate-100 bg-white px-4 py-4">
-                        <FichaConsulta historial={historial} paciente={paciente} onChanged={recargar} />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-
-              {citas.length === 0 && (
-                <Card className="border border-dashed border-slate-200 py-6 text-center">
-                  <p className="text-sm text-slate-400">No hay citas registradas para este paciente.</p>
+              {ficha.vacunas && ficha.vacunas.length > 0 ? (
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Vacuna</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Aplicación</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Próx. Refuerzo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 bg-white">
+                      {ficha.vacunas.map((v) => (
+                        <tr key={v.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 font-medium text-slate-900">{v.nombre_vacuna}</td>
+                          <td className="px-4 py-3 text-slate-600">{formatClinicDate(v.fecha_aplicacion)}</td>
+                          <td className="px-4 py-3">
+                            {v.fecha_refuerzo ? (
+                              <span className={clsx(
+                                "inline-flex items-center rounded-md px-2 py-1 text-xs font-medium",
+                                new Date(v.fecha_refuerzo) < new Date() 
+                                  ? "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20" 
+                                  : "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20"
+                              )}>
+                                {formatClinicDate(v.fecha_refuerzo)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-xs">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <Card className="border border-dashed border-slate-200 py-10 text-center">
+                  <Syringe size={32} className="mx-auto mb-3 text-slate-300" />
+                  <p className="text-sm font-medium text-slate-700">Sin historial de vacunación</p>
+                  <p className="mt-1 text-xs text-slate-500">Abre una consulta médica para registrar la primera vacuna.</p>
                 </Card>
               )}
             </div>
-          </div>
-
-          {internaciones.length > 0 && (
-            <div>
-              <div className="mb-3 flex items-baseline justify-between gap-2">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Internaciones</h2>
-                <span className="text-xs text-slate-400">
-                  {internaciones.length} {internaciones.length === 1 ? 'estadía' : 'estadías'}
-                </span>
-              </div>
-              <ul className="space-y-2">
-                {internaciones.map((i) => (
-                  <li
-                    key={i.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-slate-800" title={i.motivo}>
-                        {i.motivo}
-                      </p>
-                      <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
-                        {formatClinicDateTime(i.fecha_ingreso)} →{' '}
-                        {i.fecha_alta ? formatClinicDateTime(i.fecha_alta) : 'en curso'} · Dr(a).{' '}
-                        {i.veterinario_nombre}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Badge tone={ESTADO_INTERNACION_TONE[i.estado]} size="sm">
-                        {ESTADO_INTERNACION_LABEL[i.estado]} · {etiquetaDias(i.dias)}
-                      </Badge>
-                      <Link
-                        to={`/internaciones/${i.id}/imprimir`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        <Printer size={13} /> Hoja
-                      </Link>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
           )}
 
+          {activeTab === 'internaciones' && (
+            <div>
+              {internaciones.length > 0 ? (
+                <div>
+                  <div className="mb-3 flex items-baseline justify-between gap-2">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Historial de Internaciones</h2>
+                    <span className="text-xs text-slate-400">
+                      {internaciones.length} {internaciones.length === 1 ? 'estadía' : 'estadías'}
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
+                    {internaciones.map((i) => (
+                      <li
+                        key={i.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-slate-800" title={i.motivo}>
+                            {i.motivo}
+                          </p>
+                          <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
+                            {formatClinicDateTime(i.fecha_ingreso)} →{' '}
+                            {i.fecha_alta ? formatClinicDateTime(i.fecha_alta) : 'en curso'} · Dr(a).{' '}
+                            {i.veterinario_nombre}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Badge tone={ESTADO_INTERNACION_TONE[i.estado]} size="sm">
+                            {ESTADO_INTERNACION_LABEL[i.estado]} · {etiquetaDias(i.dias)}
+                          </Badge>
+                          <Link
+                            to={`/internaciones/${i.id}/imprimir`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            <Printer size={13} /> Hoja
+                          </Link>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <Card className="border border-dashed border-slate-200 py-10 text-center">
+                  <BedDouble size={32} className="mx-auto mb-3 text-slate-300" />
+                  <p className="text-sm font-medium text-slate-700">Sin internaciones</p>
+                  <p className="mt-1 text-xs text-slate-500">Este paciente no ha sido internado anteriormente.</p>
+                </Card>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

@@ -10,6 +10,11 @@ export const TIPO_AVISO_LABEL: Record<TipoAviso, string> = {
   preparacion_cirugia: 'Preparación de cirugía',
   refuerzo_vacuna: 'Refuerzo de vacuna',
   proxima_desparasitacion: 'Próxima desparasitación',
+  seguimiento_post_consulta: 'Seguimiento',
+  cumpleanos_paciente: 'Cumpleaños',
+  atencion_sin_cobrar: 'Cobro pendiente',
+  examen_listo: 'Examen listo',
+  paciente_inactivo: 'Paciente inactivo',
 }
 
 /**
@@ -24,6 +29,11 @@ export const DIAS_ANTICIPACION: Record<TipoAviso, number> = {
   preparacion_cirugia: 2,
   refuerzo_vacuna: 30,
   proxima_desparasitacion: 30,
+  seguimiento_post_consulta: 3, // Avisa hasta 3 días post-consulta
+  cumpleanos_paciente: 1, // Avisa desde 1 día antes o el mismo día
+  atencion_sin_cobrar: 7, // Avisa hasta por 7 días
+  examen_listo: 7, // Avisa hasta 7 días desde que está listo
+  paciente_inactivo: 30, // Ventana larga para reactivación
 }
 
 /**
@@ -98,6 +108,21 @@ export function plantillaAviso(aviso: Programado, clinicaNombre: string): string
             `y aún está pendiente. Escríbanos y le damos un turno.${firma}`
         : `Hola ${c.dueno}, a ${c.paciente} le toca la próxima desparasitación el ${c.fecha_legible}. ` +
             `Escríbanos para agendarla.${firma}`
+    case 'seguimiento_post_consulta':
+      return `Hola ${c.dueno}, queríamos saber cómo sigue ${c.paciente} luego de su visita del ${c.fecha_legible}. ` +
+             `Por favor coméntenos si ha notado alguna mejoría o si tiene alguna duda.${firma}`
+    case 'cumpleanos_paciente':
+      return `¡Hola ${c.dueno}! Hoy es un día muy especial, ¡es el cumpleaños de ${c.paciente}! 🥳🐾 ` +
+             `De parte de todo el equipo de ${c.clinica} le mandamos un abrazo gigante y esperamos verlo pronto para festejar.${firma}`
+    case 'atencion_sin_cobrar':
+      return `Hola ${c.dueno}, le informamos que tiene un saldo pendiente por la atención de ${c.paciente} ` +
+             `del día ${c.fecha_legible}. Puede comunicarse con nosotros para coordinar el pago.${firma}`
+    case 'examen_listo':
+      return `Hola ${c.dueno}, los resultados del laboratorio de ${c.paciente} ya están listos. ` +
+             `Puede pasar por la clínica o escribirnos para agendar una cita y revisarlos.${firma}`
+    case 'paciente_inactivo':
+      return `Hola ${c.dueno}, notamos que ha pasado un buen tiempo desde la última visita de ${c.paciente} a la clínica. ` +
+             `Recuerde que un chequeo anual es clave para su salud. ¡Escríbanos para agendar una cita de rutina!${firma}`
   }
 }
 
@@ -131,6 +156,16 @@ export function plantillaAvisoInterno(aviso: Programado, clinicaNombre: string):
       return c.vencido
         ? `Atención equipo: La desparasitación de ${c.paciente} (Dueño: ${c.dueno}) estaba prevista para el ${c.fecha_legible} y sigue pendiente. Contactar.`
         : `Atención equipo: A ${c.paciente} (Dueño: ${c.dueno}) le toca desparasitación el ${c.fecha_legible}.`
+    case 'seguimiento_post_consulta':
+      return `Atención equipo: Hacer seguimiento a ${c.paciente} (Dueño: ${c.dueno}) por su visita del ${c.fecha_legible}.`
+    case 'cumpleanos_paciente':
+      return `Atención equipo: Hoy es cumpleaños de ${c.paciente} (Dueño: ${c.dueno}). ¡Felicitar!`
+    case 'atencion_sin_cobrar':
+      return `Atención equipo: La atención de ${c.paciente} (Dueño: ${c.dueno}) del ${c.fecha_legible} sigue pendiente de cobro.`
+    case 'examen_listo':
+      return `Atención equipo: Informar a ${c.dueno} que los laboratorios de ${c.paciente} ya están listos.`
+    case 'paciente_inactivo':
+      return `Atención equipo: ${c.paciente} (Dueño: ${c.dueno}) no ha venido hace más de un año. Contactar para reactivación.`
   }
 }
 

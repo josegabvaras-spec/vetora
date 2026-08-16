@@ -1,22 +1,12 @@
-import { db } from '../mocks/db'
+import { supabase } from '../lib/supabase'
 import { enlaceWhatsapp } from '../lib/whatsapp'
 import { getPlan } from './planes'
 
-function delay<T>(value: T): Promise<T> {
-  return Promise.resolve(value)
-}
-
-function clinicaEnSesion() {
-  const id = db.clinicaActivaId()
-  const clinica = db.get('clinicas').find((c) => c.id === id)
+export async function getCuotaWhatsapp(clinicaId: string) {
+  const { data: clinica } = await supabase.from('clinicas').select('plan_id, whatsapp_mensajes_enviados').eq('id', clinicaId).single()
   if (!clinica) throw new Error('Clínica no encontrada')
-  return clinica
-}
-
-/** El tope mensual lo fija el plan contratado, no la clínica. */
-export function getCuotaWhatsapp() {
-  const clinica = clinicaEnSesion()
-  const limite = getPlan(clinica.plan_id)?.whatsapp_limite ?? 0
+  const plan = await getPlan(clinica.plan_id)
+  const limite = plan?.whatsapp_limite ?? 0
   return {
     enviados: clinica.whatsapp_mensajes_enviados,
     limite,
@@ -24,19 +14,11 @@ export function getCuotaWhatsapp() {
   }
 }
 
-/**
- * PRD §5.2: "WhatsApp: Validación estricta del tope mensual de mensajes antes
- * de disparar el API." Envío one-way, nunca conversacional: **todo** lo que la
- * clínica manda a un cliente pasa por aquí, de modo que la cuota se comprueba
- * en un solo sitio y no en cada pantalla que quiera avisar algo.
- *
- * Devuelve el enlace `wa.me` con el texto ya cargado. Quien llama lo abre; la
- * cuota se descuenta al llegar aquí, que es el momento en que el mensaje deja
- * de estar en manos de la aplicación.
- */
-export async function enviarMensajeWhatsapp(whatsapp: string, mensaje: string): Promise<string> {
-  const clinica = clinicaEnSesion()
-  const plan = getPlan(clinica.plan_id)
+export async function enviarMensajeWhatsapp(clinicaId: string, whatsapp: string, mensaje: string): Promise<string> {
+  const { data: clinica } = await supabase.from('clinicas').select('id, plan_id, whatsapp_mensajes_enviados').eq('id', clinicaId).single()
+  if (!clinica) throw new Error('Clínica no encontrada')
+  
+  const plan = await getPlan(clinica.plan_id)
   if (!plan) throw new Error('La clínica no tiene un plan válido asignado')
 
   if (!whatsapp.replace(/\D/g, '')) {
@@ -50,13 +32,10 @@ export async function enviarMensajeWhatsapp(whatsapp: string, mensaje: string): 
     )
   }
 
-  db.set(
-    'clinicas',
-    db
-      .get('clinicas')
-      .map((c) =>
-        c.id === clinica.id ? { ...c, whatsapp_mensajes_enviados: c.whatsapp_mensajes_enviados + 1 } : c,
-      ),
-  )
-  return delay(enlaceWhatsapp(whatsapp, mensaje))
+  const { error } = await supabase.from('clinicas').update({
+    whatsapp_mensajes_enviados: clinica.whatsapp_mensajes_enviados + 1
+  }).eq('id', clinica.id)
+
+  if (error) throw new Error('No se pudo registrar el envío del mensaje')
+  return enlaceWhatsapp(whatsapp, mensaje)
 }

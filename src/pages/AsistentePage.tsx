@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { clsx } from 'clsx'
 import { BellRing, MessageCircle, Send, Sparkles } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -16,11 +17,16 @@ import { TIPO_AVISO_LABEL, cuandoLegible } from '../lib/asistente'
 import { formatBs } from '../lib/currency'
 import type { Programado, ResumenDelDia, TipoAviso } from '../types/views'
 
-const TONO_AVISO: Record<TipoAviso, 'teal' | 'rose' | 'amber'> = {
+const TONO_AVISO: Record<TipoAviso, 'teal' | 'rose' | 'amber' | 'slate' | 'indigo'> = {
   recordatorio_cita: 'teal',
   preparacion_cirugia: 'rose',
   refuerzo_vacuna: 'amber',
   proxima_desparasitacion: 'amber',
+  seguimiento_post_consulta: 'teal',
+  cumpleanos_paciente: 'indigo',
+  atencion_sin_cobrar: 'rose',
+  examen_listo: 'teal',
+  paciente_inactivo: 'slate',
 }
 
 /** Cifra del resumen del día. */
@@ -42,21 +48,52 @@ function Cifra({ etiqueta, valor, alerta }: { etiqueta: string; valor: string; a
 }
 
 export function AsistentePage() {
-  const { sucursalActivaId } = useAuth()
+  const { usuario, sucursalActivaId } = useAuth()
   // Suscripción: los avisos se derivan de estas tablas, así que registrar una
   // vacuna o agendar una cita tiene que hacer desaparecer su aviso al instante.
   useTable('citas')
   useTable('vacunas_aplicadas')
   useTable('desparasitaciones_aplicadas')
+  useTable('cobros')
 
   const [avisos, setAvisos] = useState<Programado[]>([])
   const [resumen, setResumen] = useState<ResumenDelDia | null>(null)
+  const [filtroCategoria, setFiltroCategoria] = useState<'todos' | 'citas' | 'prevencion' | 'otros'>('todos')
   const [seleccionado, setSeleccionado] = useState<{ aviso: Programado; destino: 'cliente' | 'equipo' } | null>(null)
 
   const [informe, setInforme] = useState<Redaccion | null>(null)
   const [textoInforme, setTextoInforme] = useState('')
   const [redactandoInforme, setRedactandoInforme] = useState(false)
   const [errorInforme, setErrorInforme] = useState<string | null>(null)
+
+  const [sincronizandoIA, setSincronizandoIA] = useState(false)
+  const [resultadoIA, setResultadoIA] = useState<string | null>(null)
+
+  async function sincronizarRespuestas() {
+    setSincronizandoIA(true)
+    setResultadoIA(null)
+    
+    await new Promise(r => setTimeout(r, 1500))
+    
+    const { db } = await import('../mocks/db')
+    const citas = db.get('citas')
+    let confirmadas = 0
+    const actualizadas = citas.map(c => {
+      // Mock: Confirmar citas que tienen recordatorio enviado y siguen pendientes
+      if (c.estado === 'pendiente' && c.recordatorio_enviado) {
+        confirmadas++
+        return { ...c, estado: 'confirmada' as const }
+      }
+      return c
+    })
+    
+    if (confirmadas > 0) {
+      db.set('citas', actualizadas)
+    }
+    
+    setResultadoIA(`La IA ha leído los últimos mensajes y confirmó ${confirmadas} citas automáticamente.`)
+    setSincronizandoIA(false)
+  }
 
   async function recargar() {
     const sucursal = sucursalActivaId || undefined
@@ -69,8 +106,18 @@ export function AsistentePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sucursalActivaId])
 
-  const pendientes = useMemo(() => avisos.filter((a) => !a.ya_avisado), [avisos])
-  const yaAvisados = useMemo(() => avisos.filter((a) => a.ya_avisado), [avisos])
+  const avisosFiltrados = useMemo(() => {
+    return avisos.filter((a) => {
+      if (filtroCategoria === 'todos') return true
+      if (filtroCategoria === 'citas') return a.tipo === 'recordatorio_cita' || a.tipo === 'preparacion_cirugia'
+      if (filtroCategoria === 'prevencion') return a.tipo === 'refuerzo_vacuna' || a.tipo === 'proxima_desparasitacion'
+      if (filtroCategoria === 'otros') return !['recordatorio_cita', 'preparacion_cirugia', 'refuerzo_vacuna', 'proxima_desparasitacion'].includes(a.tipo)
+      return true
+    })
+  }, [avisos, filtroCategoria])
+
+  const pendientes = useMemo(() => avisosFiltrados.filter((a) => !a.ya_avisado), [avisosFiltrados])
+  const yaAvisados = useMemo(() => avisosFiltrados.filter((a) => a.ya_avisado), [avisosFiltrados])
 
   async function prepararInforme() {
     if (!resumen) return
@@ -88,10 +135,11 @@ export function AsistentePage() {
   }
 
   async function enviarInforme() {
+    if (!usuario?.clinica_id) return
     setErrorInforme(null)
     try {
       const { whatsapp } = await contactoAdministracion()
-      const enlace = await enviarMensajeWhatsapp(whatsapp, textoInforme)
+      const enlace = await enviarMensajeWhatsapp(usuario.clinica_id, whatsapp, textoInforme)
       window.open(enlace, '_blank', 'noopener,noreferrer')
       setInforme(null)
       await recargar()
@@ -180,27 +228,29 @@ export function AsistentePage() {
       {/* Resumen del día */}
       {resumen && (
         <Card padding="md" className="border border-slate-200/60">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            <Cifra etiqueta="Citas hoy" valor={String(resumen.citas_hoy)} />
-            <Cifra
-              etiqueta="Sin confirmar"
-              valor={String(resumen.sin_confirmar)}
-              alerta={resumen.sin_confirmar > 0}
-            />
-            <Cifra
-              etiqueta="Vencidos"
-              valor={String(resumen.refuerzos_vencidos)}
-              alerta={resumen.refuerzos_vencidos > 0}
-            />
-            <Cifra
-              etiqueta="Sin consentimiento"
-              valor={String(resumen.cirugias_sin_consentimiento)}
-              alerta={resumen.cirugias_sin_consentimiento > 0}
-            />
-            <Cifra etiqueta="Cobrado hoy" valor={formatBs(resumen.ingresos_hoy_bs)} />
-          </div>
+          {usuario?.rol !== 'recepcion' && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              <Cifra etiqueta="Citas hoy" valor={String(resumen.citas_hoy)} />
+              <Cifra
+                etiqueta="Sin confirmar"
+                valor={String(resumen.sin_confirmar)}
+                alerta={resumen.sin_confirmar > 0}
+              />
+              <Cifra
+                etiqueta="Vencidos"
+                valor={String(resumen.refuerzos_vencidos)}
+                alerta={resumen.refuerzos_vencidos > 0}
+              />
+              <Cifra
+                etiqueta="Sin consentimiento"
+                valor={String(resumen.cirugias_sin_consentimiento)}
+                alerta={resumen.cirugias_sin_consentimiento > 0}
+              />
+              <Cifra etiqueta="Cobrado hoy" valor={formatBs(resumen.ingresos_hoy_bs)} />
+            </div>
+          )}
 
-          {resumen.productos_bajo_minimo.length > 0 && (
+          {usuario?.rol !== 'recepcion' && resumen.productos_bajo_minimo.length > 0 && (
             <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               Stock bajo mínimo: {resumen.productos_bajo_minimo.join(', ')}
             </p>
@@ -244,6 +294,70 @@ export function AsistentePage() {
             {errorInforme && <p className="mt-2 text-sm text-rose-600">{errorInforme}</p>}
           </div>
         </Card>
+      )}
+
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4">
+        <h2 className="text-xl font-bold text-slate-900">Tareas de Seguimiento</h2>
+        <Button variant="secondary" onClick={sincronizarRespuestas} disabled={sincronizandoIA}>
+          <Sparkles size={16} className={sincronizandoIA ? 'animate-pulse' : ''} />
+          {sincronizandoIA ? 'Sincronizando...' : 'Sincronizar WhatsApp (IA)'}
+        </Button>
+      </div>
+
+      <div className="border-b border-slate-200">
+        <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
+          <button
+            onClick={() => setFiltroCategoria('todos')}
+            className={clsx(
+              filtroCategoria === 'todos'
+                ? 'border-teal-500 text-teal-600'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+              'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+            )}
+          >
+            Todos
+          </button>
+          <button
+            onClick={() => setFiltroCategoria('citas')}
+            className={clsx(
+              filtroCategoria === 'citas'
+                ? 'border-teal-500 text-teal-600'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+              'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+            )}
+          >
+            Citas
+          </button>
+          <button
+            onClick={() => setFiltroCategoria('prevencion')}
+            className={clsx(
+              filtroCategoria === 'prevencion'
+                ? 'border-teal-500 text-teal-600'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+              'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+            )}
+          >
+            Prevención
+          </button>
+          <button
+            onClick={() => setFiltroCategoria('otros')}
+            className={clsx(
+              filtroCategoria === 'otros'
+                ? 'border-teal-500 text-teal-600'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+              'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+            )}
+          >
+            Otros
+          </button>
+        </nav>
+      </div>
+
+      {resultadoIA && (
+        <p className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800 flex items-center gap-2">
+          <Sparkles size={16} />
+          {resultadoIA}
+        </p>
       )}
 
       <Seccion titulo="Por avisar" tono={pendientes.some((a) => a.vencido) ? 'destacado' : 'neutro'}>

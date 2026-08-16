@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { clsx } from 'clsx'
 import { Pencil, Plus, PlusCircle } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Field'
@@ -30,6 +31,7 @@ export function InventarioPage() {
   const [productoSeleccionado, setProductoSeleccionado] = useState<ProductoConMovimientos | null>(null)
   const [creandoProducto, setCreandoProducto] = useState(false)
   const [editandoProducto, setEditandoProducto] = useState<ProductoConMovimientos | null>(null)
+  const [filtroStock, setFiltroStock] = useState<'todos' | 'bajo' | 'agotado'>('todos')
 
   // Solo el administrador gestiona el catálogo y los precios; el ajuste de
   // stock sigue disponible para todos los roles.
@@ -43,6 +45,12 @@ export function InventarioPage() {
     recargar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sucursalActivaId])
+
+  const productosFiltrados = useMemo(() => {
+    if (filtroStock === 'agotado') return productos.filter((p) => p.stock_actual <= 0)
+    if (filtroStock === 'bajo') return productos.filter((p) => p.stock_actual > 0 && p.stock_actual <= p.stock_minimo)
+    return productos
+  }, [productos, filtroStock])
 
   const columnas = useMemo<Columna<ProductoConMovimientos>[]>(
     () => [
@@ -84,9 +92,11 @@ export function InventarioPage() {
                 <Pencil size={13} /> Editar
               </Button>
             )}
-            <Button variant="secondary" onClick={() => setProductoSeleccionado(p)} className="flex-1 px-3 py-1 text-xs md:flex-none">
-              <PlusCircle size={13} /> Ajustar Stock
-            </Button>
+            {usuario?.rol !== 'caja' && (
+              <Button variant="secondary" onClick={() => setProductoSeleccionado(p)} className="flex-1 px-3 py-1 text-xs md:flex-none">
+                <PlusCircle size={13} /> Ajustar Stock
+              </Button>
+            )}
           </div>
         ),
       },
@@ -96,39 +106,85 @@ export function InventarioPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-xl font-bold text-slate-900">Inventario</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Inventario</h1>
           <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">Control de stock de fármacos y productos por sucursal</p>
         </div>
-        {esAdmin && (
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            <Select
-              className="h-10 w-full py-1.5 font-semibold sm:w-52"
-              aria-label="Sucursal"
-              value={sucursalActivaId ?? 'todas'}
-              onChange={(e) => setSucursalActivaId(e.target.value === 'todas' ? '' : e.target.value)}
-            >
-              <option value="todas">Todas las sucursales</option>
-              {sucursales.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre}
-                </option>
-              ))}
-            </Select>
-            <Button className="w-full sm:w-auto" onClick={() => setCreandoProducto(true)}>
-              <Plus size={16} /> Nuevo producto
-            </Button>
-          </div>
-        )}
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          {esAdmin && (
+            <>
+              <Select
+                className="min-h-10 w-full py-1.5 font-semibold sm:w-52"
+                aria-label="Sucursal"
+                value={sucursalActivaId ?? 'todas'}
+                onChange={(e) => setSucursalActivaId(e.target.value === 'todas' ? '' : e.target.value)}
+              >
+                <option value="todas">Todas las sucursales</option>
+                {sucursales.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                  </option>
+                ))}
+              </Select>
+              <Button className="min-h-10 w-full sm:w-auto" onClick={() => setCreandoProducto(true)}>
+                <Plus size={16} /> Nuevo producto
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="border-b border-slate-200">
+        <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
+          <button
+            onClick={() => setFiltroStock('todos')}
+            className={clsx(
+              filtroStock === 'todos'
+                ? 'border-teal-500 text-teal-600'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+              'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+            )}
+          >
+            Todos
+          </button>
+          <button
+            onClick={() => setFiltroStock('bajo')}
+            className={clsx(
+              filtroStock === 'bajo'
+                ? 'border-teal-500 text-teal-600'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+              'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+            )}
+          >
+            Bajo Stock
+          </button>
+          <button
+            onClick={() => setFiltroStock('agotado')}
+            className={clsx(
+              filtroStock === 'agotado'
+                ? 'border-teal-500 text-teal-600'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+              'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+            )}
+          >
+            Agotados
+          </button>
+        </nav>
       </div>
 
       <Card padding="none" className="overflow-hidden shadow-md">
         <TablaResponsive
           columnas={columnas}
-          filas={productos}
+          filas={productosFiltrados}
           claveDe={(p) => p.id}
-          vacio="No hay productos registrados para esta sucursal."
+          vacio={
+            filtroStock === 'todos'
+              ? 'No hay productos registrados para esta sucursal.'
+              : filtroStock === 'agotado'
+                ? 'No hay productos agotados.'
+                : 'No hay productos con bajo stock.'
+          }
         />
       </Card>
 

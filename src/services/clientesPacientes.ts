@@ -150,6 +150,7 @@ export async function getFichaPaciente(pacienteId: string): Promise<FichaPacient
     historiales,
     internaciones,
     citas: patientCitas,
+    vacunas: vacunas.filter(v => v.paciente_id === pacienteId).sort((a, b) => b.fecha_aplicacion.localeCompare(a.fecha_aplicacion)),
   })
 }
 

@@ -1,4 +1,4 @@
-﻿import { db, newId } from '../mocks/db'
+import { db, newId } from '../mocks/db'
 import type { MovimientoInventario, Producto, TipoMovimientoInventario } from '../types/database'
 import type { ProductoConMovimientos } from '../types/views'
 
@@ -110,6 +110,7 @@ export async function listProductos(sucursalId?: string): Promise<ProductoConMov
 export interface OrigenConsumo {
   citaId?: string | null
   internacionId?: string | null
+  usuarioId?: string | null
 }
 
 /**
@@ -151,6 +152,7 @@ export async function registrarMovimiento(
     motivo,
     cita_id: origen.citaId ?? null,
     internacion_id: origen.internacionId ?? null,
+    usuario_id: origen.usuarioId ?? null,
     created_at: new Date().toISOString(),
   }
   db.set('movimientos_inventario', [...db.get('movimientos_inventario'), movimiento])

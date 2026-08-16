@@ -9,6 +9,8 @@ import { enviarAviso } from '../../services/programados'
 import { TIPO_AVISO_LABEL, cuandoLegible } from '../../lib/asistente'
 import type { Programado } from '../../types/views'
 
+import { useAuth } from '../../context/AuthContext'
+
 /**
  * Revisar y enviar un aviso. El texto llega redactado pero **editable**: quien
  * atiende conoce al cliente y el asistente no, así que la última palabra es
@@ -25,6 +27,7 @@ export function MensajeModal({
   onClose: () => void
   onEnviado: () => void
 }) {
+  const { usuario } = useAuth()
   const [redaccion, setRedaccion] = useState<Redaccion | null>(null)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -48,14 +51,11 @@ export function MensajeModal({
   }, [aviso.id])
 
   async function enviar() {
+    if (!usuario?.clinica_id) return
     setEnviando(true)
     setError(null)
     try {
-      // Si el destino es equipo, no deberíamos marcar el aviso como "enviado al cliente".
-      // Para enviarAviso, si es equipo, le pasamos un aviso con el whatsapp modificado.
-      // Ojo: enviarAviso guarda recordatorio_enviado=true si se manda. Para el equipo,
-      // podríamos usar `enviarAviso` igual, pero sin afectar al cliente.
-      const enlace = await enviarAviso({ ...aviso, whatsapp: destino === 'equipo' ? '' : aviso.whatsapp }, texto, destino)
+      const enlace = await enviarAviso(usuario.clinica_id, { ...aviso, whatsapp: destino === 'equipo' ? '' : aviso.whatsapp }, texto, destino)
       
       window.open(enlace, '_blank', 'noopener,noreferrer')
       onEnviado()

@@ -10,8 +10,8 @@ const MAX_PESTANAS = 3
 export function MobileNav({ onAbrirMenu }: { onAbrirMenu: () => void }) {
   const { usuario } = useAuth()
   const enlaces = enlacesVisibles(usuario?.rol)
-  // Priorizar Agenda, Pacientes y Caja
-  const prioritarios = ['/agenda', '/pacientes', '/caja']
+  // Priorizar Caja, Agenda y Pacientes
+  const prioritarios = ['/caja', '/agenda', '/pacientes']
   const navItems = enlaces.filter(e => prioritarios.includes(e.to))
   
   // Si por rol no tiene acceso a Caja, rellenar hasta MAX_PESTANAS con otras opciones

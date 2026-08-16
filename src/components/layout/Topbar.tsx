@@ -1,5 +1,5 @@
 import { LogOut, Menu, MessageCircle, Building2, RotateCcw, ArrowLeft } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTable } from '../../mocks/useDb'
@@ -26,11 +26,19 @@ function reiniciarDemo() {
 
 /** Barra de consumo de recordatorios frente al tope del plan. */
 function CuotaWhatsapp({ className }: { className?: string }) {
-  // El contador vive en la fila de la clínica: sin esta suscripción la barra no
-  // se movería al enviar un recordatorio desde otra pantalla.
-  useTable('clinicas')
-  const cuota = getCuotaWhatsapp()
-  const pct = (cuota.enviados / cuota.limite) * 100
+  const { usuario } = useAuth()
+  const [cuota, setCuota] = useState({ enviados: 0, limite: 0, disponible: 0 })
+
+  useEffect(() => {
+    if (!usuario?.clinica_id) return
+    let montado = true
+    getCuotaWhatsapp(usuario.clinica_id).then(c => {
+      if (montado) setCuota(c)
+    })
+    return () => { montado = false }
+  }, [usuario])
+
+  const pct = cuota.limite > 0 ? (cuota.enviados / cuota.limite) * 100 : 0
 
   return (
     <div
@@ -45,12 +53,9 @@ function CuotaWhatsapp({ className }: { className?: string }) {
           {cuota.enviados}/{cuota.limite}
         </span>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full border border-slate-200/40 bg-slate-100">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
         <div
-          className={clsx(
-            'h-full rounded-full transition-all duration-500',
-            pct > 90 ? 'bg-rose-500' : pct > 70 ? 'bg-amber-500' : 'bg-teal-500',
-          )}
+          className={clsx('h-full transition-all duration-500', pct > 90 ? 'bg-rose-500' : 'bg-teal-500')}
           style={{ width: `${Math.min(pct, 100)}%` }}
         />
       </div>
@@ -144,7 +149,7 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
 
       {/* Clínica y sucursal */}
       <div className="flex min-w-0 items-center gap-3">
-        {clinica.logo_url ? (
+        {clinica?.logo_url ? (
           <img src={clinica.logo_url} alt="Logo" className="hidden h-9 w-9 items-center justify-center rounded-lg border border-slate-100 bg-white object-contain sm:flex" />
         ) : (
           <div className="hidden h-9 w-9 items-center justify-center rounded-lg border border-slate-100 bg-slate-50 text-slate-500 sm:flex">
@@ -152,7 +157,7 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
           </div>
         )}
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold leading-tight text-slate-900">{clinica.nombre}</p>
+          <p className="truncate text-sm font-bold leading-tight text-slate-900">{clinica?.nombre}</p>
           <p className="truncate text-xs font-medium text-slate-400">
             {plan ? `Plan ${plan.nombre}` : 'Sin plan'} · {clinica?.ciudad || 'Bolivia'}
           </p>

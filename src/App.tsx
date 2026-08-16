@@ -29,12 +29,26 @@ import { PlataformaClinicasPage } from './pages/plataforma/PlataformaClinicasPag
 import { PlataformaPlanesPage } from './pages/plataforma/PlataformaPlanesPage'
 import { InicioSegunRol } from './components/layout/InicioSegunRol'
 
+import { PortalClienteLayout } from './components/layout/PortalClienteLayout'
+import { PortalDashboardPage } from './pages/portal-cliente/PortalDashboardPage'
+import { PortalPacientePage } from './pages/portal-cliente/PortalPacientePage'
+import { RegistroClientePage } from './pages/RegistroClientePage'
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Portal de Clientes (protegido por AuthContext normal) */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/portal-cliente" element={<PortalClienteLayout />}>
+              <Route path="dashboard" element={<PortalDashboardPage />} />
+              <Route path="paciente/:pacienteId" element={<PortalPacientePage />} />
+            </Route>
+          </Route>
+
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/registro-cliente" element={<RegistroClientePage />} />
           {/* Enlace que reciben por WhatsApp quienes acaban de ser dados de alta */}
           <Route path="/acceso/:token" element={<AccesoPage />} />
           <Route element={<ProtectedRoute />}>
@@ -68,11 +82,11 @@ export default function App() {
                 {/* Los avisos al cliente son trabajo de recepción; el informe, del administrador */}
                 <Route path="/asistente" element={<AsistentePage />} />
                 <Route path="/respaldo" element={<RespaldoPage />} />
-                <Route path="/metricas" element={<MetricasPage />} />
               </Route>
               <Route element={<RolRoute roles={['admin']} />}>
                 <Route path="/servicios" element={<ServiciosPage />} />
                 <Route path="/movimientos" element={<MovimientosPage />} />
+                <Route path="/metricas" element={<MetricasPage />} />
               </Route>
 
               <Route path="/" element={<InicioSegunRol />} />

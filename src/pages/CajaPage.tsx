@@ -1,6 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Banknote, Lock, Printer, QrCode, Wallet } from 'lucide-react'
+import {
+  Activity,
+  Banknote,
+  BedDouble,
+  ChevronDown,
+  ChevronRight,
+  FlaskConical,
+  LogOut,
+  Pill,
+  Printer,
+  QrCode,
+  Scissors,
+  Search,
+  Sparkles,
+  Stethoscope,
+  Wallet,
+} from 'lucide-react'
+import clsx from 'clsx'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -16,6 +33,7 @@ import {
   listAtencionesPorCobrar,
   listCobrosDelTurno,
   registrarCobro,
+  registrarVentaDirecta,
   resumenTurno,
   type ResumenTurno,
   type ServicioSeleccionado,
@@ -23,10 +41,20 @@ import {
 import { CATEGORIA_LABEL, CATEGORIAS } from '../services/servicios'
 import { formatBs } from '../lib/currency'
 import { formatClinicDateTime } from '../lib/datetime'
-import type { MetodoPago, TurnoCaja } from '../types/database'
+import type { CategoriaServicio, MetodoPago, TurnoCaja } from '../types/database'
 import type { AtencionPorCobrar, CobroConDetalle } from '../types/views'
 
 const METODO_LABEL: Record<MetodoPago, string> = { efectivo: 'Efectivo', qr: 'QR' }
+
+const CATEGORIA_ICON: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  consulta: Stethoscope,
+  cirugia: Scissors,
+  laboratorio: FlaskConical,
+  imagenologia: Activity,
+  internacion: BedDouble,
+  peluqueria: Scissors,
+  otros: Sparkles,
+}
 
 function Cifra({ etiqueta, valor, destacado }: { etiqueta: string; valor: string; destacado?: boolean }) {
   return (
@@ -44,6 +72,7 @@ export function CajaPage() {
   const sucursales = useTable('sucursales')
   useTable('cobros')
   useTable('turnos_caja')
+  useTable('productos')
 
   const sucursalId = sucursalActivaId || usuario?.sucursal_id || sucursales[0]?.id || ''
 
@@ -55,6 +84,7 @@ export function CajaPage() {
   const [saldoInicial, setSaldoInicial] = useState('0')
   const [abriendo, setAbriendo] = useState(false)
   const [cobrando, setCobrando] = useState<AtencionPorCobrar | null>(null)
+  const [vendiendoMedicamentos, setVendiendoMedicamentos] = useState(false)
   const [cerrando, setCerrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -88,15 +118,27 @@ export function CajaPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-xl font-bold text-slate-900">Caja</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Caja</h1>
           <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{sucursalNombre}</p>
         </div>
-        {turno && (
-          <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setCerrando(true)}>
-            <Lock size={15} /> Cerrar turno
+        {!turno ? (
+          <Button onClick={() => setAbriendo(true)} className="w-full sm:w-auto">
+            <Wallet size={16} /> Abrir Turno
           </Button>
+        ) : (
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <Button
+              onClick={() => setVendiendoMedicamentos(true)}
+              className="w-full sm:w-auto shadow-xs"
+            >
+              <Pill size={16} /> Venta de Medicamentos
+            </Button>
+            <Button variant="secondary" onClick={() => setCerrando(true)} className="w-full sm:w-auto">
+              <LogOut size={16} /> Cerrar Turno
+            </Button>
+          </div>
         )}
       </div>
 
@@ -227,6 +269,17 @@ export function CajaPage() {
         />
       )}
 
+      {vendiendoMedicamentos && turno && (
+        <VentaMedicamentosModal
+          sucursalId={sucursalId}
+          onClose={() => setVendiendoMedicamentos(false)}
+          onVentaCompletada={async () => {
+            setVendiendoMedicamentos(false)
+            await recargar()
+          }}
+        />
+      )}
+
       {cerrando && turno && resumen && (
         <CerrarTurnoModal
           turno={turno}
@@ -261,6 +314,33 @@ function CobrarModal({
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Categorías que tienen al menos un servicio activo en el catálogo
+  const categoriasDisponibles = CATEGORIAS.filter((cat) => catalogo.some((s) => s.categoria === cat))
+
+  // Categoría sugerida si existe (ej. cirugía)
+  const categoriaSugerida = atencion.servicio_sugerido_id
+    ? catalogo.find((s) => s.id === atencion.servicio_sugerido_id)?.categoria
+    : undefined
+
+  // Estado para desplegar/plegar cada categoría
+  const [categoriasAbiertas, setCategoriasAbiertas] = useState<Record<string, boolean>>(() => {
+    const inicial: Record<string, boolean> = {}
+    categoriasDisponibles.forEach((cat) => {
+      // Si hay una categoría sugerida, se abre esa de forma destacada, o todas por defecto
+      inicial[cat] = categoriaSugerida ? cat === categoriaSugerida : true
+    })
+    return inicial
+  })
+
+  const [busqueda, setBusqueda] = useState('')
+
+  function toggleCategoria(cat: string) {
+    setCategoriasAbiertas((prev) => ({
+      ...prev,
+      [cat]: !prev[cat],
+    }))
+  }
+
   const cantidadDe = (id: string) => seleccion.find((s) => s.servicio_id === id)?.cantidad ?? 0
 
   function cambiarCantidad(id: string, delta: number) {
@@ -272,6 +352,26 @@ function CobrarModal({
       return [...prev, { servicio_id: id, cantidad: nueva }]
     })
   }
+
+  // Cantidad de servicios seleccionados por categoría
+  function countSelectedInCategory(cat: CategoriaServicio): number {
+    return seleccion.reduce((total, sel) => {
+      const serv = catalogo.find((s) => s.id === sel.servicio_id)
+      if (!serv) return total
+      if (serv.categoria === cat) {
+        return total + sel.cantidad
+      }
+      return total
+    }, 0)
+  }
+
+  // Filtrado de categorías según la búsqueda activa
+  const categoriasAMostrar = categoriasDisponibles.filter((cat) => {
+    if (!busqueda.trim()) return true
+    return catalogo.some(
+      (s) => s.categoria === cat && s.nombre.toLowerCase().includes(busqueda.trim().toLowerCase()),
+    )
+  })
 
   // Un servicio desactivado tras agendarse deja de estar en el catálogo: se
   // descarta de la selección en vez de romper el cálculo del total.
@@ -308,64 +408,140 @@ function CobrarModal({
         <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
           {atencion.concepto} · {formatClinicDateTime(atencion.fecha)}
         </p>
-        {/* Catálogo: el administrador define los precios, aquí se escoge lo realizado */}
+
+        {/* Pestañas de Servicios realizados */}
         <Seccion titulo="Servicios realizados">
           {catalogo.length === 0 ? (
             <p className="text-sm text-slate-400">
               No hay servicios en el catálogo. El administrador puede crearlos en la pantalla de Servicios.
             </p>
           ) : (
-            <div className="max-h-64 space-y-3 overflow-y-auto pr-1">
-              {CATEGORIAS.filter((cat) => catalogo.some((s) => s.categoria === cat)).map((cat) => (
-                <div key={cat}>
-                  <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    {CATEGORIA_LABEL[cat]}
-                  </p>
-                  <ul className="space-y-1">
-                    {catalogo
-                      .filter((s) => s.categoria === cat)
-                      .map((s) => {
-                        const cantidad = cantidadDe(s.id)
-                        return (
-                          <li
-                            key={s.id}
-                            className={
-                              cantidad > 0
-                                ? 'flex items-center justify-between gap-2 rounded-lg border border-teal-300 bg-teal-50 px-3 py-1.5'
-                                : 'flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5'
-                            }
-                          >
-                            <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{s.nombre}</span>
-                            <span className="shrink-0 text-sm font-semibold text-slate-600">
-                              {formatBs(s.precio_bs)}
+            <div className="space-y-3">
+              {/* Filtro rápido de búsqueda */}
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar servicio por nombre..."
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                />
+                {busqueda && (
+                  <button
+                    type="button"
+                    aria-label="Limpiar búsqueda"
+                    onClick={() => setBusqueda('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400 hover:text-slate-600"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              {/* Contenedor de pestañas desplegables (Acordeón) */}
+              <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                {categoriasAMostrar.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                    {busqueda
+                      ? 'No se encontraron servicios que coincidan con la búsqueda.'
+                      : 'No hay servicios disponibles en esta categoría.'}
+                  </div>
+                ) : (
+                  categoriasAMostrar.map((cat) => {
+                    const Icon = CATEGORIA_ICON[cat] || Sparkles
+                    const isOpen = !!categoriasAbiertas[cat] || !!busqueda.trim()
+                    const countCat = countSelectedInCategory(cat)
+                    const serviciosCat = catalogo.filter(
+                      (s) =>
+                        s.categoria === cat &&
+                        (!busqueda.trim() || s.nombre.toLowerCase().includes(busqueda.trim().toLowerCase())),
+                    )
+
+                    return (
+                      <div
+                        key={cat}
+                        className="rounded-lg border border-slate-200 bg-white shadow-xs overflow-hidden"
+                      >
+                        {/* Pestaña / Encabezado desplegable */}
+                        <button
+                          type="button"
+                          onClick={() => toggleCategoria(cat)}
+                          className="flex w-full cursor-pointer items-center justify-between gap-2 bg-slate-50/90 px-3 py-2 text-left transition-colors hover:bg-slate-100/90"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isOpen ? (
+                              <ChevronDown size={14} className="text-slate-500 shrink-0" />
+                            ) : (
+                              <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                            )}
+                            <Icon size={14} className="text-teal-600 shrink-0" />
+                            <span className="truncate text-xs font-bold text-slate-800">
+                              {CATEGORIA_LABEL[cat] ?? cat}
                             </span>
-                            {/* Botones de 36 px: se pulsan con el pulgar sin ampliar */}
-                            <div className="flex shrink-0 items-center gap-1">
-                              <button
-                                type="button"
-                                aria-label={`Quitar ${s.nombre}`}
-                                onClick={() => cambiarCantidad(s.id, -1)}
-                                disabled={cantidad === 0}
-                                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 disabled:opacity-40"
-                              >
-                                −
-                              </button>
-                              <span className="w-6 text-center text-sm font-bold text-slate-800">{cantidad}</span>
-                              <button
-                                type="button"
-                                aria-label={`Agregar ${s.nombre}`}
-                                onClick={() => cambiarCantidad(s.id, 1)}
-                                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </li>
-                        )
-                      })}
-                  </ul>
-                </div>
-              ))}
+                            <span className="text-[10px] font-semibold text-slate-400 shrink-0">
+                              ({serviciosCat.length})
+                            </span>
+                          </div>
+
+                          {countCat > 0 && (
+                            <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-800 shrink-0">
+                              {countCat} seleccionado{countCat > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </button>
+
+                        {/* Lista de servicios desplegados */}
+                        {isOpen && (
+                          <div className="border-t border-slate-100 p-2 space-y-1.5 bg-white">
+                            {serviciosCat.map((s) => {
+                              const cantidad = cantidadDe(s.id)
+                              return (
+                                <div
+                                  key={s.id}
+                                  className={clsx(
+                                    'flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 transition-colors',
+                                    cantidad > 0
+                                      ? 'border-teal-300 bg-teal-50/70 ring-1 ring-teal-400/20'
+                                      : 'border-slate-100 bg-slate-50/40 hover:border-slate-200 hover:bg-slate-50',
+                                  )}
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-xs font-semibold text-slate-800">{s.nombre}</p>
+                                    <p className="text-[11px] font-bold text-teal-700">{formatBs(s.precio_bs)}</p>
+                                  </div>
+
+                                  {/* Botones de cantidad */}
+                                  <div className="flex shrink-0 items-center gap-1">
+                                    <button
+                                      type="button"
+                                      aria-label={`Quitar ${s.nombre}`}
+                                      onClick={() => cambiarCantidad(s.id, -1)}
+                                      disabled={cantidad === 0}
+                                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                                    >
+                                      −
+                                    </button>
+                                    <span className="w-6 text-center text-xs font-bold text-slate-800">{cantidad}</span>
+                                    <button
+                                      type="button"
+                                      aria-label={`Agregar ${s.nombre}`}
+                                      onClick={() => cambiarCantidad(s.id, 1)}
+                                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-teal-300 bg-white text-xs font-bold text-teal-700 hover:bg-teal-50"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
             </div>
           )}
         </Seccion>
@@ -533,6 +709,279 @@ function CerrarTurnoModal({
           </Button>
           <Button variant="success" onClick={confirmar} disabled={enviando || !hayValor}>
             {enviando ? 'Cerrando…' : 'Cerrar turno'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function VentaMedicamentosModal({
+  sucursalId,
+  onClose,
+  onVentaCompletada,
+}: {
+  sucursalId: string
+  onClose: () => void
+  onVentaCompletada: () => void
+}) {
+  const { usuario } = useAuth()
+  const productosSucursal = useTable('productos').filter((p) => p.sucursal_id === sucursalId)
+  const [clienteNombre, setClienteNombre] = useState('')
+  const [busqueda, setBusqueda] = useState('')
+  const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
+  const [items, setItems] = useState<Array<{ productoId: string; cantidad: number }>>([])
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const cantidadDe = (id: string) => items.find((it) => it.productoId === id)?.cantidad ?? 0
+
+  function cambiarCantidad(id: string, delta: number, maxStock: number) {
+    setItems((prev) => {
+      const actual = prev.find((it) => it.productoId === id)
+      const actualCantidad = actual?.cantidad ?? 0
+      const nueva = actualCantidad + delta
+      if (nueva <= 0) return prev.filter((it) => it.productoId !== id)
+      if (nueva > maxStock) return prev // no permitir superar stock disponible
+      if (actual) return prev.map((it) => (it.productoId === id ? { ...it, cantidad: nueva } : it))
+      return [...prev, { productoId: id, cantidad: nueva }]
+    })
+  }
+
+  const productosFiltrados = productosSucursal.filter((p) => {
+    if (!busqueda.trim()) return true
+    const q = busqueda.trim().toLowerCase()
+    return p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
+  })
+
+  const lineasVenta = items.flatMap((it) => {
+    const prod = productosSucursal.find((p) => p.id === it.productoId)
+    if (!prod) return []
+    return [
+      {
+        concepto: prod.nombre,
+        cantidad: it.cantidad,
+        precio_unitario_bs: prod.precio_bs,
+        subtotal_bs: Number((prod.precio_bs * it.cantidad).toFixed(2)),
+      },
+    ]
+  })
+
+  const total = Number(lineasVenta.reduce((n, l) => n + l.subtotal_bs, 0).toFixed(2))
+
+  async function confirmarVenta() {
+    if (items.length === 0) {
+      setError('Selecciona al menos un medicamento o producto para vender')
+      return
+    }
+    setEnviando(true)
+    setError(null)
+    try {
+      await registrarVentaDirecta({
+        sucursalId,
+        usuarioId: usuario!.id,
+        clienteNombre: clienteNombre.trim() || undefined,
+        items,
+        metodoPago: metodo,
+      })
+      onVentaCompletada()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo registrar la venta')
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <Modal title="Venta de medicamentos e inventario" onClose={onClose} widthClassName="max-w-2xl">
+      <div className="space-y-4">
+        {/* Nombre del cliente */}
+        <FieldGroup label="Nombre del cliente / comprador (opcional)">
+          <Input
+            value={clienteNombre}
+            onChange={(e) => setClienteNombre(e.target.value)}
+            placeholder="Ej. Juan Pérez (Venta mostrador)"
+          />
+        </FieldGroup>
+
+        {/* Buscador de medicamentos */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Medicamentos disponibles</p>
+            <span className="text-xs text-slate-400">{productosSucursal.length} productos en sucursal</span>
+          </div>
+
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre o código SKU..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            />
+            {busqueda && (
+              <button
+                type="button"
+                aria-label="Limpiar búsqueda"
+                onClick={() => setBusqueda('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400 hover:text-slate-600"
+              >
+                ×
+              </button>
+            )}
+          </div>
+
+          {/* Lista de productos de inventario */}
+          <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+            {productosFiltrados.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                {busqueda
+                  ? 'No se encontraron medicamentos con ese criterio.'
+                  : 'No hay productos registrados en el inventario de esta sucursal.'}
+              </div>
+            ) : (
+              <ul className="space-y-1.5">
+                {productosFiltrados.map((p) => {
+                  const cantidad = cantidadDe(p.id)
+                  const sinStock = p.stock_actual <= 0
+                  return (
+                    <li
+                      key={p.id}
+                      className={clsx(
+                        'flex items-center justify-between gap-2 rounded-lg border px-3 py-2 transition-colors',
+                        cantidad > 0
+                          ? 'border-teal-400 bg-teal-50/70 shadow-xs ring-1 ring-teal-400/20'
+                          : sinStock
+                            ? 'border-slate-100 bg-slate-50 opacity-60'
+                            : 'border-slate-200 bg-white hover:border-slate-300',
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-sm font-semibold text-slate-800">{p.nombre}</span>
+                          <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-500">
+                            {p.sku}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs font-bold text-teal-700">{formatBs(p.precio_bs)}</span>
+                          <span className="text-[10px] text-slate-400">·</span>
+                          <span
+                            className={clsx(
+                              'text-[10px] font-semibold',
+                              sinStock
+                                ? 'text-rose-600 font-bold'
+                                : p.stock_actual <= p.stock_minimo
+                                  ? 'text-amber-600'
+                                  : 'text-slate-500',
+                            )}
+                          >
+                            {sinStock ? 'Sin stock (0)' : `Stock: ${p.stock_actual} disp.`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Stepper de cantidad */}
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          aria-label={`Quitar ${p.nombre}`}
+                          onClick={() => cambiarCantidad(p.id, -1, p.stock_actual)}
+                          disabled={cantidad === 0}
+                          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          −
+                        </button>
+                        <span className="w-7 text-center text-sm font-bold text-slate-800">{cantidad}</span>
+                        <button
+                          type="button"
+                          aria-label={`Agregar ${p.nombre}`}
+                          onClick={() => cambiarCantidad(p.id, 1, p.stock_actual)}
+                          disabled={sinStock || cantidad >= p.stock_actual}
+                          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-teal-300 bg-white text-sm font-bold text-teal-700 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* Tabla resumen de lo que se cobrará */}
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr>
+              <th className="border-b border-slate-200 pb-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Medicamento / Producto
+              </th>
+              <th className="border-b border-slate-200 pb-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Cant.
+              </th>
+              <th className="border-b border-slate-200 pb-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Subtotal
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {lineasVenta.map((l, i) => (
+              <tr key={i}>
+                <td className="py-1.5 text-slate-800">{l.concepto}</td>
+                <td className="py-1.5 text-right text-slate-600">{l.cantidad}</td>
+                <td className="py-1.5 text-right text-slate-800">{formatBs(l.subtotal_bs)}</td>
+              </tr>
+            ))}
+            {lineasVenta.length === 0 && (
+              <tr>
+                <td className="py-3 text-sm text-slate-400" colSpan={3}>
+                  Selecciona al menos un medicamento para cobrar.
+                </td>
+              </tr>
+            )}
+            <tr>
+              <td className="border-t border-slate-300 pt-2 font-bold text-slate-900" colSpan={2}>
+                Total
+              </td>
+              <td className="border-t border-slate-300 pt-2 text-right font-display text-lg font-black text-slate-900">
+                {formatBs(total)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Método de pago */}
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Método de pago</p>
+          <div className="grid grid-cols-2 gap-3">
+            {(['efectivo', 'qr'] as MetodoPago[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMetodo(m)}
+                className={
+                  metodo === m
+                    ? 'flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-teal-600 bg-teal-50 px-4 py-3 text-sm font-bold text-teal-800'
+                    : 'flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50'
+                }
+              >
+                {m === 'efectivo' ? <Banknote size={16} /> : <QrCode size={16} />}
+                {METODO_LABEL[m]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+
+        <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+          <Button variant="secondary" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button variant="success" onClick={confirmarVenta} disabled={enviando || total <= 0}>
+            {enviando ? 'Procesando…' : `Cobrar ${formatBs(total)}`}
           </Button>
         </div>
       </div>

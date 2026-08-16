@@ -143,6 +143,8 @@ export interface FichaPaciente {
   internaciones: InternacionConDetalle[]
   /** Historial completo de citas del paciente. */
   citas: CitaConDetalle[]
+  /** Todas las vacunas aplicadas al paciente. */
+  vacunas: VacunaAplicada[]
 }
 
 export interface ProductoConMovimientos extends Producto {
@@ -219,6 +221,11 @@ export type TipoAviso =
   | 'preparacion_cirugia'
   | 'refuerzo_vacuna'
   | 'proxima_desparasitacion'
+  | 'seguimiento_post_consulta'
+  | 'cumpleanos_paciente'
+  | 'atencion_sin_cobrar'
+  | 'examen_listo'
+  | 'paciente_inactivo'
 
 export interface Programado {
   /** Estable entre recargas: tipo + fila de origen. */

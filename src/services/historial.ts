@@ -55,6 +55,7 @@ const MOTIVO_POR_TIPO: Record<TipoCita, string> = {
   vacuna: 'Aplicación de vacuna',
   desparasitacion: 'Desparasitación',
   cirugia: 'Procedimiento quirúrgico',
+  peluqueria: 'Servicio de estética / peluquería',
 }
 
 /**

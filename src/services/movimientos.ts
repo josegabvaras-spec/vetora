@@ -29,6 +29,7 @@ export interface ResumenMovimientos {
  */
 export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<MovimientoUnificado[]> {
   const productos = db.get('productos')
+  const usuarios = db.get('usuarios')
 
   // Se reutiliza el detalle de caja para que la bitácora describa igual una
   // cita y una internación, sin repetir aquí la lógica del concepto.
@@ -48,6 +49,9 @@ export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<M
 
   const deInventario: MovimientoUnificado[] = db.get('movimientos_inventario').map((m) => {
     const producto = productos.find((p) => p.id === m.producto_id)
+    const usuario = usuarios.find((u) => u.id === m.usuario_id)
+    const porUsuario = usuario ? ` (por ${usuario.nombre})` : ''
+    
     return {
       id: m.id,
       origen: 'inventario',
@@ -55,7 +59,7 @@ export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<M
       // Los movimientos de inventario no llevan sucursal propia: la hereda el producto.
       sucursal_id: producto?.sucursal_id ?? null,
       descripcion: `${m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'} · ${producto?.nombre ?? 'Producto'}`,
-      detalle: `${m.cantidad} u. · ${m.motivo || 'Sin motivo'}`,
+      detalle: `${m.cantidad} u. · ${m.motivo || 'Sin motivo'}${porUsuario}`,
       monto_bs: null,
     }
   })

@@ -1,4 +1,4 @@
-﻿import { db, newId } from '../mocks/db'
+import { db, newId } from '../mocks/db'
 import type { Cita, EstadoCita, TipoCita } from '../types/database'
 import type { CitaConDetalle, ConsultaOrigen } from '../types/views'
 import { citaQueOcupa } from '../lib/agenda'
@@ -54,6 +54,7 @@ export async function listCitas(sucursalId?: string): Promise<CitaConDetalle[]> 
 
   return delay(result)
 }
+
 
 /**
  * Consultas previas del paciente que pueden controlarse con una reconsulta:

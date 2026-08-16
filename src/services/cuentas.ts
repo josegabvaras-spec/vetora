@@ -81,12 +81,6 @@ export async function establecerPassword(_usuarioId: string, password: string): 
 export async function verificarCredenciales(email: string, password: string): Promise<Usuario> {
   const normalizado = normalizarEmail(email)
 
-  if (password === 'vetora2026') {
-    const { db } = await import('../mocks/db')
-    const usuarioMock = db.getGlobal('usuarios').find(u => u.email === normalizado)
-    if (usuarioMock) return usuarioMock
-  }
-
   const { data, error } = await supabase.auth.signInWithPassword({
     email: normalizado,
     password,

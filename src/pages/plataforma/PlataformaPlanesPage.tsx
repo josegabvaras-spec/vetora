@@ -6,15 +6,17 @@ import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import { FieldGroup, Input } from '../../components/ui/Field'
 import {
-  actualizarPlan,
-  alternarActivoPlan,
-  clinicasEnPlan,
-  crearPlan,
+  updatePlan,
+  setPlanActivo,
+  usoEnClinicas,
+  createPlan,
   listPlanes,
   type DatosPlan,
 } from '../../services/planes'
 import { formatBs } from '../../lib/currency'
-import type { Plan } from '../../types/database'
+import type { Database } from '../../types/supabase'
+
+type Plan = Database['public']['Tables']['planes']['Row'] & { uso_clinicas?: number }
 
 export function PlataformaPlanesPage() {
   const [planes, setPlanes] = useState<Plan[]>([])
@@ -23,7 +25,14 @@ export function PlataformaPlanesPage() {
   const [error, setError] = useState<string | null>(null)
 
   const recargar = useCallback(async () => {
-    setPlanes(await listPlanes())
+    const list = await listPlanes()
+    const conUso = await Promise.all(
+      list.map(async (p) => {
+        const uso = await usoEnClinicas(p.id)
+        return { ...p, uso_clinicas: uso }
+      })
+    )
+    setPlanes(conUso)
   }, [])
 
   useEffect(() => {
@@ -48,7 +57,7 @@ export function PlataformaPlanesPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {planes.map((p) => {
-          const contratado = clinicasEnPlan(p.id).length
+          const contratado = p.uso_clinicas ?? 0
           return (
             <Card key={p.id} className={p.activo ? 'border border-slate-200/60' : 'border border-dashed border-slate-300'}>
               <div className="flex items-start justify-between gap-2">
@@ -97,7 +106,7 @@ export function PlataformaPlanesPage() {
                   onClick={async () => {
                     setError(null)
                     try {
-                      await alternarActivoPlan(p.id)
+                      await setPlanActivo(p.id, !p.activo)
                       await recargar()
                     } catch (err) {
                       setError(err instanceof Error ? err.message : 'No se pudo cambiar el plan')
@@ -165,8 +174,8 @@ function PlanModal({
       max_usuarios: Number(usuarios),
     }
     try {
-      if (plan) await actualizarPlan(plan.id, datos)
-      else await crearPlan(datos)
+      if (plan) await updatePlan(plan.id, datos)
+      else await createPlan(datos)
       onGuardado()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el plan')

@@ -21,6 +21,7 @@ import type {
   TurnoCaja,
   Usuario,
   VacunaAplicada,
+  ExamenLaboratorio,
 } from '../types/database'
 
 // Datos de demostración para poder previsualizar el MVP sin un proyecto de
@@ -180,6 +181,8 @@ const catalogoInicial: [id: string, nombre: string, categoria: Servicio['categor
   ['servicio-internacion-dia', 'Día de internación', 'internacion', 120],
   ['servicio-internacion-aislamiento', 'Día de internación en aislamiento', 'internacion', 180],
   ['servicio-internacion-uci', 'Día de internación en cuidados intensivos', 'internacion', 250],
+
+  ['servicio-bano-peluqueria', 'Baño y peluquería canina', 'peluqueria', 120],
 
   ['servicio-vacuna', 'Aplicación de vacuna', 'otros', 30],
   ['servicio-certificado', 'Certificado de salud', 'otros', 50],
@@ -696,3 +699,32 @@ export const seedNotasInternacion: NotaInternacion[] = [
 
 /** Recetas: vacío al iniciar la demo; se generan desde la ficha clínica. */
 export const seedRecetas: RecetaItem[] = []
+
+export const seedExamenes: ExamenLaboratorio[] = [
+  {
+    id: 'examen-1',
+    clinica_id: CLINICA_DEMO_ID,
+    paciente_id: 'paciente-1',
+    cita_id: null,
+    tipo_examen: 'Hemograma completo',
+    estado: 'listo',
+    fecha_solicitud: iso(-1, 10),
+    fecha_resultado: iso(0, 8),
+    resultados: 'Leucocitosis leve',
+    informado_cliente: false,
+    created_at: iso(-1, 10),
+  },
+  {
+    id: 'examen-2',
+    clinica_id: CLINICA_DEMO_ID,
+    paciente_id: 'paciente-2',
+    cita_id: null,
+    tipo_examen: 'Bioquímica sanguínea',
+    estado: 'pendiente',
+    fecha_solicitud: iso(0, 9),
+    fecha_resultado: null,
+    resultados: null,
+    informado_cliente: false,
+    created_at: iso(0, 9),
+  }
+]

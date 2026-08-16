@@ -16,8 +16,8 @@ interface AuthContextValue {
    * Abre sesión con un usuario ya verificado. Lo usa la pantalla del enlace de
    * acceso, justo después de que la persona cree su contraseña.
    */
-  entrarComo: (usuario: Usuario) => void
-  logout: () => void
+  entrarComo: (usuario: Usuario) => Promise<void>
+  logout: () => Promise<void>
   setSucursalActivaId: (id: string) => void
 }
 
@@ -73,8 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  function abrirSesion(verificado: Usuario) {
-    const bloqueo = motivoDeBloqueo(verificado)
+  async function abrirSesion(verificado: Usuario) {
+    const bloqueo = await motivoDeBloqueo(verificado)
     if (bloqueo) throw new Error(bloqueo)
 
     activarClinicaDe(verificado)
@@ -90,9 +90,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Primero la contraseña; los motivos de bloqueo se cuentan solo a quien
       // ya demostró ser el dueño de la cuenta.
       const verificado = await verificarCredenciales(email, password)
-      abrirSesion(verificado)
+      await abrirSesion(verificado)
     },
-    entrarComo: (usuarioVerificado: Usuario) => abrirSesion(usuarioVerificado),
+    entrarComo: async (usuarioVerificado: Usuario) => await abrirSesion(usuarioVerificado),
     logout: async () => {
       await supabase.auth.signOut()
       db.setClinicaActiva(null)

@@ -23,9 +23,9 @@ function exigirClinica(clinicaId: string): Clinica {
  * la usan tanto las validaciones que bloquean como el panel que muestra el
  * número, para que nunca digan cosas distintas.
  */
-export function limitesDe(clinicaId: string): LimitesClinica {
+export async function limitesDe(clinicaId: string): Promise<LimitesClinica> {
   const clinica = exigirClinica(clinicaId)
-  const plan = getPlan(clinica.plan_id)
+  const plan = await getPlan(clinica.plan_id)
   if (!plan) throw new Error('La clínica no tiene un plan válido asignado')
 
   return {
@@ -42,8 +42,8 @@ export function limitesDe(clinicaId: string): LimitesClinica {
   }
 }
 
-function detalleDeClinica(clinica: Clinica): ClinicaConDetalle {
-  const limites = limitesDe(clinica.id)
+async function detalleDeClinica(clinica: Clinica): Promise<ClinicaConDetalle> {
+  const limites = await limitesDe(clinica.id)
   return {
     ...clinica,
     plan_nombre: limites.plan.nombre,
@@ -59,16 +59,14 @@ function detalleDeClinica(clinica: Clinica): ClinicaConDetalle {
 }
 
 export async function listClinicas(): Promise<ClinicaConDetalle[]> {
-  const result = db
-    .get('clinicas')
-    .map(detalleDeClinica)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre))
-  return delay(result)
+  const clinicas = db.get('clinicas').sort((a, b) => a.nombre.localeCompare(b.nombre))
+  const result = await Promise.all(clinicas.map(detalleDeClinica))
+  return result
 }
 
 export async function getClinica(clinicaId: string): Promise<ClinicaConDetalle | null> {
   const clinica = db.get('clinicas').find((c) => c.id === clinicaId)
-  return delay(clinica ? detalleDeClinica(clinica) : null)
+  return clinica ? await detalleDeClinica(clinica) : null
 }
 
 export async function resumenPlataforma(): Promise<ResumenPlataforma> {
@@ -90,6 +88,13 @@ export async function resumenPlataforma(): Promise<ResumenPlataforma> {
 
   const crecimiento = ((ingresoMensual - historial_mrr[historial_mrr.length - 2].mrr) / historial_mrr[historial_mrr.length - 2].mrr) * 100
 
+  const limitesPromises = clinicas.map(async (c) => {
+    const p = await getPlan(c.plan_id)
+    return p?.whatsapp_limite ?? 0
+  })
+  const limites = await Promise.all(limitesPromises)
+  const whatsapp_limite = limites.reduce((a, b) => a + b, 0)
+
   return delay({
     clinicas_activas: activas.length,
     clinicas_suspendidas: clinicas.filter((c) => c.estado === 'suspendida').length,
@@ -97,7 +102,7 @@ export async function resumenPlataforma(): Promise<ResumenPlataforma> {
     en_mora: enMora.length,
     importe_en_mora_bs: Number(enMora.reduce((n, c) => n + c.precio_acordado_bs, 0).toFixed(2)),
     whatsapp_enviados: clinicas.reduce((n, c) => n + c.whatsapp_mensajes_enviados, 0),
-    whatsapp_limite: clinicas.reduce((n, c) => n + (getPlan(c.plan_id)?.whatsapp_limite ?? 0), 0),
+    whatsapp_limite,
     mrr_crecimiento_pct: Number(crecimiento.toFixed(1)),
     usuarios_totales: db.get('usuarios').length,
     pacientes_totales: db.get('pacientes').length,
@@ -132,11 +137,12 @@ function exigirWhatsapp(valor: string, deQuien: string) {
   }
 }
 
-function validarClinica(datos: DatosClinica, ignorarId?: string) {
+async function validarClinica(datos: DatosClinica, ignorarId?: string) {
   if (!datos.nombre.trim()) throw new Error('El nombre de la clínica no puede quedar vacío')
   if (!datos.responsable.trim()) throw new Error('Indica quién es el responsable de la cuenta')
   exigirWhatsapp(datos.whatsapp, 'de la clínica')
-  if (!getPlan(datos.plan_id)) throw new Error('Elige un plan válido')
+  const plan = await getPlan(datos.plan_id)
+  if (!plan) throw new Error('Elige un plan válido')
   if (!Number.isFinite(datos.precio_acordado_bs) || datos.precio_acordado_bs < 0) {
     throw new Error('El precio acordado debe ser un número mayor o igual a 0')
   }
@@ -170,7 +176,7 @@ export interface AltaClinicaResultado {
  * separado deja una cuenta inservible.
  */
 export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinicaResultado> {
-  validarClinica(input)
+  await validarClinica(input)
   if (!input.sucursalNombre.trim()) throw new Error('Indica el nombre de la primera sucursal')
   if (!input.adminNombre.trim()) throw new Error('Indica el nombre del administrador de la clínica')
   exigirWhatsapp(input.adminWhatsapp, 'del administrador')
@@ -222,11 +228,12 @@ export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinica
 
 export async function actualizarClinica(clinicaId: string, datos: DatosClinica): Promise<void> {
   exigirClinica(clinicaId)
-  validarClinica(datos, clinicaId)
+  await validarClinica(datos, clinicaId)
 
   // Bajar de plan no puede dejar a la clínica por encima de los nuevos topes.
-  const plan = getPlan(datos.plan_id)!
-  const limites = limitesDe(clinicaId)
+  const plan = await getPlan(datos.plan_id)
+  if (!plan) throw new Error('El plan no existe')
+  const limites = await limitesDe(clinicaId)
   if (limites.sucursales.usados > plan.max_sucursales) {
     throw new Error(
       `La clínica tiene ${limites.sucursales.usados} sucursales y el plan ${plan.nombre} permite ${plan.max_sucursales}`,
@@ -292,7 +299,7 @@ export async function marcarEnMora(clinicaId: string): Promise<void> {
 
 /** Alta de sucursal, sujeta al tope del plan contratado. */
 export async function crearSucursal(clinicaId: string, nombre: string, direccion: string): Promise<Sucursal> {
-  const limites = limitesDe(clinicaId)
+  const limites = await limitesDe(clinicaId)
   if (!nombre.trim()) throw new Error('Indica el nombre de la sucursal')
   if (limites.sucursales.usados >= limites.sucursales.maximo) {
     throw new Error(
@@ -323,7 +330,7 @@ export interface DatosUsuario {
 
 /** Alta de usuario de una clínica, sujeta al tope del plan contratado. */
 export async function crearUsuario(clinicaId: string, datos: DatosUsuario): Promise<Usuario> {
-  const limites = limitesDe(clinicaId)
+  const limites = await limitesDe(clinicaId)
   if (!datos.nombre.trim()) throw new Error('Indica el nombre del usuario')
   exigirWhatsapp(datos.whatsapp, 'del usuario')
   const email = await exigirEmailLibre(datos.email)

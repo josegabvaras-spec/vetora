@@ -122,6 +122,93 @@ export async function listProgramados(sucursalId?: string): Promise<Programado[]
     })
   }
 
+  const hoyStr = new Date().toISOString()
+  const diaHoy = formatClinicDate(hoyStr).substring(0, 2)
+  const mesHoy = formatClinicDate(hoyStr).substring(3, 5)
+  const cobros = db.get('cobros')
+
+  // 3. Seguimiento post-consulta y atenciones sin cobrar
+  for (const cita of citas) {
+    if (cita.estado !== 'completada') continue
+    const dias = diasDeDiferencia(cita.fecha_hora)
+    
+    // Seguimiento post-consulta (1 a 3 días después)
+    if (dias >= -3 && dias <= -1) {
+      const paciente = pacienteDe(cita.paciente_id)
+      if (paciente) {
+        avisos.push({
+          id: `seguimiento-${cita.id}`,
+          tipo: 'seguimiento_post_consulta',
+          referencia_id: cita.id,
+          ...base(paciente),
+          fecha: cita.fecha_hora,
+          vencido: false,
+          detalle: servicios.find((s) => s.id === cita.servicio_id)?.nombre ?? TIPO_LABEL[cita.tipo_cita],
+          ya_avisado: false,
+        })
+      }
+    }
+
+    // Atención sin cobrar (1 a 7 días después sin registro de cobro)
+    if (dias >= -7 && dias <= -1) {
+      if (!cobros.some(c => c.cita_id === cita.id)) {
+        const paciente = pacienteDe(cita.paciente_id)
+        if (paciente) {
+          avisos.push({
+            id: `cobro-cita-${cita.id}`,
+            tipo: 'atencion_sin_cobrar',
+            referencia_id: cita.id,
+            ...base(paciente),
+            fecha: cita.fecha_hora,
+            vencido: true,
+            detalle: 'Atención médica',
+            ya_avisado: false,
+          })
+        }
+      }
+    }
+  }
+
+  // 4. Cumpleaños y pacientes inactivos
+  for (const paciente of pacientes) {
+    // Cumpleaños
+    if (paciente.fecha_nacimiento) {
+      const mesNac = paciente.fecha_nacimiento.substring(5, 7)
+      const diaNac = paciente.fecha_nacimiento.substring(8, 10)
+      if (mesNac === mesHoy && diaNac === diaHoy) {
+        avisos.push({
+          id: `cumpleanos-${paciente.id}`,
+          tipo: 'cumpleanos_paciente',
+          referencia_id: paciente.id,
+          ...base(paciente),
+          fecha: hoyStr,
+          vencido: false,
+          detalle: 'Cumpleaños de la mascota',
+          ya_avisado: false,
+        })
+      }
+    }
+
+    // Inactivos
+    const ultimaCita = citas
+      .filter(c => c.paciente_id === paciente.id && c.estado === 'completada')
+      .sort((a, b) => b.fecha_hora.localeCompare(a.fecha_hora))[0]
+      
+    const diasInactivo = ultimaCita ? Math.abs(diasDeDiferencia(ultimaCita.fecha_hora)) : 365
+    if (diasInactivo >= 365) {
+      avisos.push({
+        id: `inactivo-${paciente.id}`,
+        tipo: 'paciente_inactivo',
+        referencia_id: paciente.id,
+        ...base(paciente),
+        fecha: ultimaCita ? ultimaCita.fecha_hora : hoyStr,
+        vencido: true,
+        detalle: 'Control anual recomendado',
+        ya_avisado: false,
+      })
+    }
+  }
+
   // Lo vencido primero, y dentro de cada grupo lo más urgente arriba.
   avisos.sort((a, b) => {
     if (a.vencido !== b.vencido) return a.vencido ? -1 : 1
@@ -185,6 +272,7 @@ function tieneCitaFutura(citas: Cita[], pacienteId: string, tipo: Cita['tipo_cit
  * único que el esquema permite actualizar.
  */
 export async function enviarAviso(
+  clinicaId: string,
   aviso: Programado, 
   mensaje: string, 
   destino: 'cliente' | 'equipo' = 'cliente'
@@ -196,7 +284,7 @@ export async function enviarAviso(
     numeroDestino = clinica.whatsapp
   }
 
-  const enlace = await enviarMensajeWhatsapp(numeroDestino, mensaje)
+  const enlace = await enviarMensajeWhatsapp(clinicaId, numeroDestino, mensaje)
 
   // Solo marcamos como avisado si el mensaje fue para el cliente.
   if (destino === 'cliente' && (aviso.tipo === 'recordatorio_cita' || aviso.tipo === 'preparacion_cirugia')) {

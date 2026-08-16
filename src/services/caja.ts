@@ -1,5 +1,5 @@
-﻿import { db, newId } from '../mocks/db'
-import type { Cita, Cobro, CobroLinea, Internacion, MetodoPago, TurnoCaja } from '../types/database'
+import { db, newId } from '../mocks/db'
+import type { Cita, Cobro, CobroLinea, Internacion, MetodoPago, MovimientoInventario, TurnoCaja } from '../types/database'
 import type { AtencionPorCobrar, CobroConDetalle, LineaCobro } from '../types/views'
 import { TIPO_LABEL } from '../lib/citas'
 import { diasDeEstadia, etiquetaDias } from '../lib/internacion'
@@ -310,6 +310,108 @@ export async function registrarCobro(
   return delay(cobro)
 }
 
+export interface ItemVentaDirecta {
+  productoId: string
+  cantidad: number
+}
+
+export interface DatosVentaDirecta {
+  sucursalId: string
+  usuarioId: string
+  clienteNombre?: string
+  items: ItemVentaDirecta[]
+  metodoPago: MetodoPago
+}
+
+/**
+ * Registra la venta directa de medicamentos o productos de inventario en caja.
+ * Exige turno abierto, descuenta el stock, registra el egreso en la bitácora
+ * de inventario y genera el cobro correspondiente.
+ */
+export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<Cobro> {
+  const turno = getTurnoAbierto(datos.sucursalId)
+  if (!turno) throw new Error('Abre la caja antes de registrar ventas de medicamentos')
+  if (datos.items.length === 0) throw new Error('Selecciona al menos un medicamento o producto')
+
+  const productos = db.get('productos')
+  const lineas: LineaCobro[] = []
+
+  // Validaciones previas de disponibilidad y stock
+  for (const item of datos.items) {
+    const p = productos.find((prod) => prod.id === item.productoId)
+    if (!p) throw new Error('Producto no encontrado')
+    if (item.cantidad <= 0) throw new Error(`Cantidad inválida para ${p.nombre}`)
+    if (item.cantidad > p.stock_actual) {
+      throw new Error(`Stock insuficiente para ${p.nombre} (disponible: ${p.stock_actual})`)
+    }
+    const precio = Number.isFinite(p.precio_bs) ? p.precio_bs : 0
+    lineas.push({
+      concepto: p.nombre,
+      cantidad: item.cantidad,
+      precio_unitario_bs: precio,
+      subtotal_bs: Number((precio * item.cantidad).toFixed(2)),
+      producto_id: p.id,
+    })
+  }
+
+  const monto = totalDe(lineas)
+  if (monto <= 0) throw new Error('El importe de la venta debe ser mayor a 0')
+
+  const clienteEtiqueta = datos.clienteNombre?.trim() || 'Venta directa'
+
+  // 1. Descontar stock y registrar egresos en movimientos_inventario
+  for (const item of datos.items) {
+    const p = productos.find((prod) => prod.id === item.productoId)!
+    const nuevoStock = p.stock_actual - item.cantidad
+    db.set(
+      'productos',
+      db.get('productos').map((prod) => (prod.id === item.productoId ? { ...prod, stock_actual: nuevoStock } : prod)),
+    )
+
+    const movimiento: MovimientoInventario = {
+      id: newId('mov'),
+      clinica_id: db.clinicaActivaId(),
+      producto_id: item.productoId,
+      tipo: 'egreso',
+      cantidad: item.cantidad,
+      motivo: `Venta en caja (${clienteEtiqueta})`,
+      created_at: new Date().toISOString(),
+    }
+    db.set('movimientos_inventario', [...db.get('movimientos_inventario'), movimiento])
+  }
+
+  // 2. Registrar el cobro en caja
+  const cobro: Cobro = {
+    id: newId('cobro'),
+    clinica_id: db.clinicaActivaId(),
+    sucursal_id: datos.sucursalId,
+    turno_id: turno.id,
+    cita_id: null,
+    internacion_id: null,
+    cliente_nombre: clienteEtiqueta,
+    usuario_id: datos.usuarioId,
+    monto_bs: monto,
+    metodo_pago: datos.metodoPago,
+    created_at: new Date().toISOString(),
+  }
+  db.set('cobros', [...db.get('cobros'), cobro])
+
+  // 3. Registrar líneas del cobro
+  const persistidas: CobroLinea[] = lineas.map((l) => ({
+    id: newId('linea'),
+    clinica_id: db.clinicaActivaId(),
+    cobro_id: cobro.id,
+    concepto: l.concepto,
+    cantidad: l.cantidad,
+    precio_unitario_bs: l.precio_unitario_bs,
+    subtotal_bs: l.subtotal_bs,
+    producto_id: l.producto_id ?? null,
+  }))
+  db.set('cobro_lineas', [...db.get('cobro_lineas'), ...persistidas])
+
+  return delay(cobro)
+}
+
 export function detalleDeCobro(cobro: Cobro): CobroConDetalle {
   const cita = db.get('citas').find((c) => c.id === cobro.cita_id)
   const internacion = db.get('internaciones').find((i) => i.id === cobro.internacion_id)
@@ -318,18 +420,20 @@ export function detalleDeCobro(cobro: Cobro): CobroConDetalle {
 
   const paciente = db.get('pacientes').find((p) => p.id === pacienteId)
   const cliente = db.get('clientes').find((cl) => cl.id === paciente?.cliente_id)
-  const veterinario = db.get('usuarios').find((u) => u.id === veterinarioId)
+  const veterinario = db.get('usuarios').find((u) => u.id === (veterinarioId ?? cobro.usuario_id))
+
+  const concepto = cita
+    ? conceptoDeCita(cita)
+    : internacion
+      ? conceptoDeInternacion(internacion)
+      : 'Venta de medicamentos / productos'
 
   return {
     ...cobro,
-    paciente_nombre: paciente?.nombre ?? 'Paciente',
-    cliente_nombre: cliente?.nombre ?? '—',
-    veterinario_nombre: veterinario?.nombre ?? 'Veterinario',
-    concepto_atencion: cita
-      ? conceptoDeCita(cita)
-      : internacion
-        ? conceptoDeInternacion(internacion)
-        : 'Atención',
+    paciente_nombre: paciente?.nombre ?? (cobro.cliente_nombre || 'Venta directa'),
+    cliente_nombre: cliente?.nombre ?? (cobro.cliente_nombre || 'Cliente mostrador'),
+    veterinario_nombre: veterinario?.nombre ?? 'Caja',
+    concepto_atencion: concepto,
     fecha_atencion: cita?.fecha_hora ?? internacion?.fecha_alta ?? cobro.created_at,
     // Se LEEN las líneas guardadas, no se recalculan: así el recibo refleja
     // los precios del momento del cobro aunque el catálogo haya cambiado.

@@ -15,13 +15,13 @@ import type {
 } from '../lib/anamnesis'
 
 /** `superadmin` es el dueño de la plataforma: no pertenece a ninguna clínica. */
-export type Rol = 'superadmin' | 'admin' | 'veterinario' | 'recepcion'
+export type Rol = 'superadmin' | 'admin' | 'veterinario' | 'recepcion' | 'cliente'
 
 export type EstadoClinica = 'activa' | 'suspendida' | 'demo'
 
 export type EstadoPago = 'al_dia' | 'en_mora'
 
-export type TipoCita = 'consulta' | 'reconsulta' | 'vacuna' | 'cirugia' | 'desparasitacion'
+export type TipoCita = 'consulta' | 'reconsulta' | 'vacuna' | 'cirugia' | 'desparasitacion' | 'peluqueria'
 
 export type EstadoCita = 'pendiente' | 'confirmada' | 'completada' | 'cancelada'
 
@@ -80,6 +80,7 @@ export type CategoriaServicio =
   | 'laboratorio'
   | 'imagenologia'
   | 'internacion'
+  | 'peluqueria'
   | 'otros'
 
 export interface Servicio {
@@ -155,6 +156,7 @@ export interface Invitacion {
 export interface Cliente {
   id: string
   clinica_id: string
+  usuario_id?: string | null
   nombre: string
   whatsapp: string
   ci: string
@@ -270,6 +272,20 @@ export interface DesparasitacionAplicada {
   created_at: string
 }
 
+export interface ExamenLaboratorio {
+  id: string
+  clinica_id: string
+  paciente_id: string
+  cita_id?: string | null
+  tipo_examen: string
+  estado: 'pendiente' | 'listo'
+  fecha_solicitud: string
+  fecha_resultado?: string | null
+  resultados?: string | null
+  informado_cliente: boolean
+  created_at: string
+}
+
 export type ViaAdministracion = 'oral' | 'intramuscular' | 'subcutanea' | 'intravenosa' | 'topica' | 'oftalmica' | 'otica'
 
 /**
@@ -327,6 +343,7 @@ export interface MovimientoInventario {
   cita_id?: string | null
   /** Consumo durante una internación; se factura al dar de alta. */
   internacion_id?: string | null
+  usuario_id?: string | null
   created_at: string
 }
 
@@ -405,6 +422,7 @@ export interface Cobro {
   turno_id: string
   cita_id?: string | null
   internacion_id?: string | null
+  cliente_nombre?: string | null
   usuario_id: string
   monto_bs: number
   metodo_pago: MetodoPago

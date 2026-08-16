@@ -1,42 +1,25 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Eye, EyeOff, RotateCcw, Sparkles } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { useTable } from '../mocks/useDb'
-import { db } from '../mocks/db'
-import { PASSWORD_DEMO } from '../mocks/seed'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FieldGroup, Input } from '../components/ui/Field'
 import { isMockMode } from '../lib/supabase'
 
-const ROL_LABEL: Record<string, string> = {
-  superadmin: 'Plataforma',
-  admin: 'Administrador',
-  veterinario: 'Veterinario',
-  recepcion: 'Recepción',
-}
-
 export function LoginPage() {
   const { usuario, esPlataforma, entrarConCredenciales } = useAuth()
-  const usuarios = useTable('usuarios')
-  const clinicas = useTable('clinicas')
-  const credenciales = useTable('credenciales')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
   const [entrando, setEntrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (usuario) return <Navigate to={esPlataforma ? '/plataforma' : '/agenda'} replace />
-
-  // Atajo de demostración: solo las cuentas sembradas, que comparten contraseña.
-  const cuentasDemo = usuarios
-    .filter((u) => u.activo && credenciales.some((c) => c.usuario_id === u.id && c.id.startsWith('credencial-user-')))
-    .map((u) => ({
-      ...u,
-      clinica: u.clinica_id ? clinicas.find((c) => c.id === u.clinica_id)?.nombre ?? '—' : 'Plataforma',
-    }))
+  if (usuario) {
+    if (esPlataforma) return <Navigate to="/plataforma" replace />
+    if (usuario.rol === 'cliente') return <Navigate to="/portal-cliente/dashboard" replace />
+    return <Navigate to="/agenda" replace />
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -115,50 +98,20 @@ export function LoginPage() {
           ¿Olvidaste tu contraseña? Pide a quien te dio de alta que te reenvíe tu enlace de acceso por WhatsApp.
         </p>
 
+        <div className="mt-6 border-t border-slate-200 pt-6 text-center">
+          <p className="text-sm text-slate-600 mb-3">¿Eres cliente de nuestras clínicas?</p>
+          <Button variant="outline" className="w-full" onClick={() => window.location.href = '/registro-cliente'}>
+            Registrarme como Cliente
+          </Button>
+        </div>
+
         {isMockMode && (
-          <div className="mt-6 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-xs leading-relaxed text-amber-800">
-            <div className="flex gap-2">
-              <Sparkles size={16} className="mt-0.5 shrink-0 text-amber-600" />
-              <div>
-                <p className="font-bold">Modo demostración</p>
-                <p className="mt-0.5 opacity-90">
-                  Cuentas de prueba, todas con la contraseña <code className="font-bold">{PASSWORD_DEMO}</code>.
-                </p>
-              </div>
-            </div>
-
-            <ul className="mt-3 space-y-1">
-              {cuentasDemo.map((u) => (
-                <li key={u.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail(u.email)
-                      setPassword(PASSWORD_DEMO)
-                      setError(null)
-                    }}
-                    className="w-full cursor-pointer rounded-lg border border-amber-200/60 bg-white/70 px-3 py-1.5 text-left transition-colors hover:border-teal-300 hover:bg-white"
-                  >
-                    <span className="font-bold text-slate-700">{u.nombre}</span>{' '}
-                    <span className="text-slate-500">
-                      — {ROL_LABEL[u.rol]} · {u.clinica}
-                    </span>
-                    <span className="block font-mono text-[10px] text-slate-400">{u.email}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-
-            <button
-              type="button"
-              onClick={() => {
-                db.reset()
-                window.location.reload()
-              }}
-              className="mt-3 flex cursor-pointer items-center gap-1 font-bold text-teal-700 hover:text-teal-800 hover:underline"
-            >
-              <RotateCcw size={12} /> Restablecer datos semilla de prueba
-            </button>
+          <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-xs">
+            <h2 className="mb-2 font-bold text-amber-800">Modo de demostración</h2>
+            <p className="mb-2 text-amber-700/80">
+              Usa el correo del usuario con el que quieras probar y la contraseña{' '}
+              <strong className="font-mono text-amber-900">vetora2026</strong>.
+            </p>
           </div>
         )}
 

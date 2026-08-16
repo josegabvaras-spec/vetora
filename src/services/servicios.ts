@@ -1,4 +1,4 @@
-﻿import { db, newId } from '../mocks/db'
+import { db, newId } from '../mocks/db'
 import type { CategoriaServicio, Servicio } from '../types/database'
 
 function delay<T>(value: T): Promise<T> {
@@ -11,6 +11,7 @@ export const CATEGORIA_LABEL: Record<CategoriaServicio, string> = {
   laboratorio: 'Laboratorio',
   imagenologia: 'Imagenología',
   internacion: 'Internación (por día)',
+  peluqueria: 'Peluquería / Estética',
   otros: 'Otros',
 }
 
@@ -21,6 +22,7 @@ export const CATEGORIAS: CategoriaServicio[] = [
   'laboratorio',
   'imagenologia',
   'internacion',
+  'peluqueria',
   'otros',
 ]
 

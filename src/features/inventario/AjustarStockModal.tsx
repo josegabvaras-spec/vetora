@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { FieldGroup, Input, Select, Textarea } from '../../components/ui/Field'
+import { useAuth } from '../../context/AuthContext'
 import { registrarMovimiento } from '../../services/inventario'
 import type { TipoMovimientoInventario } from '../../types/database'
 import type { ProductoConMovimientos } from '../../types/views'
@@ -16,6 +17,7 @@ export function AjustarStockModal({
   onClose: () => void
   onUpdated: () => void
 }) {
+  const { usuario } = useAuth()
   const [tipo, setTipo] = useState<TipoMovimientoInventario>('ingreso')
   const [cantidad, setCantidad] = useState(1)
   const [motivo, setMotivo] = useState('')
@@ -27,7 +29,7 @@ export function AjustarStockModal({
     setEnviando(true)
     setError(null)
     try {
-      await registrarMovimiento(producto.id, tipo, cantidad, motivo.trim())
+      await registrarMovimiento(producto.id, tipo, cantidad, motivo.trim(), { usuarioId: usuario?.id })
       onUpdated()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar el movimiento')

@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { clsx } from 'clsx'
 import { formatInTimeZone } from 'date-fns-tz'
 import { CalendarX2 } from 'lucide-react'
@@ -14,7 +14,7 @@ import { formatBs } from '../../lib/currency'
 import { formatClinicDateTime, TIMEZONE } from '../../lib/datetime'
 import { calcularDisponibilidad, contarDisponibles } from '../../lib/agenda'
 import { requiereConsultaOrigen, requiereProcedimiento, TIPO_LABEL, TIPOS_CITA } from '../../lib/citas'
-import type { TipoCita } from '../../types/database'
+import type { TipoCita, Cita } from '../../types/database'
 
 interface NuevaCitaModalProps {
   sucursalId: string
@@ -28,7 +28,7 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   const pacientes = useTable('pacientes')
   const clientes = useTable('clientes')
   const usuarios = useTable('usuarios')
-  const citas = useTable('citas')
+  const citas = useTable('citas') as Cita[]
   const veterinarios = usuarios.filter((u) => u.rol === 'veterinario' && u.activo)
   // Con un solo veterinario en la clínica no hay a quién elegir: el campo sobra.
   const unSoloVeterinario = veterinarios.length <= 1

@@ -80,8 +80,8 @@ export interface Tables {
 // La versión sube cuando el modelo cambia de forma que una base guardada con la
 // anterior quedaría inconsistente (columnas obligatorias nuevas, referencias
 // que cambian de nombre). Al subirla, la demostración parte de datos frescos.
-// v6: tabla recetas agregada al modelo de datos.
-const STORAGE_KEY = 'vetora-mock-db-v6'
+// v7: tabla examenes_laboratorio agregada.
+const STORAGE_KEY = 'vetora-mock-db-v7'
 
 function loadInitialState(): Tables {
   const seed: Tables = {

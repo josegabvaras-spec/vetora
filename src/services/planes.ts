@@ -1,20 +1,18 @@
-import { db, newId } from '../mocks/db'
-import type { Clinica, Plan } from '../types/database'
+import { supabase } from '../lib/supabase'
+import type { Database } from '../types/supabase'
 
-function delay<T>(value: T): Promise<T> {
-  return Promise.resolve(value)
-}
+type Plan = Database['public']['Tables']['planes']['Row']
 
-export function getPlan(planId: string): Plan | undefined {
-  return db.get('planes').find((p) => p.id === planId)
+export async function getPlan(planId: string): Promise<Plan | undefined> {
+  const { data } = await supabase.from('planes').select('*').eq('id', planId).single()
+  return data ?? undefined
 }
 
 export async function listPlanes(soloActivos = false): Promise<Plan[]> {
-  const result = db
-    .get('planes')
-    .filter((p) => !soloActivos || p.activo)
-    .sort((a, b) => a.precio_mensual_bs - b.precio_mensual_bs)
-  return delay(result)
+  let query = supabase.from('planes').select('*').order('precio_mensual_bs', { ascending: true })
+  if (soloActivos) query = query.eq('activo', true)
+  const { data } = await query
+  return data ?? []
 }
 
 export interface DatosPlan {
@@ -25,68 +23,41 @@ export interface DatosPlan {
   max_usuarios: number
 }
 
-function validar(datos: DatosPlan, ignorarId?: string) {
-  if (!datos.nombre.trim()) throw new Error('El nombre del plan no puede quedar vacío')
-  if (!Number.isFinite(datos.precio_mensual_bs) || datos.precio_mensual_bs < 0) {
-    throw new Error('El precio mensual debe ser un número mayor o igual a 0')
-  }
-  for (const [etiqueta, valor] of [
-    ['límite de WhatsApp', datos.whatsapp_limite],
-    ['máximo de sucursales', datos.max_sucursales],
-    ['máximo de usuarios', datos.max_usuarios],
-  ] as const) {
-    if (!Number.isInteger(valor) || valor < 1) {
-      throw new Error(`El ${etiqueta} debe ser un número entero mayor o igual a 1`)
+export async function createPlan(datos: DatosPlan): Promise<Plan> {
+  const { data, error } = await supabase.from('planes').insert({
+    ...datos,
+    activo: true
+  }).select().single()
+
+  if (error || !data) throw new Error('Error al crear plan')
+  return data
+}
+
+export async function updatePlan(id: string, datos: DatosPlan): Promise<Plan> {
+  const { data, error } = await supabase.from('planes').update(datos).eq('id', id).select().single()
+  if (error || !data) throw new Error('Error al actualizar plan')
+  return data
+}
+
+export async function setPlanActivo(id: string, activo: boolean): Promise<Plan> {
+  if (!activo) {
+    const enUso = await usoEnClinicas(id)
+    if (enUso > 0) {
+      throw new Error('No puedes desactivar este plan porque hay clínicas activas usándolo.')
     }
   }
-  const repetido = db
-    .get('planes')
-    .some((p) => p.id !== ignorarId && p.nombre.trim().toLowerCase() === datos.nombre.trim().toLowerCase())
-  if (repetido) throw new Error('Ya existe un plan con ese nombre')
+  const { data, error } = await supabase.from('planes').update({ activo }).eq('id', id).select().single()
+  if (error || !data) throw new Error('Error al cambiar estado del plan')
+  return data
 }
 
-export async function crearPlan(datos: DatosPlan): Promise<Plan> {
-  validar(datos)
-  const plan: Plan = {
-    id: newId('plan'),
-    nombre: datos.nombre.trim(),
-    precio_mensual_bs: datos.precio_mensual_bs,
-    whatsapp_limite: datos.whatsapp_limite,
-    max_sucursales: datos.max_sucursales,
-    max_usuarios: datos.max_usuarios,
-    activo: true,
-    created_at: new Date().toISOString(),
-  }
-  db.set('planes', [...db.get('planes'), plan])
-  return delay(plan)
-}
-
-export async function actualizarPlan(id: string, datos: DatosPlan): Promise<void> {
-  if (!getPlan(id)) throw new Error('Plan no encontrado')
-  validar(datos, id)
-  db.set(
-    'planes',
-    db.get('planes').map((p) => (p.id === id ? { ...p, ...datos, nombre: datos.nombre.trim() } : p)),
-  )
-  return delay(undefined)
-}
-
-/** Clínicas contratadas en un plan: quien lo usa impide desactivarlo a ciegas. */
-export function clinicasEnPlan(planId: string): Clinica[] {
-  return db.get('clinicas').filter((c) => c.plan_id === planId)
-}
-
-/**
- * Activa o desactiva un plan. Nunca se borra: las clínicas contratadas lo
- * siguen referenciando, y sus límites dependen de él. Desactivarlo solo lo
- * retira de la oferta para nuevas altas.
- */
-export async function alternarActivoPlan(id: string): Promise<void> {
-  const plan = getPlan(id)
-  if (!plan) throw new Error('Plan no encontrado')
-  db.set(
-    'planes',
-    db.get('planes').map((p) => (p.id === id ? { ...p, activo: !p.activo } : p)),
-  )
-  return delay(undefined)
+export async function usoEnClinicas(planId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('clinicas')
+    .select('*', { count: 'exact', head: true })
+    .eq('plan_id', planId)
+    .neq('estado', 'suspendida')
+    
+  if (error) return 0
+  return count ?? 0
 }

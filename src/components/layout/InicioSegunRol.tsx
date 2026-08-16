@@ -8,5 +8,7 @@ import { useAuth } from '../../context/AuthContext'
 export function InicioSegunRol() {
   const { usuario, esPlataforma } = useAuth()
   if (!usuario) return <Navigate to="/login" replace />
-  return <Navigate to={esPlataforma ? '/plataforma' : '/agenda'} replace />
+  if (esPlataforma) return <Navigate to="/plataforma" replace />
+  if (usuario.rol === 'cliente') return <Navigate to={`/portal-cliente/dashboard`} replace />
+  return <Navigate to="/agenda" replace />
 }

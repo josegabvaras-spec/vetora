@@ -9,18 +9,20 @@ export const TIPO_LABEL: Record<TipoCita, string> = {
   vacuna: 'Vacuna',
   desparasitacion: 'Desparasitación',
   cirugia: 'Cirugía',
+  peluqueria: 'Peluquería / Estética',
 }
 
-export const TIPO_TONE: Record<TipoCita, 'slate' | 'teal' | 'amber' | 'rose'> = {
+export const TIPO_TONE: Record<TipoCita, 'slate' | 'teal' | 'amber' | 'rose' | 'indigo'> = {
   consulta: 'slate',
   reconsulta: 'teal',
   vacuna: 'amber',
   desparasitacion: 'amber',
   cirugia: 'rose',
+  peluqueria: 'indigo',
 }
 
 /** Orden en que se ofrecen los tipos al agendar. */
-export const TIPOS_CITA: TipoCita[] = ['consulta', 'reconsulta', 'vacuna', 'desparasitacion', 'cirugia']
+export const TIPOS_CITA: TipoCita[] = ['consulta', 'reconsulta', 'vacuna', 'desparasitacion', 'cirugia', 'peluqueria']
 
 /**
  * Una reconsulta es el control de una consulta anterior: sin esa consulta de
