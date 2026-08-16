@@ -92,11 +92,9 @@ export function InventarioPage() {
                 <Pencil size={13} /> Editar
               </Button>
             )}
-            {usuario?.rol !== 'caja' && (
-              <Button variant="secondary" onClick={() => setProductoSeleccionado(p)} className="flex-1 px-3 py-1 text-xs md:flex-none">
-                <PlusCircle size={13} /> Ajustar Stock
-              </Button>
-            )}
+            <Button variant="secondary" onClick={() => setProductoSeleccionado(p)} className="flex-1 px-3 py-1 text-xs md:flex-none">
+              <PlusCircle size={13} /> Ajustar Stock
+            </Button>
           </div>
         ),
       },
