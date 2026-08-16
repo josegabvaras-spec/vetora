@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { clinicMonth } from '../lib/datetime'
 import type { Producto } from '../types/database'
 
 export interface MetricasResumen {
@@ -38,15 +39,12 @@ function calcularCrecimiento(actual: number, anterior: number): number {
 
 export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
   const ahora = new Date()
-  const mesActual = ahora.getMonth()
-  const anioActual = ahora.getFullYear()
-  
+  const mesActual = clinicMonth(ahora.toISOString())
+
   const fechaMesAnterior = new Date(ahora)
   fechaMesAnterior.setMonth(ahora.getMonth() - 1)
-  const mesAnterior = fechaMesAnterior.getMonth()
-  const anioAnterior = fechaMesAnterior.getFullYear()
+  const mesAnterior = clinicMonth(fechaMesAnterior.toISOString())
 
-  // Traemos los datos para calcular todo
   const { data: cobrosData } = await supabase.from('cobros').select('monto_bs, created_at')
   const { data: pacientesData } = await supabase.from('pacientes').select('created_at')
   const { data: turnosCajaData } = await supabase.from('turnos_caja').select('abierto_at, created_at')
@@ -57,46 +55,42 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
   const turnosCaja = turnosCajaData || []
   const productos = productosData || []
 
-  // --- FINANZAS ---
   let ingresosMesActual = 0
   let ingresosMesAnterior = 0
 
   for (const cobro of cobros) {
-    const fechaCobro = new Date(cobro.created_at)
-    if (fechaCobro.getMonth() === mesActual && fechaCobro.getFullYear() === anioActual) {
+    const mes = clinicMonth(cobro.created_at)
+    if (mes === mesActual) {
       ingresosMesActual += cobro.monto_bs
-    } else if (fechaCobro.getMonth() === mesAnterior && fechaCobro.getFullYear() === anioAnterior) {
+    } else if (mes === mesAnterior) {
       ingresosMesAnterior += cobro.monto_bs
     }
   }
 
-  // --- PACIENTES ---
   let nuevosMesActual = 0
   let nuevosMesAnterior = 0
 
   for (const paciente of pacientes) {
-    const fechaRegistro = new Date(paciente.created_at)
-    if (fechaRegistro.getMonth() === mesActual && fechaRegistro.getFullYear() === anioActual) {
+    const mes = clinicMonth(paciente.created_at)
+    if (mes === mesActual) {
       nuevosMesActual++
-    } else if (fechaRegistro.getMonth() === mesAnterior && fechaRegistro.getFullYear() === anioAnterior) {
+    } else if (mes === mesAnterior) {
       nuevosMesAnterior++
     }
   }
 
-  // --- TURNOS DE CAJA ---
   let turnosCreadosMesActual = 0
   let turnosCreadosMesAnterior = 0
 
   for (const turno of turnosCaja) {
-    const fechaApertura = new Date(turno.abierto_at || turno.created_at)
-    if (fechaApertura.getMonth() === mesActual && fechaApertura.getFullYear() === anioActual) {
+    const mes = clinicMonth(turno.abierto_at || turno.created_at)
+    if (mes === mesActual) {
       turnosCreadosMesActual++
-    } else if (fechaApertura.getMonth() === mesAnterior && fechaApertura.getFullYear() === anioAnterior) {
+    } else if (mes === mesAnterior) {
       turnosCreadosMesAnterior++
     }
   }
 
-  // --- INVENTARIO ---
   let valorTotal = 0
   const productosBajoStock: Producto[] = []
 
@@ -107,7 +101,6 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
     }
   }
 
-  // --- HISTORIAL (Últimos 6 meses) ---
   const historial = []
   const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
   

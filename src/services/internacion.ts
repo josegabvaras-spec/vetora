@@ -133,7 +133,8 @@ export async function internarPaciente(input: NuevaInternacionInput): Promise<In
       fecha_ingreso: input.fechaIngresoIso ?? new Date().toISOString(),
       servicio_dia_id: servicio.id,
       precio_dia_bs: servicio.precio_bs,
-      estado: 'ingreso',
+      // 'internado' | 'alta' son los únicos que admite el CHECK del esquema.
+      estado: 'internado',
     } as any)
     .select()
     .single()
@@ -177,8 +178,8 @@ export async function registrarNotaInternacion(
       nota: textoNota,
       temperatura_c: datos.temperatura_c ?? null,
       frecuencia_cardiaca: datos.frecuencia_cardiaca ?? null,
-      frecuencia_respiratoria: (datos as any).frecuenciaRespiratoria ?? null,
-      peso_kg: (datos as any).pesoKg ?? null,
+      frecuencia_respiratoria: datos.frecuencia_respiratoria ?? null,
+      peso_kg: datos.peso_kg ?? null,
     } as any)
     .select()
     .single()
