@@ -10,7 +10,7 @@ import {
   registrarVacuna,
 } from '../../services/historial'
 import { useAuth } from '../../context/AuthContext'
-import { db } from '../../mocks/db'
+import { supabase } from '../../lib/supabase'
 import { FormularioPaciente, datosPacienteVacios } from './FormularioPaciente'
 import { FormularioClinico, aCamposHistorial, datosClinicosVacios } from './FormularioClinico'
 import {
@@ -49,7 +49,7 @@ export function NuevoPacienteModal({
   /** Valida contra el stock real menos lo ya pendiente, para avisar antes de crear al paciente. */
   async function agregarProductoPendiente(p: ProductoPendiente) {
     if (p.cantidad <= 0) throw new Error('La cantidad debe ser mayor a 0')
-    const producto = db.get('productos').find((x) => x.id === p.producto_id)
+    const { data: producto } = await supabase.from('productos').select('*').eq('id', p.producto_id).single()
     if (!producto) throw new Error('Producto no encontrado')
     const yaPendiente = productosPendientes
       .filter((x) => x.producto_id === p.producto_id)
@@ -107,7 +107,8 @@ export function NuevoPacienteModal({
           try {
             await registrarProductoUsado(resultado.historialId, p.producto_id, p.cantidad)
           } catch {
-            const nombre = db.get('productos').find((x) => x.id === p.producto_id)?.nombre ?? 'producto'
+            const { data: prod } = await supabase.from('productos').select('nombre').eq('id', p.producto_id).single()
+            const nombre = prod?.nombre ?? 'producto'
             fallidas.push(`${nombre} × ${p.cantidad}`)
           }
         }

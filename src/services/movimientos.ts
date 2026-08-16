@@ -1,10 +1,6 @@
-import { db } from '../mocks/db'
+import { supabase } from '../lib/supabase'
 import { detalleDeCobro } from './caja'
 import type { MovimientoUnificado, OrigenMovimiento } from '../types/views'
-
-function delay<T>(value: T): Promise<T> {
-  return Promise.resolve(value)
-}
 
 export interface FiltroMovimientos {
   /** Fechas en formato yyyy-MM-dd; se comparan contra la fecha de la clínica. */
@@ -28,13 +24,11 @@ export interface ResumenMovimientos {
  * en ninguna pantalla.
  */
 export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<MovimientoUnificado[]> {
-  const productos = db.get('productos')
-  const usuarios = db.get('usuarios')
-
-  // Se reutiliza el detalle de caja para que la bitácora describa igual una
-  // cita y una internación, sin repetir aquí la lógica del concepto.
-  const deCaja: MovimientoUnificado[] = db.get('cobros').map((c) => {
-    const detalle = detalleDeCobro(c)
+  const { data: cobros } = await supabase.from('cobros').select('*')
+  const { data: movimientosInv } = await supabase.from('movimientos_inventario').select('*, producto:productos(*), usuario:usuarios(*)')
+  
+  const deCaja: MovimientoUnificado[] = await Promise.all((cobros || []).map(async (c) => {
+    const detalle = await detalleDeCobro(c as any)
     return {
       id: c.id,
       origen: 'caja',
@@ -43,22 +37,18 @@ export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<M
       descripcion: `Cobro · ${detalle.paciente_nombre}`,
       detalle: detalle.concepto_atencion,
       monto_bs: c.monto_bs,
-      metodo_pago: c.metodo_pago,
-    }
-  })
+      metodo_pago: c.metodo_pago as any,
+    } as MovimientoUnificado
+  }))
 
-  const deInventario: MovimientoUnificado[] = db.get('movimientos_inventario').map((m) => {
-    const producto = productos.find((p) => p.id === m.producto_id)
-    const usuario = usuarios.find((u) => u.id === m.usuario_id)
-    const porUsuario = usuario ? ` (por ${usuario.nombre})` : ''
-    
+  const deInventario: MovimientoUnificado[] = (movimientosInv || []).map((m: any) => {
+    const porUsuario = m.usuario ? ` (por ${m.usuario.nombre})` : ''
     return {
       id: m.id,
       origen: 'inventario',
       fecha: m.created_at,
-      // Los movimientos de inventario no llevan sucursal propia: la hereda el producto.
-      sucursal_id: producto?.sucursal_id ?? null,
-      descripcion: `${m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'} · ${producto?.nombre ?? 'Producto'}`,
+      sucursal_id: m.producto?.sucursal_id ?? null,
+      descripcion: `${m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'} · ${m.producto?.nombre ?? 'Producto'}`,
       detalle: `${m.cantidad} u. · ${m.motivo || 'Sin motivo'}${porUsuario}`,
       monto_bs: null,
     }
@@ -71,7 +61,7 @@ export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<M
     .filter((m) => !filtro.hasta || m.fecha.slice(0, 10) <= filtro.hasta)
     .sort((a, b) => b.fecha.localeCompare(a.fecha))
 
-  return delay(result)
+  return result
 }
 
 export function resumirMovimientos(movimientos: MovimientoUnificado[]): ResumenMovimientos {

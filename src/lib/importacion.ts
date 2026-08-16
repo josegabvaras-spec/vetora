@@ -1,15 +1,11 @@
 import JSZip from 'jszip'
-import { db } from '../mocks/db'
-import type { Tables } from '../mocks/db'
-import type { Paciente } from '../types/database'
+import { supabase } from './supabase'
 
 function parseCSV(csvText: string): any[] {
   if (!csvText.trim()) return []
   const lines = csvText.split('\n').map(l => l.trim()).filter(l => l)
   if (lines.length < 2) return []
 
-  // Simple CSV parser (not handling commas inside quotes properly if they exist, but sufficient for this MVP)
-  // Better approach: split by comma but ignore commas inside quotes.
   const parseLine = (line: string) => {
     const result = []
     let current = ''
@@ -56,32 +52,32 @@ export async function importarRespaldo(file: File) {
   const zip = new JSZip()
   await zip.loadAsync(file)
 
-  const tablas: (keyof Tables)[] = [
+  const ordenTablas = [
     'clientes',
     'pacientes',
+    'productos',
+    'turnos_caja',
     'citas',
     'historial_clinico',
+    'internaciones',
+    'notas_internacion',
     'cobros',
     'cobro_lineas',
-    'turnos_caja',
-    'productos',
-    'movimientos_inventario',
-    'internaciones',
-    'notas_internacion'
+    'movimientos_inventario'
   ]
 
-  const datosRestaurados: Partial<Tables> = {}
+  const datosRestaurados: any = {}
 
-  for (const tabla of tablas) {
+  for (const tabla of ordenTablas) {
     const file = zip.file(`${tabla}.csv`)
     if (file) {
       const content = await file.async('text')
-      datosRestaurados[tabla] = parseCSV(content) as any
+      datosRestaurados[tabla] = parseCSV(content)
     }
   }
 
   // Restaurar fotos
-  const pacientesRestaurados = datosRestaurados['pacientes'] as Paciente[] | undefined
+  const pacientesRestaurados = datosRestaurados['pacientes']
   if (pacientesRestaurados) {
     const folder = zip.folder('fotos')
     if (folder) {
@@ -97,26 +93,20 @@ export async function importarRespaldo(file: File) {
     }
   }
 
-  // Guardar en la base de datos simulada
-  // El superadmin guarda directamente. Como es una importación,
-  // vamos a actualizar el store global. En un escenario real, esto se hace
-  // mediante un endpoint backend o múltiples inserts.
-  for (const tabla of tablas) {
+  // Realizar los upserts en la base de datos de Supabase en orden
+  for (const tabla of ordenTablas) {
     const filasImportadas = datosRestaurados[tabla]
-    if (filasImportadas) {
-      // Omitimos la verificación de clinicaActiva porque el superadmin
-      // opera a nivel global. Necesitamos usar un bypass en db.ts o
-      // temporalmente saltarnos la validación de clínica.
-      // El db.set actual valida que haya clinicaActiva, pero el superadmin no tiene.
-      // Así que actualizaremos directamente el localStorage o crearemos un método especial.
-      
-      const currentData = db.getGlobal(tabla) as any[]
-      // Merge: replace existing rows by id, add new ones
-      const idMap = new Map(currentData.map(row => [row.id, row]))
-      for (const row of filasImportadas) {
-        idMap.set(row.id, row)
+    if (filasImportadas && filasImportadas.length > 0) {
+      // Limpiar propiedades que no van en BD (ej. tiene_foto)
+      if (tabla === 'pacientes') {
+        filasImportadas.forEach((p: any) => delete p.tiene_foto)
       }
-      db.setGlobal(tabla, Array.from(idMap.values()) as any)
+
+      // Supabase upsert
+      const { error } = await supabase.from(tabla as any).upsert(filasImportadas)
+      if (error) {
+        console.error(`Error importando ${tabla}:`, error)
+      }
     }
   }
   

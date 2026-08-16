@@ -1,15 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { db } from '../mocks/db'
+import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FieldGroup, Input, Select } from '../components/ui/Field'
-import type { Clinica, Usuario, Credencial, Cliente } from '../types/database'
+import type { Clinica } from '../types/database'
 
 export function RegistroClientePage() {
   const navigate = useNavigate()
-  const { entrarConCredenciales } = useAuth()
   
   const [clinicas, setClinicas] = useState<Clinica[]>([])
   const [form, setForm] = useState({
@@ -25,9 +23,11 @@ export function RegistroClientePage() {
   const [registrando, setRegistrando] = useState(false)
 
   useEffect(() => {
-    // Cargar clínicas activas
-    const todas = db.get('clinicas')
-    setClinicas(todas.filter(c => c.estado === 'activa'))
+    async function cargarClinicas() {
+      const { data } = await supabase.from('clinicas').select('*').eq('estado', 'activa')
+      if (data) setClinicas(data as any)
+    }
+    cargarClinicas()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -36,63 +36,62 @@ export function RegistroClientePage() {
     setError(null)
 
     try {
-      // 1. Verificar si el email ya existe en credenciales (no se puede usar el mismo email globalmente)
-      const existeCorreo = db.get('credenciales').some(c => c.email === form.email)
-      if (existeCorreo) throw new Error('Este correo ya está registrado.')
+      // 1. Crear el usuario en auth (esto iniciará sesión automáticamente)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+      })
 
-      // 2. Crear el Usuario y Credencial mock
-      const userId = `cliente-user-${Date.now()}`
-      const nuevoUsuario: Usuario = {
+      if (authError) throw new Error(authError.message)
+      if (!authData.user) throw new Error('No se pudo crear la cuenta.')
+
+      const userId = authData.user.id
+
+      // 2. Crear registro en la tabla pública de usuarios
+      const { error: userError } = await supabase.from('usuarios').insert({
         id: userId,
         clinica_id: form.clinicaId,
-        sucursal_id: null,
         nombre: form.nombre,
         email: form.email,
         whatsapp: form.whatsapp,
         rol: 'cliente',
         activo: true,
-        created_at: new Date().toISOString()
-      }
-      
-      const nuevaCredencial: Credencial = {
-        id: `cred-${Date.now()}`,
-        usuario_id: userId,
-        email: form.email,
-        hash: form.password, // Solo mock
-        salt: 'salt',
-        actualizada_at: new Date().toISOString()
-      }
+      })
 
-      // Guardar en la "base de datos"
-      db.set('usuarios', [...db.get('usuarios'), nuevoUsuario])
-      db.set('credenciales', [...db.get('credenciales'), nuevaCredencial])
+      if (userError) throw new Error(`Error al registrar usuario: ${userError.message}`)
 
       // 3. Vincular o crear el Cliente
-      const clientes = db.get('clientes')
-      const clienteExistenteIndex = clientes.findIndex(c => c.clinica_id === form.clinicaId && c.ci === form.ci)
-      
-      if (clienteExistenteIndex !== -1) {
-        // Vincular el perfil existente al nuevo usuario
-        const clienteActualizado = { ...clientes[clienteExistenteIndex], usuario_id: userId }
-        const nuevosClientes = [...clientes]
-        nuevosClientes[clienteExistenteIndex] = clienteActualizado
-        db.set('clientes', nuevosClientes)
+      // Primero buscamos si ya existe en esta clínica con el mismo CI
+      const { data: clientesExistentes } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('clinica_id', form.clinicaId)
+        .eq('ci', form.ci)
+
+      if (clientesExistentes && clientesExistentes.length > 0) {
+        // Actualizar cliente existente vinculando su usuario_id
+        const clienteExistente = clientesExistentes[0]
+        const { error: updateError } = await supabase
+          .from('clientes')
+          .update({ usuario_id: userId } as any)
+          .eq('id', clienteExistente.id)
+          
+        if (updateError) throw new Error(`Error al vincular perfil: ${updateError.message}`)
       } else {
-        // Crear un nuevo perfil de cliente vacío
-        const nuevoCliente: Cliente = {
-          id: `cliente-${Date.now()}`,
-          clinica_id: form.clinicaId,
-          usuario_id: userId,
-          nombre: form.nombre,
-          whatsapp: form.whatsapp,
-          ci: form.ci,
-          created_at: new Date().toISOString()
-        }
-        db.set('clientes', [...clientes, nuevoCliente])
+        // Crear nuevo cliente
+        const { error: insertError } = await supabase
+          .from('clientes')
+          .insert({
+            clinica_id: form.clinicaId,
+            usuario_id: userId,
+            nombre: form.nombre,
+            whatsapp: form.whatsapp,
+            ci: form.ci,
+          } as any)
+
+        if (insertError) throw new Error(`Error al crear perfil de cliente: ${insertError.message}`)
       }
 
-      // 4. Iniciar sesión automáticamente
-      await entrarConCredenciales(form.email, form.password)
       navigate('/portal-cliente/dashboard', { replace: true })
 
     } catch (err: any) {

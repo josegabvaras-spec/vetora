@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { FieldGroup, Input, Select, Textarea } from '../../components/ui/Field'
@@ -33,17 +33,26 @@ export function InternarModal({
   const servicios = useTable('servicios')
   const veterinarios = usuarios.filter((u) => u.rol === 'veterinario' || u.rol === 'admin')
 
-  const tarifas = useMemo(
-    () => serviciosDeCategoria('internacion'),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [servicios],
-  )
+  const [tarifas, setTarifas] = useState<any[]>([])
+  const [servicioDiaId, setServicioDiaId] = useState('')
+  
+  useEffect(() => {
+    let montado = true
+    serviciosDeCategoria('internacion').then((data) => {
+      if (montado) {
+        setTarifas(data)
+        if (data.length > 0 && !servicioDiaId) {
+          setServicioDiaId(data[0].id)
+        }
+      }
+    })
+    return () => { montado = false }
+  }, [servicios])
 
   const [pacienteId, setPacienteId] = useState(pacienteIdInicial ?? pacientes[0]?.id ?? '')
   const [veterinarioId, setVeterinarioId] = useState(
     usuario?.rol === 'veterinario' ? usuario.id : veterinarios[0]?.id ?? '',
   )
-  const [servicioDiaId, setServicioDiaId] = useState(tarifas[0]?.id ?? '')
   const [motivo, setMotivo] = useState('')
   const [jaula, setJaula] = useState('')
   const [guardando, setGuardando] = useState(false)

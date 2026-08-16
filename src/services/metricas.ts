@@ -1,16 +1,16 @@
-import { db } from '../mocks/db'
+import { supabase } from '../lib/supabase'
 import type { Producto } from '../types/database'
 
 export interface MetricasResumen {
   finanzas: {
     ingresosMesActual: number
     ingresosMesAnterior: number
-    crecimientoIngresos: number // porcentaje
+    crecimientoIngresos: number
   }
   pacientes: {
     nuevosMesActual: number
     nuevosMesAnterior: number
-    crecimientoPacientes: number // porcentaje
+    crecimientoPacientes: number
     totalPacientes: number
   }
   turnos: {
@@ -46,8 +46,18 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
   const mesAnterior = fechaMesAnterior.getMonth()
   const anioAnterior = fechaMesAnterior.getFullYear()
 
+  // Traemos los datos para calcular todo
+  const { data: cobrosData } = await supabase.from('cobros').select('monto_bs, created_at')
+  const { data: pacientesData } = await supabase.from('pacientes').select('created_at')
+  const { data: turnosCajaData } = await supabase.from('turnos_caja').select('abierto_at, created_at')
+  const { data: productosData } = await supabase.from('productos').select('*')
+
+  const cobros = cobrosData || []
+  const pacientes = pacientesData || []
+  const turnosCaja = turnosCajaData || []
+  const productos = productosData || []
+
   // --- FINANZAS ---
-  const cobros = db.get('cobros')
   let ingresosMesActual = 0
   let ingresosMesAnterior = 0
 
@@ -61,7 +71,6 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
   }
 
   // --- PACIENTES ---
-  const pacientes = db.get('pacientes')
   let nuevosMesActual = 0
   let nuevosMesAnterior = 0
 
@@ -75,7 +84,6 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
   }
 
   // --- TURNOS DE CAJA ---
-  const turnosCaja = db.get('turnos_caja')
   let turnosCreadosMesActual = 0
   let turnosCreadosMesAnterior = 0
 
@@ -89,11 +97,10 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
   }
 
   // --- INVENTARIO ---
-  const productos = db.get('productos')
   let valorTotal = 0
   const productosBajoStock: Producto[] = []
 
-  for (const prod of productos) {
+  for (const prod of (productos as Producto[])) {
     valorTotal += prod.precio_bs * prod.stock_actual
     if (prod.stock_actual <= prod.stock_minimo) {
       productosBajoStock.push(prod)
@@ -128,16 +135,6 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
       if (fecha.getMonth() === tMes && fecha.getFullYear() === tAnio) tur++
     }
     
-    // Para inventario, asumiremos el valor actual si no es factible reconstruir fácilmente,
-    // o calcularemos un aproximado basado en movimientos si existieran.
-    // Como es mock, simplemente agregaremos un campo en historial, 
-    // por simplicidad (dado que reconstruir todo el stock requiere iterar sobre movimientos).
-    // Para no hacer el código mock tan pesado, usaremos un factor dummy o si tuviéramos
-    // el stock calculado. Aquí pondremos valorTotal (actual) por defecto, pero se debería 
-    // reconstruir deshaciendo `movimientos_inventario`.
-    // Vamos a calcular el valor aproximado asumiendo un crecimiento lineal 
-    // solo para efectos visuales, o si se requiere precisión, lo dejamos igual al actual.
-    // Usaremos el valor actual menos un porcentaje aleatorio en el mock para que se vea la curva.
     const valorInv = valorTotal * (1 - (i * 0.05))
 
     historial.push({

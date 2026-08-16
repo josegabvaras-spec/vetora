@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import { db } from '../mocks/db'
 import { motivoDeBloqueo } from '../services/sesion'
 import { verificarCredenciales } from '../services/cuentas'
 import { supabase } from '../lib/supabase'
@@ -23,17 +22,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-
-
-/**
- * Fija en la "base de datos" el inquilino de la sesión. A partir de ahí, cada
- * consulta y cada inserción quedan acotadas a esa clínica, igual que haría RLS
- * en Supabase.
- */
-function activarClinicaDe(usuario: Usuario | null) {
-  db.setClinicaActiva(usuario?.clinica_id ?? null)
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -51,7 +39,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .single()
         
         if (data && montado) {
-          activarClinicaDe(data as Usuario)
           setUsuario(data as Usuario)
         }
       }
@@ -62,7 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
-        activarClinicaDe(null)
         setUsuario(null)
       }
     })
@@ -77,7 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const bloqueo = await motivoDeBloqueo(verificado)
     if (bloqueo) throw new Error(bloqueo)
 
-    activarClinicaDe(verificado)
     setUsuario(verificado)
   }
 
@@ -95,7 +80,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     entrarComo: async (usuarioVerificado: Usuario) => await abrirSesion(usuarioVerificado),
     logout: async () => {
       await supabase.auth.signOut()
-      db.setClinicaActiva(null)
       setUsuario(null)
     },
     setSucursalActivaId: (id: string) => setSucursalOverride(id),

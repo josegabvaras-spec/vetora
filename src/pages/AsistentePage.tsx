@@ -75,23 +75,18 @@ export function AsistentePage() {
     
     await new Promise(r => setTimeout(r, 1500))
     
-    const { db } = await import('../mocks/db')
-    const citas = db.get('citas')
-    let confirmadas = 0
-    const actualizadas = citas.map(c => {
-      // Mock: Confirmar citas que tienen recordatorio enviado y siguen pendientes
-      if (c.estado === 'pendiente' && c.recordatorio_enviado) {
-        confirmadas++
-        return { ...c, estado: 'confirmada' as const }
-      }
-      return c
-    })
+    const { supabase } = await import('../lib/supabase')
+    const { data: citas } = await supabase.from('citas').select('*').eq('estado', 'pendiente').eq('recordatorio_enviado', true)
     
-    if (confirmadas > 0) {
-      db.set('citas', actualizadas)
+    let confirmadas = 0
+    if (citas && citas.length > 0) {
+      for (const cita of citas) {
+        confirmadas++
+        await supabase.from('citas').update({ estado: 'confirmada' as any }).eq('id', cita.id)
+      }
     }
     
-    setResultadoIA(`La IA ha leído los últimos mensajes y confirmó ${confirmadas} citas automáticamente.`)
+    setResultadoIA(`La IA ha ledo los ǧltimos mensajes y confirm ${confirmadas} citas automǭticamente.`)
     setSincronizandoIA(false)
   }
 

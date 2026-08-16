@@ -1,67 +1,69 @@
-import { db, newId } from '../mocks/db'
+import { supabase } from '../lib/supabase'
 import type { EstadoInternacion, Internacion, NotaInternacion } from '../types/database'
 import type { InternacionConDetalle, NotaInternacionConDetalle, ProductoUsado } from '../types/views'
 import { diasDeEstadia } from '../lib/internacion'
 import { registrarMovimiento } from './inventario'
 
-function delay<T>(value: T): Promise<T> {
-  return Promise.resolve(value)
-}
-
 /** Lanza si la internación no existe o ya fue dada de alta (expediente cerrado). */
-function exigirInternado(internacionId: string): Internacion {
-  const internacion = db.get('internaciones').find((i) => i.id === internacionId)
+async function exigirInternado(internacionId: string): Promise<Internacion> {
+  const { data: internacion } = await supabase.from('internaciones').select('*').eq('id', internacionId).single()
   if (!internacion) throw new Error('Internación no encontrada')
   if (internacion.estado === 'alta') {
     throw new Error('Esta internación ya fue dada de alta y no admite cambios')
   }
-  return internacion
+  return internacion as Internacion
 }
 
 /** Internación en curso del paciente, si la tiene. */
-export function internacionAbiertaDe(pacienteId: string): Internacion | undefined {
-  return db.get('internaciones').find((i) => i.paciente_id === pacienteId && i.estado === 'internado')
+export async function internacionAbiertaDe(pacienteId: string): Promise<Internacion | undefined> {
+  const { data } = await supabase.from('internaciones').select('*').eq('paciente_id', pacienteId).eq('estado', 'internado').maybeSingle()
+  return (data as any) ?? undefined
 }
 
-function productosDeInternacion(internacionId: string): ProductoUsado[] {
-  const productos = db.get('productos')
-  return db
-    .get('movimientos_inventario')
-    .filter((m) => m.internacion_id === internacionId && m.tipo === 'egreso')
-    .map((m) => {
-      const producto = productos.find((p) => p.id === m.producto_id)
-      return {
-        movimiento_id: m.id,
-        producto_id: m.producto_id,
-        nombre: producto?.nombre ?? 'Producto',
-        cantidad: m.cantidad,
-        precio_bs: producto?.precio_bs ?? 0,
-      }
-    })
+async function productosDeInternacion(internacionId: string): Promise<ProductoUsado[]> {
+  const { data: movimientos } = await supabase
+    .from('movimientos_inventario')
+    .select('*, producto:productos(*)')
+    .eq('internacion_id', internacionId)
+    .eq('tipo', 'egreso')
+
+  if (!movimientos) return []
+
+  return movimientos.map((m: any) => ({
+    movimiento_id: m.id,
+    producto_id: m.producto_id,
+    nombre: m.producto?.nombre ?? 'Producto',
+    cantidad: m.cantidad,
+    precio_bs: m.producto?.precio_bs ?? 0,
+  }))
 }
 
-export function detalleDeInternacion(internacion: Internacion): InternacionConDetalle {
-  const paciente = db.get('pacientes').find((p) => p.id === internacion.paciente_id)!
-  const cliente = db.get('clientes').find((c) => c.id === paciente.cliente_id)!
-  const usuarios = db.get('usuarios')
-  const productosUsados = productosDeInternacion(internacion.id)
+export async function detalleDeInternacion(internacion: Internacion): Promise<InternacionConDetalle> {
+  const { data: paciente } = await supabase.from('pacientes').select('*, cliente:clientes(*)').eq('id', internacion.paciente_id).single()
+  const { data: usuario } = await supabase.from('usuarios').select('*').eq('id', internacion.veterinario_id).single()
+  const { data: servicio } = await supabase.from('servicios').select('*').eq('id', internacion.servicio_dia_id).single()
+  
+  const productosUsados = await productosDeInternacion(internacion.id)
   const dias = diasDeEstadia(internacion.fecha_ingreso, internacion.fecha_alta)
 
-  const notas: NotaInternacionConDetalle[] = db
-    .get('notas_internacion')
-    .filter((n) => n.internacion_id === internacion.id)
-    .map((n) => ({
-      ...n,
-      veterinario_nombre: usuarios.find((u) => u.id === n.veterinario_id)?.nombre ?? 'Veterinario',
-    }))
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+  const { data: notasBrutas } = await supabase
+    .from('notas_internacion')
+    .select('*, veterinario:usuarios(*)')
+    .eq('internacion_id', internacion.id)
+    .order('created_at', { ascending: false })
+
+  const notas: NotaInternacionConDetalle[] = (notasBrutas || []).map((n: any) => ({
+    ...n,
+    veterinario_nombre: n.veterinario?.nombre ?? 'Veterinario',
+  }))
+
+  const { data: cobro } = await supabase.from('cobros').select('id').eq('internacion_id', internacion.id).maybeSingle()
 
   return {
     ...internacion,
-    paciente: { ...paciente, cliente },
-    veterinario_nombre: usuarios.find((u) => u.id === internacion.veterinario_id)?.nombre ?? 'Veterinario',
-    servicio_nombre:
-      db.get('servicios').find((s) => s.id === internacion.servicio_dia_id)?.nombre ?? 'Día de internación',
+    paciente: paciente as any,
+    veterinario_nombre: usuario?.nombre ?? 'Veterinario',
+    servicio_nombre: servicio?.nombre ?? 'Día de internación',
     notas,
     productosUsados,
     dias,
@@ -69,7 +71,7 @@ export function detalleDeInternacion(internacion: Internacion): InternacionConDe
     costo_productos_bs: Number(
       productosUsados.reduce((n, p) => n + p.precio_bs * p.cantidad, 0).toFixed(2),
     ),
-    cobrada: db.get('cobros').some((c) => c.internacion_id === internacion.id),
+    cobrada: !!cobro,
   }
 }
 
@@ -77,18 +79,20 @@ export async function listInternaciones(
   sucursalId?: string,
   estado?: EstadoInternacion,
 ): Promise<InternacionConDetalle[]> {
-  const result = db
-    .get('internaciones')
-    .filter((i) => !sucursalId || i.sucursal_id === sucursalId)
-    .filter((i) => !estado || i.estado === estado)
-    .map(detalleDeInternacion)
-    .sort((a, b) => b.fecha_ingreso.localeCompare(a.fecha_ingreso))
-  return delay(result)
+  let query = supabase.from('internaciones').select('*').order('fecha_ingreso', { ascending: false })
+  if (sucursalId) query = query.eq('sucursal_id', sucursalId)
+  if (estado) query = query.eq('estado', estado)
+
+  const { data: internaciones } = await query
+  if (!internaciones || internaciones.length === 0) return []
+
+  return Promise.all(internaciones.map((i: any) => detalleDeInternacion(i)))
 }
 
 export async function getInternacion(id: string): Promise<InternacionConDetalle | null> {
-  const internacion = db.get('internaciones').find((i) => i.id === id)
-  return delay(internacion ? detalleDeInternacion(internacion) : null)
+  const { data: internacion } = await supabase.from('internaciones').select('*').eq('id', id).maybeSingle()
+  if (!internacion) return null
+  return detalleDeInternacion(internacion as Internacion)
 }
 
 export interface NuevaInternacionInput {
@@ -97,51 +101,45 @@ export interface NuevaInternacionInput {
   sucursalId: string
   motivo: string
   jaula?: string | null
-  /** Servicio del catálogo de categoría "internación": fija el precio por día. */
   servicioDiaId: string
   citaId?: string | null
   fechaIngresoIso?: string
 }
 
 export async function internarPaciente(input: NuevaInternacionInput): Promise<Internacion> {
-  if (!db.get('pacientes').some((p) => p.id === input.pacienteId)) {
-    throw new Error('Paciente no encontrado')
-  }
+  const { data: paciente } = await supabase.from('pacientes').select('id').eq('id', input.pacienteId).single()
+  if (!paciente) throw new Error('Paciente no encontrado')
   if (!input.motivo.trim()) throw new Error('Indica el motivo de la internación')
 
-  // Un paciente no puede estar internado dos veces a la vez: el segundo ingreso
-  // duplicaría los días de estadía facturados.
-  if (internacionAbiertaDe(input.pacienteId)) {
+  if (await internacionAbiertaDe(input.pacienteId)) {
     throw new Error('Este paciente ya está internado')
   }
 
-  const servicio = db.get('servicios').find((s) => s.id === input.servicioDiaId)
+  const { data: servicio } = await supabase.from('servicios').select('*').eq('id', input.servicioDiaId).single()
   if (!servicio || servicio.categoria !== 'internacion') {
     throw new Error('Elige una tarifa de internación del catálogo')
   }
   if (!servicio.activo) throw new Error('Esa tarifa de internación está desactivada')
 
-  const internacion: Internacion = {
-    id: newId('internacion'),
-    clinica_id: db.clinicaActivaId(),
-    sucursal_id: input.sucursalId,
-    paciente_id: input.pacienteId,
-    veterinario_id: input.veterinarioId,
-    cita_id: input.citaId ?? null,
-    motivo: input.motivo.trim(),
-    jaula: input.jaula?.trim() || null,
-    fecha_ingreso: input.fechaIngresoIso ?? new Date().toISOString(),
-    fecha_alta: null,
-    servicio_dia_id: servicio.id,
-    // Congelado al ingreso, como las líneas de cobro: subir la tarifa mañana no
-    // debe encarecer retroactivamente una estadía que ya empezó.
-    precio_dia_bs: servicio.precio_bs,
-    indicaciones_alta: null,
-    estado: 'internado',
-    created_at: new Date().toISOString(),
-  }
-  db.set('internaciones', [...db.get('internaciones'), internacion])
-  return delay(internacion)
+  const { data, error } = await supabase
+    .from('internaciones')
+    .insert({
+      sucursal_id: input.sucursalId,
+      paciente_id: input.pacienteId,
+      veterinario_id: input.veterinarioId,
+      cita_id: input.citaId ?? null,
+      motivo: input.motivo.trim(),
+      jaula: input.jaula?.trim() || null,
+      fecha_ingreso: input.fechaIngresoIso ?? new Date().toISOString(),
+      servicio_dia_id: servicio.id,
+      precio_dia_bs: servicio.precio_bs,
+      estado: 'ingreso',
+    } as any)
+    .select()
+    .single()
+
+  if (error || !data) throw new Error(`Error al internar: ${error?.message || 'desconocido'}`)
+  return data as Internacion
 }
 
 export interface NuevaNotaInternacion {
@@ -152,16 +150,12 @@ export interface NuevaNotaInternacion {
   peso_kg?: number | null
 }
 
-/**
- * Evolución diaria. Es solo INSERT: igual que el historial cerrado, una nota
- * escrita no se corrige, se escribe otra.
- */
 export async function registrarNotaInternacion(
   internacionId: string,
   veterinarioId: string,
   datos: NuevaNotaInternacion,
 ): Promise<NotaInternacion> {
-  exigirInternado(internacionId)
+  await exigirInternado(internacionId)
 
   const tieneConstantes =
     datos.temperatura_c != null ||
@@ -175,50 +169,49 @@ export async function registrarNotaInternacion(
     throw new Error('Escribe la evolución del paciente o registra al menos una constante vital')
   }
 
-  const nota: NotaInternacion = {
-    id: newId('nota-internacion'),
-    clinica_id: db.clinicaActivaId(),
-    internacion_id: internacionId,
-    veterinario_id: veterinarioId || db.get('usuarios')[0]?.id || 'vet-1',
-    nota: textoNota,
-    temperatura_c: datos.temperatura_c ?? null,
-    frecuencia_cardiaca: datos.frecuencia_cardiaca ?? null,
-    frecuencia_respiratoria: datos.frecuencia_respiratoria ?? null,
-    peso_kg: datos.peso_kg ?? null,
-    created_at: new Date().toISOString(),
-  }
-  db.set('notas_internacion', [...db.get('notas_internacion'), nota])
-  return delay(nota)
+  const { data, error } = await supabase
+    .from('notas_internacion')
+    .insert({
+      internacion_id: internacionId,
+      veterinario_id: veterinarioId,
+      nota: textoNota,
+      temperatura_c: datos.temperatura_c ?? null,
+      frecuencia_cardiaca: datos.frecuencia_cardiaca ?? null,
+      frecuencia_respiratoria: (datos as any).frecuenciaRespiratoria ?? null,
+      peso_kg: (datos as any).pesoKg ?? null,
+    } as any)
+    .select()
+    .single()
+
+  if (error || !data) throw new Error(`Error al registrar nota: ${error?.message || 'desconocido'}`)
+  return data as NotaInternacion
 }
 
-/** Descuenta del inventario un producto usado durante la estadía (HU-03 sigue aplicando). */
 export async function registrarProductoInternacion(
   internacionId: string,
   productoId: string,
   cantidad: number,
 ): Promise<void> {
-  const internacion = exigirInternado(internacionId)
+  const internacion = await exigirInternado(internacionId)
   await registrarMovimiento(productoId, 'egreso', cantidad, `Usado en internación: ${internacion.motivo}`, {
     internacionId: internacion.id,
   })
 }
 
-/**
- * Cierra la estadía. A partir del alta la internación queda inmutable y pasa a
- * la lista de pendientes de cobro de caja.
- */
 export async function darDeAlta(internacionId: string, indicaciones: string): Promise<Internacion> {
-  const internacion = exigirInternado(internacionId)
+  await exigirInternado(internacionId)
 
-  const cerrada: Internacion = {
-    ...internacion,
-    estado: 'alta',
-    fecha_alta: new Date().toISOString(),
-    indicaciones_alta: indicaciones.trim() || null,
-  }
-  db.set(
-    'internaciones',
-    db.get('internaciones').map((i) => (i.id === internacionId ? cerrada : i)),
-  )
-  return delay(cerrada)
+  const { data, error } = await supabase
+    .from('internaciones')
+    .update({
+      estado: 'alta',
+      fecha_alta: new Date().toISOString(),
+      indicaciones_alta: indicaciones.trim() || null,
+    })
+    .eq('id', internacionId)
+    .select()
+    .single()
+
+  if (error || !data) throw new Error(`Error al dar de alta: ${error?.message || 'desconocido'}`)
+  return data as Internacion
 }

@@ -1,9 +1,9 @@
-import { LogOut, Menu, MessageCircle, Building2, RotateCcw, ArrowLeft } from 'lucide-react'
+import { LogOut, Menu, MessageCircle, Building2, ArrowLeft } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTable } from '../../mocks/useDb'
-import { db } from '../../mocks/db'
+
 import { Badge } from '../ui/Badge'
 import { Select } from '../ui/Field'
 import { getCuotaWhatsapp } from '../../services/whatsapp'
@@ -17,12 +17,6 @@ const ROL_LABEL: Record<string, string> = {
   recepcion: 'Recepción',
 }
 
-function reiniciarDemo() {
-  if (confirm('¿Restablecer todos los datos demo de la base de datos? Se perderán los registros creados temporalmente.')) {
-    db.reset()
-    window.location.reload()
-  }
-}
 
 /** Barra de consumo de recordatorios frente al tope del plan. */
 function CuotaWhatsapp({ className }: { className?: string }) {
@@ -99,12 +93,6 @@ export function ControlesMovil() {
     <div className="space-y-3">
       <CuotaWhatsapp />
       <SelectorSucursal className="w-full" />
-      <button
-        onClick={reiniciarDemo}
-        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-500 transition-colors hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700"
-      >
-        <RotateCcw size={14} /> Restablecer datos de prueba
-      </button>
     </div>
   )
 }
@@ -181,13 +169,6 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
             className="flex h-10 w-10 shrink-0 cursor-pointer select-none items-center justify-center rounded-xl border border-teal-500/20 bg-gradient-to-tr from-teal-500/10 to-teal-600/10 font-display text-xs font-bold text-teal-700 shadow-xs transition-colors hover:from-teal-500/20 hover:to-teal-600/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40"
           >
             {usuario.nombre.substring(0, 2).toUpperCase()}
-          </button>
-          <button
-            onClick={reiniciarDemo}
-            title="Restablecer base de datos de prueba"
-            className="hidden h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-transparent text-slate-400 transition-colors hover:border-teal-100 hover:bg-teal-50 hover:text-teal-600 md:flex"
-          >
-            <RotateCcw size={16} />
           </button>
           <button
             onClick={logout}

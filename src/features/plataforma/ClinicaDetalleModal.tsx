@@ -36,7 +36,7 @@ function estadoDeLaCuenta(usuarioId: string): { texto: string; activa: boolean }
   // Tener contraseña es lo que decide si la cuenta ya sirve; el enlace solo
   // cuenta cómo va el camino hasta ahí.
   if (tienePassword(usuarioId)) {
-    const invitacion = ultimaInvitacionDe(usuarioId)
+    const invitacion = ultimaInvitacionDe(usuarioId) as any
     return {
       texto: invitacion?.usado_at
         ? `Cuenta activa desde el ${formatClinicDateTime(invitacion.usado_at)}`
@@ -45,7 +45,7 @@ function estadoDeLaCuenta(usuarioId: string): { texto: string; activa: boolean }
     }
   }
 
-  const invitacion = ultimaInvitacionDe(usuarioId)
+  const invitacion = ultimaInvitacionDe(usuarioId) as any
   if (!invitacion) return { texto: 'Sin contraseña · acceso sin enviar', activa: false }
   if (new Date(invitacion.expira_at).getTime() <= Date.now()) {
     return { texto: 'Sin contraseña · su enlace caducó', activa: false }

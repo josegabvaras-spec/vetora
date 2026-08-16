@@ -1,49 +1,38 @@
-import { db, newId } from '../mocks/db'
-import type { Cita, Cobro, CobroLinea, Internacion, MetodoPago, MovimientoInventario, TurnoCaja } from '../types/database'
+import { supabase } from '../lib/supabase'
+import type { Cita, Cobro, Internacion, MetodoPago, TurnoCaja } from '../types/database'
 import type { AtencionPorCobrar, CobroConDetalle, LineaCobro } from '../types/views'
 import { TIPO_LABEL } from '../lib/citas'
 import { diasDeEstadia, etiquetaDias } from '../lib/internacion'
+import { registrarMovimiento } from './inventario'
 
-function delay<T>(value: T): Promise<T> {
-  return Promise.resolve(value)
-}
+async function lineasDeConsumo(columnaFk: 'cita_id' | 'internacion_id', id: string): Promise<LineaCobro[]> {
+  const { data: movimientos } = await supabase
+    .from('movimientos_inventario')
+    .select('*, producto:productos(*)')
+    .eq('tipo', 'egreso')
+    .eq(columnaFk, id)
 
-/**
- * Productos consumidos en la atención, rastreados por el movimiento de
- * inventario que los descontó. Los servicios NO se derivan de la atención: los
- * elige recepción del catálogo al momento de cobrar.
- */
-function lineasDeConsumo(perteneceA: (m: { cita_id?: string | null; internacion_id?: string | null }) => boolean) {
-  const productos = db.get('productos')
-  const lineas: LineaCobro[] = []
+  if (!movimientos) return []
 
-  for (const m of db.get('movimientos_inventario')) {
-    if (m.tipo !== 'egreso' || !perteneceA(m)) continue
-    const producto = productos.find((p) => p.id === m.producto_id)
-    const precio = producto?.precio_bs ?? 0
-    lineas.push({
-      concepto: producto?.nombre ?? 'Producto',
+  return movimientos.map((m: any) => {
+    const precio = m.producto?.precio_bs ?? 0
+    return {
+      concepto: m.producto?.nombre ?? 'Producto',
       cantidad: m.cantidad,
       precio_unitario_bs: precio,
       subtotal_bs: Number((precio * m.cantidad).toFixed(2)),
       producto_id: m.producto_id,
-    })
-  }
-
-  return lineas
+    }
+  })
 }
 
-export function lineasDeProductos(cita: Cita): LineaCobro[] {
-  return lineasDeConsumo((m) => m.cita_id === cita.id)
+export async function lineasDeProductos(cita: Cita): Promise<LineaCobro[]> {
+  return lineasDeConsumo('cita_id', cita.id)
 }
 
-/**
- * Lo devengado por una internación: los días de estadía a la tarifa congelada
- * al ingreso, más los productos consumidos durante ella.
- */
-export function lineasDeInternacion(internacion: Internacion): LineaCobro[] {
+export async function lineasDeInternacion(internacion: Internacion): Promise<LineaCobro[]> {
   const dias = diasDeEstadia(internacion.fecha_ingreso, internacion.fecha_alta)
-  const servicio = db.get('servicios').find((s) => s.id === internacion.servicio_dia_id)
+  const { data: servicio } = await supabase.from('servicios').select('*').eq('id', internacion.servicio_dia_id).single()
 
   const estadia: LineaCobro = {
     concepto: `${servicio?.nombre ?? 'Día de internación'} (${etiquetaDias(dias)})`,
@@ -53,18 +42,23 @@ export function lineasDeInternacion(internacion: Internacion): LineaCobro[] {
     servicio_id: internacion.servicio_dia_id,
   }
 
-  return [estadia, ...lineasDeConsumo((m) => m.internacion_id === internacion.id)]
+  const consumos = await lineasDeConsumo('internacion_id', internacion.id)
+  return [estadia, ...consumos]
 }
 
-/** Servicio elegido en caja, con su cantidad. */
 export interface ServicioSeleccionado {
   servicio_id: string
   cantidad: number
 }
 
-/** Convierte la selección de caja en líneas, tomando el precio vigente del catálogo. */
-export function lineasDeServicios(seleccion: ServicioSeleccionado[]): LineaCobro[] {
-  const servicios = db.get('servicios')
+export async function lineasDeServicios(seleccion: ServicioSeleccionado[]): Promise<LineaCobro[]> {
+  if (seleccion.length === 0) return []
+  
+  const ids = seleccion.map((s) => s.servicio_id)
+  const { data: servicios } = await supabase.from('servicios').select('*').in('id', ids)
+  
+  if (!servicios) return []
+
   return seleccion.map((s) => {
     const servicio = servicios.find((x) => x.id === s.servicio_id)
     if (!servicio) throw new Error('Servicio no encontrado en el catálogo')
@@ -83,164 +77,156 @@ export function totalDe(lineas: LineaCobro[]): number {
   return Number(lineas.reduce((n, l) => n + l.subtotal_bs, 0).toFixed(2))
 }
 
-/** Turno de caja abierto en la sucursal, si lo hay. */
-export function getTurnoAbierto(sucursalId: string): TurnoCaja | undefined {
-  return db.get('turnos_caja').find((t) => t.sucursal_id === sucursalId && t.estado === 'abierto')
+export async function getTurnoAbierto(sucursalId: string): Promise<TurnoCaja | undefined> {
+  const { data } = await supabase
+    .from('turnos_caja')
+    .select('*')
+    .eq('sucursal_id', sucursalId)
+    .eq('estado', 'abierto')
+    .maybeSingle()
+    
+  return (data as any) ?? undefined
 }
 
 export async function abrirTurno(sucursalId: string, usuarioId: string, saldoInicial: number): Promise<TurnoCaja> {
   if (saldoInicial < 0) throw new Error('El saldo inicial no puede ser negativo')
-  if (getTurnoAbierto(sucursalId)) {
+  if (await getTurnoAbierto(sucursalId)) {
     throw new Error('Ya hay una caja abierta en esta sucursal')
   }
 
-  const turno: TurnoCaja = {
-    id: newId('turno'),
-    clinica_id: db.clinicaActivaId(),
-    sucursal_id: sucursalId,
-    usuario_id: usuarioId,
-    saldo_inicial_bs: saldoInicial,
-    abierto_at: new Date().toISOString(),
-    cerrado_at: null,
-    saldo_declarado_bs: null,
-    diferencia_bs: null,
-    estado: 'abierto',
-    created_at: new Date().toISOString(),
-  }
-  db.set('turnos_caja', [...db.get('turnos_caja'), turno])
-  return delay(turno)
+  const { data: turno, error } = await supabase
+    .from('turnos_caja')
+    .insert({
+      sucursal_id: sucursalId,
+      usuario_id: usuarioId,
+      saldo_inicial_bs: saldoInicial,
+      abierto_at: new Date().toISOString(),
+      estado: 'abierto',
+    } as any)
+    .select()
+    .single()
+
+  if (error || !turno) throw new Error(`Error al abrir caja: ${error?.message || 'desconocido'}`)
+  return turno as TurnoCaja
 }
 
 export interface ResumenTurno {
   efectivo_bs: number
   qr_bs: number
   total_bs: number
-  /** Efectivo que debería haber en caja: saldo inicial + cobros en efectivo. */
   esperado_en_caja_bs: number
   cantidad_cobros: number
 }
 
-export function resumenTurno(turnoId: string): ResumenTurno {
-  const turno = db.get('turnos_caja').find((t) => t.id === turnoId)
-  const cobros = db.get('cobros').filter((c) => c.turno_id === turnoId)
-  const efectivo = cobros.filter((c) => c.metodo_pago === 'efectivo').reduce((n, c) => n + c.monto_bs, 0)
-  const qr = cobros.filter((c) => c.metodo_pago === 'qr').reduce((n, c) => n + c.monto_bs, 0)
+export async function resumenTurno(turnoId: string): Promise<ResumenTurno> {
+  const { data: turno } = await supabase.from('turnos_caja').select('*').eq('id', turnoId).single()
+  const { data: cobros } = await supabase.from('cobros').select('*').eq('turno_id', turnoId)
+  
+  const cobrosList = cobros || []
+  const efectivo = cobrosList.filter((c) => c.metodo_pago === 'efectivo').reduce((n, c) => n + c.monto_bs, 0)
+  const qr = cobrosList.filter((c) => c.metodo_pago === 'qr').reduce((n, c) => n + c.monto_bs, 0)
 
   return {
     efectivo_bs: Number(efectivo.toFixed(2)),
     qr_bs: Number(qr.toFixed(2)),
     total_bs: Number((efectivo + qr).toFixed(2)),
-    // El QR no pasa por la caja física, así que no entra al arqueo.
     esperado_en_caja_bs: Number(((turno?.saldo_inicial_bs ?? 0) + efectivo).toFixed(2)),
-    cantidad_cobros: cobros.length,
+    cantidad_cobros: cobrosList.length,
   }
 }
 
 export async function cerrarTurno(turnoId: string, saldoDeclarado: number): Promise<TurnoCaja> {
-  const turno = db.get('turnos_caja').find((t) => t.id === turnoId)
+  const { data: turno } = await supabase.from('turnos_caja').select('*').eq('id', turnoId).single()
   if (!turno) throw new Error('Turno no encontrado')
   if (turno.estado === 'cerrado') throw new Error('Esta caja ya fue cerrada')
   if (saldoDeclarado < 0) throw new Error('El monto contado no puede ser negativo')
 
-  const { esperado_en_caja_bs } = resumenTurno(turnoId)
-  const cerrado: TurnoCaja = {
-    ...turno,
-    estado: 'cerrado',
-    cerrado_at: new Date().toISOString(),
-    saldo_declarado_bs: saldoDeclarado,
-    diferencia_bs: Number((saldoDeclarado - esperado_en_caja_bs).toFixed(2)),
-  }
-  db.set(
-    'turnos_caja',
-    db.get('turnos_caja').map((t) => (t.id === turnoId ? cerrado : t)),
-  )
-  return delay(cerrado)
+  const { esperado_en_caja_bs } = await resumenTurno(turnoId)
+  
+  const { data: cerrado, error } = await supabase
+    .from('turnos_caja')
+    .update({
+      estado: 'cerrado',
+      cerrado_at: new Date().toISOString(),
+      saldo_declarado_bs: saldoDeclarado,
+      diferencia_bs: Number((saldoDeclarado - esperado_en_caja_bs).toFixed(2)),
+    } as any)
+    .eq('id', turnoId)
+    .select()
+    .single()
+
+  if (error || !cerrado) throw new Error(`Error al cerrar caja: ${error?.message || 'desconocido'}`)
+  return cerrado as TurnoCaja
 }
 
-/** Descripción legible de la atención cobrada, para la lista y el recibo. */
-function conceptoDeCita(cita: Cita): string {
-  const servicio = db.get('servicios').find((s) => s.id === cita.servicio_id)
-  return servicio ? `${TIPO_LABEL[cita.tipo_cita]} · ${servicio.nombre}` : TIPO_LABEL[cita.tipo_cita]
+async function conceptoDeCita(cita: Cita): Promise<string> {
+  const etiqueta = TIPO_LABEL[cita.tipo_cita as keyof typeof TIPO_LABEL]
+  // servicio_id es opcional en la cita: sin él, el concepto es solo el tipo.
+  if (!cita.servicio_id) return etiqueta
+  const { data: servicio } = await supabase.from('servicios').select('*').eq('id', cita.servicio_id).maybeSingle()
+  return servicio ? `${etiqueta} - ${servicio.nombre}` : etiqueta
 }
 
 function conceptoDeInternacion(internacion: Internacion): string {
   return `Internación · ${etiquetaDias(diasDeEstadia(internacion.fecha_ingreso, internacion.fecha_alta))}`
 }
 
-/**
- * Atenciones terminadas y aún no cobradas: citas completadas e internaciones
- * dadas de alta. Una estadía en curso no se cobra todavía, porque sus días
- * siguen sumando.
- */
 export async function listAtencionesPorCobrar(sucursalId?: string): Promise<AtencionPorCobrar[]> {
-  const cobros = db.get('cobros')
-  const citasCobradas = new Set(cobros.map((c) => c.cita_id).filter(Boolean))
-  const internacionesCobradas = new Set(cobros.map((c) => c.internacion_id).filter(Boolean))
-  const pacientes = db.get('pacientes')
-  const clientes = db.get('clientes')
-  const usuarios = db.get('usuarios')
+  const { data: cobros } = await supabase.from('cobros').select('cita_id, internacion_id')
+  const citasCobradas = new Set((cobros || []).map((c) => c.cita_id).filter(Boolean))
+  const internacionesCobradas = new Set((cobros || []).map((c) => c.internacion_id).filter(Boolean))
 
-  const nombreVet = (id: string) => usuarios.find((u) => u.id === id)?.nombre ?? 'Veterinario'
+  let citasQuery = supabase.from('citas').select('*, paciente:pacientes(*, cliente:clientes(*)), veterinario:usuarios(*)').eq('estado', 'completada')
+  if (sucursalId) citasQuery = citasQuery.eq('sucursal_id', sucursalId)
+  const { data: citas } = await citasQuery
 
-  const deCitas = db
-    .get('citas')
-    .filter((c) => c.estado === 'completada' && !citasCobradas.has(c.id))
-    .filter((c) => !sucursalId || c.sucursal_id === sucursalId)
-    .map((cita) => {
-      const paciente = pacientes.find((p) => p.id === cita.paciente_id)
-      const cliente = clientes.find((cl) => cl.id === paciente?.cliente_id)
-      const lineasFijas = lineasDeProductos(cita)
-      return {
-        tipo: 'cita',
-        referencia_id: cita.id,
-        paciente_nombre: paciente?.nombre ?? 'Paciente',
-        cliente_nombre: cliente?.nombre ?? '—',
-        veterinario_nombre: nombreVet(cita.veterinario_id),
-        concepto: conceptoDeCita(cita),
-        fecha: cita.fecha_hora,
-        lineasFijas,
-        subtotal_fijo_bs: totalDe(lineasFijas),
-        // La cirugía agendada llega preseleccionada en caja: ya se sabe qué se hizo.
-        servicio_sugerido_id: cita.servicio_id ?? null,
-      } satisfies AtencionPorCobrar
+  let intQuery = supabase.from('internaciones').select('*, paciente:pacientes(*, cliente:clientes(*)), veterinario:usuarios(*)').eq('estado', 'alta')
+  if (sucursalId) intQuery = intQuery.eq('sucursal_id', sucursalId)
+  const { data: internaciones } = await intQuery
+
+  const atenciones: AtencionPorCobrar[] = []
+
+  for (const cita of (citas || [])) {
+    if (citasCobradas.has(cita.id)) continue
+    const lineasFijas = await lineasDeProductos(cita as any)
+    atenciones.push({
+      tipo: 'cita',
+      referencia_id: cita.id,
+      paciente_nombre: cita.paciente?.nombre ?? 'Paciente',
+      cliente_nombre: cita.paciente?.cliente?.nombre ?? '—',
+      veterinario_nombre: cita.veterinario?.nombre ?? 'Veterinario',
+      concepto: await conceptoDeCita(cita as any),
+      fecha: cita.fecha_hora,
+      lineasFijas,
+      subtotal_fijo_bs: totalDe(lineasFijas),
+      servicio_sugerido_id: cita.servicio_id ?? null,
     })
+  }
 
-  const deInternaciones = db
-    .get('internaciones')
-    .filter((i) => i.estado === 'alta' && !internacionesCobradas.has(i.id))
-    .filter((i) => !sucursalId || i.sucursal_id === sucursalId)
-    .map((internacion) => {
-      const paciente = pacientes.find((p) => p.id === internacion.paciente_id)
-      const cliente = clientes.find((cl) => cl.id === paciente?.cliente_id)
-      const lineasFijas = lineasDeInternacion(internacion)
-      return {
-        tipo: 'internacion',
-        referencia_id: internacion.id,
-        paciente_nombre: paciente?.nombre ?? 'Paciente',
-        cliente_nombre: cliente?.nombre ?? '—',
-        veterinario_nombre: nombreVet(internacion.veterinario_id),
-        concepto: conceptoDeInternacion(internacion),
-        fecha: internacion.fecha_alta ?? internacion.fecha_ingreso,
-        lineasFijas,
-        subtotal_fijo_bs: totalDe(lineasFijas),
-        servicio_sugerido_id: null,
-      } satisfies AtencionPorCobrar
+  for (const int of (internaciones || [])) {
+    if (internacionesCobradas.has(int.id)) continue
+    const lineasFijas = await lineasDeInternacion(int as any)
+    atenciones.push({
+      tipo: 'internacion',
+      referencia_id: int.id,
+      paciente_nombre: int.paciente?.nombre ?? 'Paciente',
+      cliente_nombre: int.paciente?.cliente?.nombre ?? '—',
+      veterinario_nombre: int.veterinario?.nombre ?? 'Veterinario',
+      concepto: conceptoDeInternacion(int as any),
+      fecha: int.fecha_alta ?? int.fecha_ingreso,
+      lineasFijas,
+      subtotal_fijo_bs: totalDe(lineasFijas),
+      servicio_sugerido_id: null,
     })
+  }
 
-  return delay([...deCitas, ...deInternaciones].sort((a, b) => a.fecha.localeCompare(b.fecha)))
+  return atenciones.sort((a, b) => a.fecha.localeCompare(b.fecha))
 }
 
-/** Qué se está cobrando: una cita atendida o una internación dada de alta. */
 export type ReferenciaAtencion =
   | { tipo: 'cita'; id: string }
   | { tipo: 'internacion'; id: string }
 
-/**
- * Registra el cobro de una atención. Exige turno abierto y rechaza el doble
- * cobro; en Supabase esas mismas reglas las garantizan el índice único parcial
- * de `turnos_caja` y los índices únicos de `cita_id` / `internacion_id` de
- * `cobros`.
- */
 export async function registrarCobro(
   atencion: ReferenciaAtencion,
   metodoPago: MetodoPago,
@@ -251,52 +237,49 @@ export async function registrarCobro(
   let lineasFijas: LineaCobro[]
 
   if (atencion.tipo === 'cita') {
-    const cita = db.get('citas').find((c) => c.id === atencion.id)
+    const { data: cita } = await supabase.from('citas').select('*').eq('id', atencion.id).single()
     if (!cita) throw new Error('Cita no encontrada')
-    if (db.get('cobros').some((c) => c.cita_id === cita.id)) {
-      throw new Error('Esta cita ya fue cobrada')
-    }
+    const { data: existente } = await supabase.from('cobros').select('id').eq('cita_id', cita.id).maybeSingle()
+    if (existente) throw new Error('Esta cita ya fue cobrada')
     sucursalId = cita.sucursal_id
-    lineasFijas = lineasDeProductos(cita)
+    lineasFijas = await lineasDeProductos(cita as any)
   } else {
-    const internacion = db.get('internaciones').find((i) => i.id === atencion.id)
+    const { data: internacion } = await supabase.from('internaciones').select('*').eq('id', atencion.id).single()
     if (!internacion) throw new Error('Internación no encontrada')
     if (internacion.estado !== 'alta') {
       throw new Error('Da de alta al paciente antes de cobrar la internación')
     }
-    if (db.get('cobros').some((c) => c.internacion_id === internacion.id)) {
-      throw new Error('Esta internación ya fue cobrada')
-    }
+    const { data: existente } = await supabase.from('cobros').select('id').eq('internacion_id', internacion.id).maybeSingle()
+    if (existente) throw new Error('Esta internación ya fue cobrada')
     sucursalId = internacion.sucursal_id
-    lineasFijas = lineasDeInternacion(internacion)
+    lineasFijas = await lineasDeInternacion(internacion as any)
   }
 
-  const turno = getTurnoAbierto(sucursalId)
+  const turno = await getTurnoAbierto(sucursalId)
   if (!turno) throw new Error('Abre la caja antes de registrar cobros')
 
-  const lineas = [...lineasDeServicios(servicios), ...lineasFijas]
+  const lineasServ = await lineasDeServicios(servicios)
+  const lineas = [...lineasServ, ...lineasFijas]
   const monto = totalDe(lineas)
   if (monto <= 0) throw new Error('Agrega al menos un servicio o producto para cobrar')
 
-  const cobro: Cobro = {
-    id: newId('cobro'),
-    clinica_id: db.clinicaActivaId(),
-    sucursal_id: sucursalId,
-    turno_id: turno.id,
-    cita_id: atencion.tipo === 'cita' ? atencion.id : null,
-    internacion_id: atencion.tipo === 'internacion' ? atencion.id : null,
-    usuario_id: usuarioId,
-    monto_bs: monto,
-    metodo_pago: metodoPago,
-    created_at: new Date().toISOString(),
-  }
-  db.set('cobros', [...db.get('cobros'), cobro])
+  const { data: cobro, error } = await supabase
+    .from('cobros')
+    .insert({
+      sucursal_id: sucursalId,
+      turno_id: turno.id,
+      cita_id: atencion.tipo === 'cita' ? atencion.id : null,
+      internacion_id: atencion.tipo === 'internacion' ? atencion.id : null,
+      usuario_id: usuarioId,
+      monto_bs: monto,
+      metodo_pago: metodoPago,
+    } as any)
+    .select()
+    .single()
 
-  // Se guarda el precio aplicado en este momento: si el catálogo cambia
-  // después, el recibo ya emitido debe seguir mostrando lo que se cobró.
-  const persistidas: CobroLinea[] = lineas.map((l) => ({
-    id: newId('linea'),
-    clinica_id: db.clinicaActivaId(),
+  if (error || !cobro) throw new Error(`Error al cobrar: ${error?.message || 'desconocido'}`)
+
+  const persistidas = lineas.map((l) => ({
     cobro_id: cobro.id,
     concepto: l.concepto,
     cantidad: l.cantidad,
@@ -305,9 +288,11 @@ export async function registrarCobro(
     servicio_id: l.servicio_id ?? null,
     producto_id: l.producto_id ?? null,
   }))
-  db.set('cobro_lineas', [...db.get('cobro_lineas'), ...persistidas])
 
-  return delay(cobro)
+  const { error: errLineas } = await supabase.from('cobro_lineas').insert(persistidas as any)
+  if (errLineas) throw new Error(`Error al guardar líneas: ${errLineas.message}`)
+
+  return cobro as Cobro
 }
 
 export interface ItemVentaDirecta {
@@ -323,22 +308,15 @@ export interface DatosVentaDirecta {
   metodoPago: MetodoPago
 }
 
-/**
- * Registra la venta directa de medicamentos o productos de inventario en caja.
- * Exige turno abierto, descuenta el stock, registra el egreso en la bitácora
- * de inventario y genera el cobro correspondiente.
- */
 export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<Cobro> {
-  const turno = getTurnoAbierto(datos.sucursalId)
+  const turno = await getTurnoAbierto(datos.sucursalId)
   if (!turno) throw new Error('Abre la caja antes de registrar ventas de medicamentos')
   if (datos.items.length === 0) throw new Error('Selecciona al menos un medicamento o producto')
 
-  const productos = db.get('productos')
   const lineas: LineaCobro[] = []
 
-  // Validaciones previas de disponibilidad y stock
   for (const item of datos.items) {
-    const p = productos.find((prod) => prod.id === item.productoId)
+    const { data: p } = await supabase.from('productos').select('*').eq('id', item.productoId).single()
     if (!p) throw new Error('Producto no encontrado')
     if (item.cantidad <= 0) throw new Error(`Cantidad inválida para ${p.nombre}`)
     if (item.cantidad > p.stock_actual) {
@@ -359,47 +337,28 @@ export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<C
 
   const clienteEtiqueta = datos.clienteNombre?.trim() || 'Venta directa'
 
-  // 1. Descontar stock y registrar egresos en movimientos_inventario
   for (const item of datos.items) {
-    const p = productos.find((prod) => prod.id === item.productoId)!
-    const nuevoStock = p.stock_actual - item.cantidad
-    db.set(
-      'productos',
-      db.get('productos').map((prod) => (prod.id === item.productoId ? { ...prod, stock_actual: nuevoStock } : prod)),
-    )
-
-    const movimiento: MovimientoInventario = {
-      id: newId('mov'),
-      clinica_id: db.clinicaActivaId(),
-      producto_id: item.productoId,
-      tipo: 'egreso',
-      cantidad: item.cantidad,
-      motivo: `Venta en caja (${clienteEtiqueta})`,
-      created_at: new Date().toISOString(),
-    }
-    db.set('movimientos_inventario', [...db.get('movimientos_inventario'), movimiento])
+    await registrarMovimiento(item.productoId, 'egreso', item.cantidad, `Venta en caja (${clienteEtiqueta})`, {
+      usuarioId: datos.usuarioId,
+    })
   }
 
-  // 2. Registrar el cobro en caja
-  const cobro: Cobro = {
-    id: newId('cobro'),
-    clinica_id: db.clinicaActivaId(),
-    sucursal_id: datos.sucursalId,
-    turno_id: turno.id,
-    cita_id: null,
-    internacion_id: null,
-    cliente_nombre: clienteEtiqueta,
-    usuario_id: datos.usuarioId,
-    monto_bs: monto,
-    metodo_pago: datos.metodoPago,
-    created_at: new Date().toISOString(),
-  }
-  db.set('cobros', [...db.get('cobros'), cobro])
+  const { data: cobro, error } = await supabase
+    .from('cobros')
+    .insert({
+      sucursal_id: datos.sucursalId,
+      turno_id: turno.id,
+      cliente_nombre: clienteEtiqueta,
+      usuario_id: datos.usuarioId,
+      monto_bs: monto,
+      metodo_pago: datos.metodoPago,
+    } as any)
+    .select()
+    .single()
 
-  // 3. Registrar líneas del cobro
-  const persistidas: CobroLinea[] = lineas.map((l) => ({
-    id: newId('linea'),
-    clinica_id: db.clinicaActivaId(),
+  if (error || !cobro) throw new Error(`Error al cobrar: ${error?.message || 'desconocido'}`)
+
+  const persistidas = lineas.map((l) => ({
     cobro_id: cobro.id,
     concepto: l.concepto,
     cantidad: l.cantidad,
@@ -407,60 +366,87 @@ export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<C
     subtotal_bs: l.subtotal_bs,
     producto_id: l.producto_id ?? null,
   }))
-  db.set('cobro_lineas', [...db.get('cobro_lineas'), ...persistidas])
 
-  return delay(cobro)
+  const { error: errLineas } = await supabase.from('cobro_lineas').insert(persistidas as any)
+  if (errLineas) throw new Error(`Error al guardar líneas: ${errLineas.message}`)
+
+  return cobro as Cobro
 }
 
-export function detalleDeCobro(cobro: Cobro): CobroConDetalle {
-  const cita = db.get('citas').find((c) => c.id === cobro.cita_id)
-  const internacion = db.get('internaciones').find((i) => i.id === cobro.internacion_id)
-  const pacienteId = cita?.paciente_id ?? internacion?.paciente_id
-  const veterinarioId = cita?.veterinario_id ?? internacion?.veterinario_id
+export async function detalleDeCobro(cobro: Cobro): Promise<CobroConDetalle> {
+  let pacienteId: string | undefined
+  let veterinarioId: string | undefined
+  let concepto = 'Venta de medicamentos / productos'
+  let fecha_atencion = cobro.created_at
 
-  const paciente = db.get('pacientes').find((p) => p.id === pacienteId)
-  const cliente = db.get('clientes').find((cl) => cl.id === paciente?.cliente_id)
-  const veterinario = db.get('usuarios').find((u) => u.id === (veterinarioId ?? cobro.usuario_id))
+  if (cobro.cita_id) {
+    const { data: cita } = await supabase.from('citas').select('*').eq('id', cobro.cita_id).single()
+    if (cita) {
+      pacienteId = cita.paciente_id
+      veterinarioId = cita.veterinario_id
+      concepto = await conceptoDeCita(cita as any)
+      fecha_atencion = cita.fecha_hora
+    }
+  } else if (cobro.internacion_id) {
+    const { data: int } = await supabase.from('internaciones').select('*').eq('id', cobro.internacion_id).single()
+    if (int) {
+      pacienteId = int.paciente_id
+      veterinarioId = int.veterinario_id
+      concepto = conceptoDeInternacion(int as any)
+      fecha_atencion = int.fecha_alta ?? int.fecha_ingreso
+    }
+  }
 
-  const concepto = cita
-    ? conceptoDeCita(cita)
-    : internacion
-      ? conceptoDeInternacion(internacion)
-      : 'Venta de medicamentos / productos'
+  let pacienteNombre = cobro.cliente_nombre || 'Venta directa'
+  let clienteNombre = cobro.cliente_nombre || 'Cliente mostrador'
+
+  if (pacienteId) {
+    const { data: paciente } = await supabase.from('pacientes').select('*, cliente:clientes(*)').eq('id', pacienteId).single()
+    if (paciente) {
+      pacienteNombre = paciente.nombre
+      clienteNombre = (paciente as any).cliente?.nombre ?? clienteNombre
+    }
+  }
+
+  const userFetchId = veterinarioId ?? cobro.usuario_id
+  const { data: usuario } = await supabase.from('usuarios').select('*').eq('id', userFetchId).maybeSingle()
+  const veterinarioNombre = usuario?.nombre ?? 'Caja'
+
+  const { data: lineasData } = await supabase.from('cobro_lineas').select('*').eq('cobro_id', cobro.id)
+
+  const lineas = (lineasData || []).map((l: any) => ({
+    concepto: l.concepto,
+    cantidad: l.cantidad,
+    precio_unitario_bs: l.precio_unitario_bs,
+    subtotal_bs: l.subtotal_bs,
+    servicio_id: l.servicio_id,
+    producto_id: l.producto_id,
+  }))
 
   return {
     ...cobro,
-    paciente_nombre: paciente?.nombre ?? (cobro.cliente_nombre || 'Venta directa'),
-    cliente_nombre: cliente?.nombre ?? (cobro.cliente_nombre || 'Cliente mostrador'),
-    veterinario_nombre: veterinario?.nombre ?? 'Caja',
+    paciente_nombre: pacienteNombre,
+    cliente_nombre: clienteNombre,
+    veterinario_nombre: veterinarioNombre,
     concepto_atencion: concepto,
-    fecha_atencion: cita?.fecha_hora ?? internacion?.fecha_alta ?? cobro.created_at,
-    // Se LEEN las líneas guardadas, no se recalculan: así el recibo refleja
-    // los precios del momento del cobro aunque el catálogo haya cambiado.
-    lineas: db
-      .get('cobro_lineas')
-      .filter((l) => l.cobro_id === cobro.id)
-      .map((l) => ({
-        concepto: l.concepto,
-        cantidad: l.cantidad,
-        precio_unitario_bs: l.precio_unitario_bs,
-        subtotal_bs: l.subtotal_bs,
-        servicio_id: l.servicio_id,
-        producto_id: l.producto_id,
-      })),
+    fecha_atencion,
+    lineas,
   }
 }
 
 export async function listCobrosDelTurno(turnoId: string): Promise<CobroConDetalle[]> {
-  const result = db
-    .get('cobros')
-    .filter((c) => c.turno_id === turnoId)
-    .map(detalleDeCobro)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-  return delay(result)
+  const { data: cobros } = await supabase
+    .from('cobros')
+    .select('*')
+    .eq('turno_id', turnoId)
+    .order('created_at', { ascending: false })
+
+  if (!cobros) return []
+  return Promise.all(cobros.map((c) => detalleDeCobro(c as any)))
 }
 
 export async function getCobro(cobroId: string): Promise<CobroConDetalle | null> {
-  const cobro = db.get('cobros').find((c) => c.id === cobroId)
-  return delay(cobro ? detalleDeCobro(cobro) : null)
+  const { data: cobro } = await supabase.from('cobros').select('*').eq('id', cobroId).maybeSingle()
+  if (!cobro) return null
+  return detalleDeCobro(cobro as any)
 }

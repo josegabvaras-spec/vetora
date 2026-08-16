@@ -2,7 +2,7 @@ import { Outlet, Navigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { LogOut, PawPrint } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { db } from '../../mocks/db'
+import { supabase } from '../../lib/supabase'
 import type { Clinica } from '../../types/database'
 
 export function PortalClienteLayout() {
@@ -10,10 +10,13 @@ export function PortalClienteLayout() {
   const [clinica, setClinica] = useState<Clinica | null>(null)
 
   useEffect(() => {
-    if (usuario?.clinica_id) {
-      const clinicaEncontrada = db.get('clinicas').find(c => c.id === usuario.clinica_id)
-      if (clinicaEncontrada) setClinica(clinicaEncontrada)
+    async function load() {
+      if (usuario?.clinica_id) {
+        const { data } = await supabase.from('clinicas').select('*').eq('id', usuario.clinica_id).single()
+        if (data) setClinica(data as any)
+      }
     }
+    load()
   }, [usuario])
 
   // Solo clientes permitidos

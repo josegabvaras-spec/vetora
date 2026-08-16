@@ -1,23 +1,10 @@
-import { db } from '../mocks/db'
-import { isMockMode, supabase } from '../lib/supabase'
+import { supabase, isMockMode } from '../lib/supabase'
 import { contextoDeAviso, plantillaAviso, plantillaAvisoInterno, plantillaInforme } from '../lib/asistente'
 import type { Programado, ResumenDelDia } from '../types/views'
 
-/**
- * Única puerta hacia la IA. El modelo se llama desde una Edge Function de
- * Supabase (`supabase/functions/asistente`), nunca desde el navegador: una
- * clave de API en el frontend viaja dentro del bundle y cualquiera que abra la
- * aplicación puede extraerla.
- *
- * Si la función no está desplegada —que es el caso en todo el modo de
- * demostración— se cae a las plantillas de `lib/asistente`. El resultado dice
- * de dónde vino, y la interfaz lo muestra: un texto de plantilla no se puede
- * presentar como redactado por la IA.
- */
 export interface Redaccion {
   texto: string
   origen: 'ia' | 'plantilla'
-  /** Por qué no hubo IA, cuando corresponde. Se enseña como aviso discreto. */
   motivo?: string
 }
 
@@ -26,8 +13,6 @@ type Tarea = 'aviso' | 'aviso_interno' | 'informe'
 const SIN_IA = 'El asistente de IA no está configurado; texto generado con la plantilla del sistema.'
 
 async function pedirALaIA(tarea: Tarea, contexto: unknown): Promise<Redaccion | null> {
-  // En desarrollo local, la llamada a una Edge Function remota sin CORS configurado
-  // dispara errores rojos en la consola. Hacemos bypass directo a la plantilla.
   if (isMockMode || !supabase || window.location.hostname === 'localhost') return null
 
   try {
@@ -37,41 +22,37 @@ async function pedirALaIA(tarea: Tarea, contexto: unknown): Promise<Redaccion | 
     if (error || !data?.texto?.trim()) return null
     return { texto: data.texto.trim(), origen: 'ia' }
   } catch {
-    // Un fallo de red no puede dejar sin avisar a nadie: se sigue con plantilla.
     return null
   }
 }
 
-function clinicaEnSesion(): string {
-  return db.get('clinicas')[0]?.nombre ?? 'Su veterinaria'
+async function clinicaEnSesion(): Promise<string> {
+  const { data } = await supabase.from('clinicas').select('nombre').limit(1).maybeSingle()
+  return data?.nombre ?? 'Su veterinaria'
 }
 
-/** A qué número se le manda el informe: el que la clínica dejó registrado. */
 export async function contactoAdministracion(): Promise<{ nombre: string; whatsapp: string }> {
-  const clinica = db.get('clinicas')[0]
+  const { data: clinica } = await supabase.from('clinicas').select('responsable, whatsapp').limit(1).maybeSingle()
   if (!clinica?.whatsapp) {
     throw new Error('La clínica no tiene un WhatsApp de contacto registrado')
   }
   return { nombre: clinica.responsable, whatsapp: clinica.whatsapp }
 }
 
-/** Redacta el mensaje de un aviso concreto. El texto vuelve editable a la pantalla. */
 export async function redactarAviso(aviso: Programado): Promise<Redaccion> {
-  const clinica = clinicaEnSesion()
+  const clinica = await clinicaEnSesion()
   const conIa = await pedirALaIA('aviso', contextoDeAviso(aviso, clinica))
   return conIa ?? { texto: plantillaAviso(aviso, clinica), origen: 'plantilla', motivo: SIN_IA }
 }
 
-/** Redacta un aviso dirigido al equipo interno de la clínica. */
 export async function redactarAvisoInterno(aviso: Programado): Promise<Redaccion> {
-  const clinica = clinicaEnSesion()
+  const clinica = await clinicaEnSesion()
   const conIa = await pedirALaIA('aviso_interno', contextoDeAviso(aviso, clinica))
   return conIa ?? { texto: plantillaAvisoInterno(aviso, clinica), origen: 'plantilla', motivo: SIN_IA }
 }
 
-/** Redacta el resumen del día para el administrador. */
 export async function redactarInforme(resumen: ResumenDelDia): Promise<Redaccion> {
-  const clinica = clinicaEnSesion()
+  const clinica = await clinicaEnSesion()
   const conIa = await pedirALaIA('informe', { clinica, ...resumen })
   return conIa ?? { texto: plantillaInforme(resumen, clinica), origen: 'plantilla', motivo: SIN_IA }
 }

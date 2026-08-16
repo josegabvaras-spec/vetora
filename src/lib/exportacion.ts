@@ -1,8 +1,6 @@
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
-import { db } from '../mocks/db'
-import type { Paciente } from '../types/database'
-import type { Tables } from '../mocks/db'
+import { supabase } from './supabase'
 
 function objectToCSV(data: any[]): string {
   if (data.length === 0) return ''
@@ -25,7 +23,7 @@ function objectToCSV(data: any[]): string {
 export async function generarRespaldo() {
   const zip = new JSZip()
   
-  const tablas: (keyof Tables)[] = [
+  const tablas = [
     'clientes',
     'pacientes',
     'citas',
@@ -39,13 +37,20 @@ export async function generarRespaldo() {
     'notas_internacion'
   ]
 
+  let pacientesData: any[] = []
+
   // Agregar CSVs
   for (const tabla of tablas) {
-    const data = db.get(tabla as keyof Tables) as any[]
+    const { data, error } = await supabase.from(tabla as any).select('*')
+    if (error || !data) continue
+    
+    if (tabla === 'pacientes') {
+      pacientesData = data
+    }
     
     // Para pacientes, no incluimos la cadena base64 en el CSV para ahorrar espacio
     const exportData = tabla === 'pacientes' 
-      ? data.map(p => {
+      ? data.map((p: any) => {
           const { foto, ...rest } = p
           return { ...rest, tiene_foto: !!foto }
         })
@@ -56,11 +61,10 @@ export async function generarRespaldo() {
   }
 
   // Agregar Fotos
-  const pacientes = db.get('pacientes') as unknown as Paciente[]
   const fotosFolder = zip.folder('fotos')
   
   if (fotosFolder) {
-    for (const paciente of pacientes) {
+    for (const paciente of pacientesData) {
       if (paciente.foto && paciente.codigo) {
         // foto se espera que sea un base64 data URL: data:image/jpeg;base64,...
         const partes = paciente.foto.split(',')

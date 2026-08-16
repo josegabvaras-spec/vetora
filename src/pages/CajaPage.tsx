@@ -90,9 +90,9 @@ export function CajaPage() {
 
   const recargar = useCallback(async () => {
     if (!sucursalId) return
-    const abierto = getTurnoAbierto(sucursalId)
+    const abierto = await getTurnoAbierto(sucursalId)
     setTurno(abierto)
-    setResumen(abierto ? resumenTurno(abierto.id) : null)
+    setResumen(abierto ? await resumenTurno(abierto.id) : null)
     setPendientes(await listAtencionesPorCobrar(sucursalId))
     setCobros(abierto ? await listCobrosDelTurno(abierto.id) : [])
   }, [sucursalId])

@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FieldGroup, Input } from '../components/ui/Field'
-import { isMockMode } from '../lib/supabase'
 
 export function LoginPage() {
   const { usuario, esPlataforma, entrarConCredenciales } = useAuth()
@@ -104,16 +103,6 @@ export function LoginPage() {
             Registrarme como Cliente
           </Button>
         </div>
-
-        {isMockMode && (
-          <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-xs">
-            <h2 className="mb-2 font-bold text-amber-800">Modo de demostración</h2>
-            <p className="mb-2 text-amber-700/80">
-              Usa el correo del usuario con el que quieras probar y la contraseña{' '}
-              <strong className="font-mono text-amber-900">vetora2026</strong>.
-            </p>
-          </div>
-        )}
 
         <div className="mt-8 text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400">
           Bolivia · v0.1

@@ -46,7 +46,7 @@ export function AccesoPage() {
     setError(null)
     try {
       const { usuario } = await establecerPasswordConInvitacion(token, password)
-      entrarComo(usuario)
+      await entrarComo(usuario)
       navigate('/', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear la contraseña')

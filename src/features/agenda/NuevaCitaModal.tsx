@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { clsx } from 'clsx'
 import { formatInTimeZone } from 'date-fns-tz'
 import { CalendarX2 } from 'lucide-react'
@@ -52,18 +52,24 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
 
   // Una reconsulta controla una consulta anterior del mismo paciente; si cambia
   // el paciente, la que estuviera elegida deja de ser válida.
-  const consultasPrevias = useMemo(
-    () => consultasControlables(pacienteId),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pacienteId, citas],
-  )
+  const [consultasPrevias, setConsultasPrevias] = useState<any[]>([])
+  useEffect(() => {
+    let montado = true
+    consultasControlables(pacienteId).then((data) => {
+      if (montado) setConsultasPrevias(data)
+    })
+    return () => { montado = false }
+  }, [pacienteId, citas])
   const origenValido = consultasPrevias.some((c) => c.cita_id === citaOrigenId)
 
-  const cirugias = useMemo(
-    () => serviciosDeCategoria('cirugia'),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [servicios],
-  )
+  const [cirugias, setCirugias] = useState<any[]>([])
+  useEffect(() => {
+    let montado = true
+    serviciosDeCategoria('cirugia').then((data) => {
+      if (montado) setCirugias(data)
+    })
+    return () => { montado = false }
+  }, [servicios])
 
   const faltaOrigen = requiereConsultaOrigen(tipoCita) && !origenValido
   const faltaProcedimiento = requiereProcedimiento(tipoCita) && !servicioId

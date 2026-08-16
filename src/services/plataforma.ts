@@ -1,4 +1,4 @@
-import { db, newId } from '../mocks/db'
+import { supabase } from '../lib/supabase'
 import type { Clinica, EstadoClinica, Rol, Sucursal, Usuario } from '../types/database'
 import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma } from '../types/views'
 import { getPlan } from './planes'
@@ -8,14 +8,14 @@ import { exigirEmailLibre } from './cuentas'
 // asignarles plan, controlar cobros y suspensiones, y gestionar sus usuarios.
 // Nunca abre datos clínicos de un inquilino: solo su cuenta y su consumo.
 
-function delay<T>(value: T): Promise<T> {
-  return Promise.resolve(value)
-}
-
-function exigirClinica(clinicaId: string): Clinica {
-  const clinica = db.get('clinicas').find((c) => c.id === clinicaId)
-  if (!clinica) throw new Error('Clínica no encontrada')
-  return clinica
+async function exigirClinica(clinicaId: string): Promise<Clinica> {
+  const { data, error } = await supabase
+    .from('clinicas')
+    .select('*')
+    .eq('id', clinicaId)
+    .single()
+  if (error || !data) throw new Error('Clínica no encontrada')
+  return data as Clinica
 }
 
 /**
@@ -24,18 +24,28 @@ function exigirClinica(clinicaId: string): Clinica {
  * número, para que nunca digan cosas distintas.
  */
 export async function limitesDe(clinicaId: string): Promise<LimitesClinica> {
-  const clinica = exigirClinica(clinicaId)
+  const clinica = await exigirClinica(clinicaId)
   const plan = await getPlan(clinica.plan_id)
   if (!plan) throw new Error('La clínica no tiene un plan válido asignado')
+
+  const { count: sucursalesCount } = await supabase
+    .from('sucursales')
+    .select('*', { count: 'exact', head: true })
+    .eq('clinica_id', clinicaId)
+
+  const { count: usuariosCount } = await supabase
+    .from('usuarios')
+    .select('*', { count: 'exact', head: true })
+    .eq('clinica_id', clinicaId)
 
   return {
     plan,
     sucursales: {
-      usados: db.get('sucursales').filter((s) => s.clinica_id === clinicaId).length,
+      usados: sucursalesCount ?? 0,
       maximo: plan.max_sucursales,
     },
     usuarios: {
-      usados: db.get('usuarios').filter((u) => u.clinica_id === clinicaId).length,
+      usados: usuariosCount ?? 0,
       maximo: plan.max_usuarios,
     },
     whatsapp: { usados: clinica.whatsapp_mensajes_enviados, maximo: plan.whatsapp_limite },
@@ -44,70 +54,111 @@ export async function limitesDe(clinicaId: string): Promise<LimitesClinica> {
 
 async function detalleDeClinica(clinica: Clinica): Promise<ClinicaConDetalle> {
   const limites = await limitesDe(clinica.id)
+
+  const { count: pacientesCount } = await supabase
+    .from('pacientes')
+    .select('*', { count: 'exact', head: true })
+    .eq('clinica_id', clinica.id)
+
+  const { count: citasCount } = await supabase
+    .from('citas')
+    .select('*', { count: 'exact', head: true })
+    .eq('clinica_id', clinica.id)
+
+  const { data: usuarios } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('clinica_id', clinica.id)
+    .order('nombre')
+
   return {
     ...clinica,
     plan_nombre: limites.plan.nombre,
     precio_lista_bs: limites.plan.precio_mensual_bs,
     limites,
-    total_pacientes: db.get('pacientes').filter((p) => p.clinica_id === clinica.id).length,
-    total_citas: db.get('citas').filter((c) => c.clinica_id === clinica.id).length,
-    usuarios: db
-      .get('usuarios')
-      .filter((u) => u.clinica_id === clinica.id)
-      .sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    total_pacientes: pacientesCount ?? 0,
+    total_citas: citasCount ?? 0,
+    usuarios: (usuarios ?? []) as Usuario[],
   }
 }
 
 export async function listClinicas(): Promise<ClinicaConDetalle[]> {
-  const clinicas = db.get('clinicas').sort((a, b) => a.nombre.localeCompare(b.nombre))
-  const result = await Promise.all(clinicas.map(detalleDeClinica))
+  const { data: clinicas } = await supabase
+    .from('clinicas')
+    .select('*')
+    .order('nombre')
+
+  if (!clinicas || clinicas.length === 0) return []
+  const result = await Promise.all((clinicas as Clinica[]).map(detalleDeClinica))
   return result
 }
 
 export async function getClinica(clinicaId: string): Promise<ClinicaConDetalle | null> {
-  const clinica = db.get('clinicas').find((c) => c.id === clinicaId)
-  return clinica ? await detalleDeClinica(clinica) : null
+  const { data } = await supabase
+    .from('clinicas')
+    .select('*')
+    .eq('id', clinicaId)
+    .single()
+
+  return data ? await detalleDeClinica(data as Clinica) : null
 }
 
 export async function resumenPlataforma(): Promise<ResumenPlataforma> {
-  const clinicas = db.get('clinicas')
-  const activas = clinicas.filter((c) => c.estado === 'activa')
-  const enMora = clinicas.filter((c) => c.estado_pago === 'en_mora')
+  const { data: clinicas } = await supabase.from('clinicas').select('*')
+  const todasClinicas = (clinicas ?? []) as Clinica[]
+
+  const activas = todasClinicas.filter((c) => c.estado === 'activa')
+  const enMora = todasClinicas.filter((c) => c.estado_pago === 'en_mora')
 
   const ingresoMensual = Number(activas.reduce((n, c) => n + c.precio_acordado_bs, 0).toFixed(2))
 
-  // Generar un historial mock basado en el ingreso actual (crecimiento constante ficticio)
+  // Generar un historial basado en el ingreso actual (crecimiento constante ficticio)
   const meses = ['Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago']
-  let baseMrr = ingresoMensual * 0.6 // Hace 6 meses era el 60%
+  let baseMrr = ingresoMensual * 0.6
   const historial_mrr = meses.map((mes) => {
-    baseMrr += ingresoMensual * 0.08 + (Math.random() * 200 - 100) // Crece ~8% por mes + ruido
+    baseMrr += ingresoMensual * 0.08 + (Math.random() * 200 - 100)
     return { mes, mrr: Math.round(baseMrr) }
   })
-  // Forzamos el último mes al MRR real
-  historial_mrr[historial_mrr.length - 1].mrr = ingresoMensual
+  if (historial_mrr.length > 0) {
+    historial_mrr[historial_mrr.length - 1].mrr = ingresoMensual
+  }
 
-  const crecimiento = ((ingresoMensual - historial_mrr[historial_mrr.length - 2].mrr) / historial_mrr[historial_mrr.length - 2].mrr) * 100
+  const crecimiento = historial_mrr.length >= 2
+    ? ((ingresoMensual - historial_mrr[historial_mrr.length - 2].mrr) / historial_mrr[historial_mrr.length - 2].mrr) * 100
+    : 0
 
-  const limitesPromises = clinicas.map(async (c) => {
+  const limitesPromises = todasClinicas.map(async (c) => {
     const p = await getPlan(c.plan_id)
     return p?.whatsapp_limite ?? 0
   })
   const limites = await Promise.all(limitesPromises)
   const whatsapp_limite = limites.reduce((a, b) => a + b, 0)
 
-  return delay({
+  const { count: usuariosTotal } = await supabase
+    .from('usuarios')
+    .select('*', { count: 'exact', head: true })
+
+  const { count: pacientesTotal } = await supabase
+    .from('pacientes')
+    .select('*', { count: 'exact', head: true })
+
+  const { count: citasTotal } = await supabase
+    .from('citas')
+    .select('*', { count: 'exact', head: true })
+
+  return {
     clinicas_activas: activas.length,
-    clinicas_suspendidas: clinicas.filter((c) => c.estado === 'suspendida').length,
+    clinicas_suspendidas: todasClinicas.filter((c) => c.estado === 'suspendida').length,
     ingreso_mensual_bs: ingresoMensual,
     en_mora: enMora.length,
     importe_en_mora_bs: Number(enMora.reduce((n, c) => n + c.precio_acordado_bs, 0).toFixed(2)),
-    whatsapp_enviados: clinicas.reduce((n, c) => n + c.whatsapp_mensajes_enviados, 0),
+    whatsapp_enviados: todasClinicas.reduce((n, c) => n + c.whatsapp_mensajes_enviados, 0),
     whatsapp_limite,
     mrr_crecimiento_pct: Number(crecimiento.toFixed(1)),
-    usuarios_totales: db.get('usuarios').length,
-    pacientes_totales: db.get('pacientes').length,
-    citas_totales: db.get('citas').length,
-    errores_plataforma: 12, // mock
+    usuarios_totales: usuariosTotal ?? 0,
+    pacientes_totales: pacientesTotal ?? 0,
+    citas_totales: citasTotal ?? 0,
+    errores_plataforma: 0,
     uptime_pct: 99.98,
     servicios_estado: {
       base_datos: 'operativo',
@@ -115,7 +166,7 @@ export async function resumenPlataforma(): Promise<ResumenPlataforma> {
       storage: 'operativo',
     },
     historial_mrr,
-  })
+  }
 }
 
 export interface DatosClinica {
@@ -146,10 +197,14 @@ async function validarClinica(datos: DatosClinica, ignorarId?: string) {
   if (!Number.isFinite(datos.precio_acordado_bs) || datos.precio_acordado_bs < 0) {
     throw new Error('El precio acordado debe ser un número mayor o igual a 0')
   }
-  const repetido = db
-    .get('clinicas')
-    .some((c) => c.id !== ignorarId && c.nombre.trim().toLowerCase() === datos.nombre.trim().toLowerCase())
-  if (repetido) throw new Error('Ya existe una clínica con ese nombre')
+  // Verificar nombre único
+  let query = supabase
+    .from('clinicas')
+    .select('id')
+    .ilike('nombre', datos.nombre.trim())
+  if (ignorarId) query = query.neq('id', ignorarId)
+  const { data: repetidas } = await query
+  if (repetidas && repetidas.length > 0) throw new Error('Ya existe una clínica con ese nombre')
 }
 
 export interface AltaClinicaInput extends DatosClinica {
@@ -183,51 +238,92 @@ export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinica
   const adminEmail = await exigirEmailLibre(input.adminEmail)
 
   const hoy = new Date().toISOString().slice(0, 10)
-  const clinica: Clinica = {
-    id: newId('clinica'),
-    nombre: input.nombre.trim(),
-    logo_url: input.logo_url,
-    plan_id: input.plan_id,
-    responsable: input.responsable.trim(),
-    whatsapp: input.whatsapp.trim(),
-    ciudad: input.ciudad.trim() || 'Bolivia',
-    whatsapp_mensajes_enviados: 0,
-    estado: 'activa',
-    precio_acordado_bs: input.precio_acordado_bs,
-    fecha_alta: hoy,
-    proximo_cobro: input.proximo_cobro || hoy,
-    estado_pago: 'al_dia',
-    created_at: new Date().toISOString(),
-  }
-  db.set('clinicas', [...db.get('clinicas'), clinica])
 
-  const sucursal: Sucursal = {
-    id: newId('sucursal'),
-    clinica_id: clinica.id,
-    nombre: input.sucursalNombre.trim(),
-    direccion: input.sucursalDireccion.trim(),
-    created_at: new Date().toISOString(),
-  }
-  db.set('sucursales', [...db.get('sucursales'), sucursal])
+  // 1. Crear la clínica
+  const { data: clinicaData, error: clinicaError } = await supabase
+    .from('clinicas')
+    .insert({
+      nombre: input.nombre.trim(),
+      logo_url: input.logo_url ?? null,
+      plan_id: input.plan_id,
+      responsable: input.responsable.trim(),
+      whatsapp: input.whatsapp.trim(),
+      ciudad: input.ciudad.trim() || 'Bolivia',
+      whatsapp_mensajes_enviados: 0,
+      estado: 'activa',
+      precio_acordado_bs: input.precio_acordado_bs,
+      fecha_alta: hoy,
+      proximo_cobro: input.proximo_cobro || hoy,
+      estado_pago: 'al_dia',
+    })
+    .select()
+    .single()
 
-  const admin: Usuario = {
-    id: newId('user'),
-    clinica_id: clinica.id,
-    sucursal_id: null,
-    nombre: input.adminNombre.trim(),
+  if (clinicaError || !clinicaData) {
+    throw new Error(`Error al crear la clínica: ${clinicaError?.message ?? 'desconocido'}`)
+  }
+  const clinica = clinicaData as Clinica
+
+  // 2. Crear la primera sucursal
+  const { error: sucursalError } = await supabase
+    .from('sucursales')
+    .insert({
+      clinica_id: clinica.id,
+      nombre: input.sucursalNombre.trim(),
+      direccion: input.sucursalDireccion.trim(),
+    })
+
+  if (sucursalError) {
+    // Rollback: borrar la clínica
+    await supabase.from('clinicas').delete().eq('id', clinica.id)
+    throw new Error(`Error al crear la sucursal: ${sucursalError.message}`)
+  }
+
+  // 3. Crear cuenta en Supabase Auth para el administrador
+  const { data: authData, error: authError } = await supabase.auth.signUp({
     email: adminEmail,
-    whatsapp: input.adminWhatsapp.trim(),
-    rol: 'admin',
-    activo: true,
-    created_at: new Date().toISOString(),
-  }
-  db.set('usuarios', [...db.get('usuarios'), admin])
+    password: crypto.randomUUID(), // Contraseña temporal; el admin la cambia con su enlace
+    options: {
+      data: { nombre: input.adminNombre.trim() },
+    },
+  })
 
-  return delay({ clinica, admin })
+  if (authError || !authData.user) {
+    // Rollback
+    await supabase.from('sucursales').delete().eq('clinica_id', clinica.id)
+    await supabase.from('clinicas').delete().eq('id', clinica.id)
+    throw new Error(`Error al crear la cuenta del administrador: ${authError?.message ?? 'desconocido'}`)
+  }
+
+  // 4. Crear perfil en tabla usuarios
+  const { data: adminData, error: adminError } = await supabase
+    .from('usuarios')
+    .insert({
+      id: authData.user.id,
+      clinica_id: clinica.id,
+      sucursal_id: null,
+      nombre: input.adminNombre.trim(),
+      email: adminEmail,
+      whatsapp: input.adminWhatsapp.trim(),
+      rol: 'admin',
+      activo: true,
+    })
+    .select()
+    .single()
+
+  if (adminError || !adminData) {
+    // Rollback
+    await supabase.from('sucursales').delete().eq('clinica_id', clinica.id)
+    await supabase.from('clinicas').delete().eq('id', clinica.id)
+    throw new Error(`Error al crear el perfil del administrador: ${adminError?.message ?? 'desconocido'}`)
+  }
+  const admin = adminData as Usuario
+
+  return { clinica, admin }
 }
 
 export async function actualizarClinica(clinicaId: string, datos: DatosClinica): Promise<void> {
-  exigirClinica(clinicaId)
+  await exigirClinica(clinicaId)
   await validarClinica(datos, clinicaId)
 
   // Bajar de plan no puede dejar a la clínica por encima de los nuevos topes.
@@ -245,56 +341,50 @@ export async function actualizarClinica(clinicaId: string, datos: DatosClinica):
     )
   }
 
-  db.set(
-    'clinicas',
-    db.get('clinicas').map((c) =>
-      c.id === clinicaId
-        ? {
-            ...c,
-            nombre: datos.nombre.trim(),
-            logo_url: datos.logo_url,
-            responsable: datos.responsable.trim(),
-            whatsapp: datos.whatsapp.trim(),
-            ciudad: datos.ciudad.trim(),
-            plan_id: datos.plan_id,
-            precio_acordado_bs: datos.precio_acordado_bs,
-            proximo_cobro: datos.proximo_cobro,
-          }
-        : c,
-    ),
-  )
-  return delay(undefined)
+  const { error } = await supabase
+    .from('clinicas')
+    .update({
+      nombre: datos.nombre.trim(),
+      logo_url: datos.logo_url ?? null,
+      responsable: datos.responsable.trim(),
+      whatsapp: datos.whatsapp.trim(),
+      ciudad: datos.ciudad.trim(),
+      plan_id: datos.plan_id,
+      precio_acordado_bs: datos.precio_acordado_bs,
+      proximo_cobro: datos.proximo_cobro,
+    })
+    .eq('id', clinicaId)
+
+  if (error) throw new Error(`Error al actualizar la clínica: ${error.message}`)
 }
 
 /** Suspender corta el acceso de todos sus usuarios sin borrar nada. */
 export async function cambiarEstadoClinica(clinicaId: string, estado: EstadoClinica): Promise<void> {
-  exigirClinica(clinicaId)
-  db.set(
-    'clinicas',
-    db.get('clinicas').map((c) => (c.id === clinicaId ? { ...c, estado } : c)),
-  )
-  return delay(undefined)
+  await exigirClinica(clinicaId)
+  const { error } = await supabase
+    .from('clinicas')
+    .update({ estado })
+    .eq('id', clinicaId)
+  if (error) throw new Error(`Error al cambiar estado: ${error.message}`)
 }
 
 /** Registra el cobro del mes: pone la cuenta al día y corre el próximo cobro. */
 export async function marcarCobroAlDia(clinicaId: string, proximoCobro: string): Promise<void> {
-  exigirClinica(clinicaId)
-  db.set(
-    'clinicas',
-    db.get('clinicas').map((c) =>
-      c.id === clinicaId ? { ...c, estado_pago: 'al_dia', proximo_cobro: proximoCobro } : c,
-    ),
-  )
-  return delay(undefined)
+  await exigirClinica(clinicaId)
+  const { error } = await supabase
+    .from('clinicas')
+    .update({ estado_pago: 'al_dia', proximo_cobro: proximoCobro })
+    .eq('id', clinicaId)
+  if (error) throw new Error(`Error al marcar cobro: ${error.message}`)
 }
 
 export async function marcarEnMora(clinicaId: string): Promise<void> {
-  exigirClinica(clinicaId)
-  db.set(
-    'clinicas',
-    db.get('clinicas').map((c) => (c.id === clinicaId ? { ...c, estado_pago: 'en_mora' } : c)),
-  )
-  return delay(undefined)
+  await exigirClinica(clinicaId)
+  const { error } = await supabase
+    .from('clinicas')
+    .update({ estado_pago: 'en_mora' })
+    .eq('id', clinicaId)
+  if (error) throw new Error(`Error al marcar en mora: ${error.message}`)
 }
 
 /** Alta de sucursal, sujeta al tope del plan contratado. */
@@ -307,15 +397,18 @@ export async function crearSucursal(clinicaId: string, nombre: string, direccion
     )
   }
 
-  const sucursal: Sucursal = {
-    id: newId('sucursal'),
-    clinica_id: clinicaId,
-    nombre: nombre.trim(),
-    direccion: direccion.trim(),
-    created_at: new Date().toISOString(),
-  }
-  db.set('sucursales', [...db.get('sucursales'), sucursal])
-  return delay(sucursal)
+  const { data, error } = await supabase
+    .from('sucursales')
+    .insert({
+      clinica_id: clinicaId,
+      nombre: nombre.trim(),
+      direccion: direccion.trim(),
+    })
+    .select()
+    .single()
+
+  if (error || !data) throw new Error(`Error al crear sucursal: ${error?.message ?? 'desconocido'}`)
+  return data as Sucursal
 }
 
 export interface DatosUsuario {
@@ -341,45 +434,62 @@ export async function crearUsuario(clinicaId: string, datos: DatosUsuario): Prom
     )
   }
 
-  const usuario: Usuario = {
-    id: newId('user'),
-    clinica_id: clinicaId,
-    sucursal_id: datos.sucursal_id,
-    nombre: datos.nombre.trim(),
+  // Crear cuenta en Supabase Auth
+  const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
-    whatsapp: datos.whatsapp.trim(),
-    rol: datos.rol,
-    activo: true,
-    created_at: new Date().toISOString(),
+    password: crypto.randomUUID(),
+    options: {
+      data: { nombre: datos.nombre.trim() },
+    },
+  })
+
+  if (authError || !authData.user) {
+    throw new Error(`Error al crear cuenta: ${authError?.message ?? 'desconocido'}`)
   }
-  db.set('usuarios', [...db.get('usuarios'), usuario])
-  return delay(usuario)
+
+  const { data, error } = await supabase
+    .from('usuarios')
+    .insert({
+      id: authData.user.id,
+      clinica_id: clinicaId,
+      sucursal_id: datos.sucursal_id,
+      nombre: datos.nombre.trim(),
+      email,
+      whatsapp: datos.whatsapp.trim(),
+      rol: datos.rol,
+      activo: true,
+    })
+    .select()
+    .single()
+
+  if (error || !data) throw new Error(`Error al crear usuario: ${error?.message ?? 'desconocido'}`)
+  return data as Usuario
 }
 
 export async function actualizarUsuario(usuarioId: string, datos: DatosUsuario): Promise<void> {
-  const usuario = db.get('usuarios').find((u) => u.id === usuarioId)
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('id', usuarioId)
+    .single()
   if (!usuario) throw new Error('Usuario no encontrado')
   if (!datos.nombre.trim()) throw new Error('Indica el nombre del usuario')
   exigirWhatsapp(datos.whatsapp, 'del usuario')
   const email = await exigirEmailLibre(datos.email, usuarioId)
   if (datos.rol === 'superadmin') throw new Error('El rol de plataforma no se asigna a una clínica')
 
-  db.set(
-    'usuarios',
-    db.get('usuarios').map((u) =>
-      u.id === usuarioId
-        ? {
-            ...u,
-            nombre: datos.nombre.trim(),
-            email,
-            whatsapp: datos.whatsapp.trim(),
-            rol: datos.rol,
-            sucursal_id: datos.sucursal_id,
-          }
-        : u,
-    ),
-  )
-  return delay(undefined)
+  const { error } = await supabase
+    .from('usuarios')
+    .update({
+      nombre: datos.nombre.trim(),
+      email,
+      whatsapp: datos.whatsapp.trim(),
+      rol: datos.rol,
+      sucursal_id: datos.sucursal_id,
+    })
+    .eq('id', usuarioId)
+
+  if (error) throw new Error(`Error al actualizar usuario: ${error.message}`)
 }
 
 /**
@@ -387,23 +497,33 @@ export async function actualizarUsuario(usuarioId: string, datos: DatosUsuario):
  * esos registros son inmutables.
  */
 export async function alternarActivoUsuario(usuarioId: string): Promise<void> {
-  const usuario = db.get('usuarios').find((u) => u.id === usuarioId)
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('id', usuarioId)
+    .single()
   if (!usuario) throw new Error('Usuario no encontrado')
   if (usuario.rol === 'superadmin') throw new Error('El usuario de plataforma no puede desactivarse')
 
   // Una clínica sin ningún administrador activo se queda sin quien la gestione.
   if (usuario.activo && usuario.rol === 'admin') {
-    const otrosAdmins = db
-      .get('usuarios')
-      .filter((u) => u.clinica_id === usuario.clinica_id && u.rol === 'admin' && u.activo && u.id !== usuarioId)
-    if (otrosAdmins.length === 0) {
+    const { count } = await supabase
+      .from('usuarios')
+      .select('*', { count: 'exact', head: true })
+      .eq('clinica_id', usuario.clinica_id!)
+      .eq('rol', 'admin')
+      .eq('activo', true)
+      .neq('id', usuarioId)
+
+    if ((count ?? 0) === 0) {
       throw new Error('Es el único administrador activo de la clínica: nombra otro antes de desactivarlo')
     }
   }
 
-  db.set(
-    'usuarios',
-    db.get('usuarios').map((u) => (u.id === usuarioId ? { ...u, activo: !u.activo } : u)),
-  )
-  return delay(undefined)
+  const { error } = await supabase
+    .from('usuarios')
+    .update({ activo: !usuario.activo })
+    .eq('id', usuarioId)
+
+  if (error) throw new Error(`Error al cambiar estado del usuario: ${error.message}`)
 }
