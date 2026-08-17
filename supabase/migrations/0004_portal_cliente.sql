@@ -39,17 +39,17 @@ create unique index if not exists clientes_por_usuario
 -- Mismo alcance que antes para admin, veterinario y recepción: no pierden nada.
 -- Lo que cambia es que un `cliente` deja de entrar por aquí.
 
-drop policy clientes_all on clientes;
+drop policy if exists clientes_all on clientes;
 create policy clientes_personal on clientes for all
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()))
   with check (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy pacientes_all on pacientes;
+drop policy if exists pacientes_all on pacientes;
 create policy pacientes_personal on pacientes for all
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()))
   with check (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy citas_all on citas;
+drop policy if exists citas_all on citas;
 create policy citas_personal on citas for all
   using (
     clinica_id = (select auth_clinica_id())
@@ -63,56 +63,56 @@ create policy citas_personal on citas for all
   );
 
 -- Expediente clínico: solo el personal escribe y lee por clínica.
-drop policy historial_select on historial_clinico;
+drop policy if exists historial_select on historial_clinico;
 create policy historial_select on historial_clinico for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy historial_insert on historial_clinico;
+drop policy if exists historial_insert on historial_clinico;
 create policy historial_insert on historial_clinico for insert
   with check (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy vacunas_select on vacunas_aplicadas;
+drop policy if exists vacunas_select on vacunas_aplicadas;
 create policy vacunas_select on vacunas_aplicadas for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy vacunas_insert on vacunas_aplicadas;
+drop policy if exists vacunas_insert on vacunas_aplicadas;
 create policy vacunas_insert on vacunas_aplicadas for insert
   with check (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy desparasitaciones_select on desparasitaciones_aplicadas;
+drop policy if exists desparasitaciones_select on desparasitaciones_aplicadas;
 create policy desparasitaciones_select on desparasitaciones_aplicadas for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy desparasitaciones_insert on desparasitaciones_aplicadas;
+drop policy if exists desparasitaciones_insert on desparasitaciones_aplicadas;
 create policy desparasitaciones_insert on desparasitaciones_aplicadas for insert
   with check (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy consentimientos_select on consentimientos_cirugia;
+drop policy if exists consentimientos_select on consentimientos_cirugia;
 create policy consentimientos_select on consentimientos_cirugia for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy consentimientos_insert on consentimientos_cirugia;
+drop policy if exists consentimientos_insert on consentimientos_cirugia;
 create policy consentimientos_insert on consentimientos_cirugia for insert
   with check (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy internaciones_select on internaciones;
+drop policy if exists internaciones_select on internaciones;
 create policy internaciones_select on internaciones for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy notas_internacion_select on notas_internacion;
+drop policy if exists notas_internacion_select on notas_internacion;
 create policy notas_internacion_select on notas_internacion for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
 -- Caja e inventario: territorio exclusivo del personal.
-drop policy cobros_select on cobros;
+drop policy if exists cobros_select on cobros;
 create policy cobros_select on cobros for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy cobro_lineas_select on cobro_lineas;
+drop policy if exists cobro_lineas_select on cobro_lineas;
 create policy cobro_lineas_select on cobro_lineas for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 
-drop policy servicios_select on servicios;
+drop policy if exists servicios_select on servicios;
 create policy servicios_select on servicios for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));
 

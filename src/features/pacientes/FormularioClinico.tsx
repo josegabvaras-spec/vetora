@@ -141,52 +141,68 @@ interface Props {
   disabled?: boolean
 }
 
+function SelectClinico({
+  campo,
+  label,
+  valor,
+  onChange,
+  disabled,
+}: {
+  campo: CampoClinico
+  label: string
+  valor: string
+  onChange: (v: string) => void
+  disabled?: boolean
+}) {
+  const opciones = OPCIONES_CLINICAS[campo] as readonly OpcionClinica[]
+  return (
+    <FieldGroup label={label}>
+      <Select
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+      >
+        <option value="">Sin registrar</option>
+        {opciones.map((o) => (
+          <option key={o.valor} value={o.valor}>
+            {o.label}
+          </option>
+        ))}
+      </Select>
+    </FieldGroup>
+  )
+}
+
+function NumeroClinico({
+  label,
+  step,
+  valor,
+  onChange,
+  disabled,
+}: {
+  label: string
+  step?: string
+  valor: string
+  onChange: (v: string) => void
+  disabled?: boolean
+}) {
+  return (
+    <FieldGroup label={label}>
+      <Input
+        type="number"
+        min="0"
+        step={step}
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        placeholder="—"
+      />
+    </FieldGroup>
+  )
+}
+
 export function FormularioClinico({ datos, onChange, disabled }: Props) {
   const set = (campo: keyof DatosClinicos) => (valor: string) => onChange({ ...datos, [campo]: valor })
-
-  function SelectClinico({ campo, label }: { campo: CampoClinico; label: string }) {
-    const opciones = OPCIONES_CLINICAS[campo] as readonly OpcionClinica[]
-    return (
-      <FieldGroup label={label}>
-        <Select
-          value={datos[campo]}
-          onChange={(e) => set(campo)(e.target.value)}
-          disabled={disabled}
-        >
-          <option value="">Sin registrar</option>
-          {opciones.map((o) => (
-            <option key={o.valor} value={o.valor}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
-      </FieldGroup>
-    )
-  }
-
-  function NumeroClinico({
-    campo,
-    label,
-    step,
-  }: {
-    campo: keyof DatosClinicos
-    label: string
-    step?: string
-  }) {
-    return (
-      <FieldGroup label={label}>
-        <Input
-          type="number"
-          min="0"
-          step={step}
-          value={datos[campo]}
-          onChange={(e) => set(campo)(e.target.value)}
-          disabled={disabled}
-          placeholder="—"
-        />
-      </FieldGroup>
-    )
-  }
 
   return (
     <div className="space-y-5">
@@ -223,12 +239,12 @@ export function FormularioClinico({ datos, onChange, disabled }: Props) {
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <SelectClinico campo="apetito" label="Apetito" />
-          <SelectClinico campo="consumo_agua" label="Consumo de agua" />
-          <SelectClinico campo="vomitos" label="Vómitos" />
-          <SelectClinico campo="heces_consistencia" label="Heces: consistencia" />
-          <SelectClinico campo="heces_color" label="Heces: color" />
-          <SelectClinico campo="orina" label="Orina" />
+          <SelectClinico campo="apetito" label="Apetito" valor={datos.apetito} onChange={set('apetito')} disabled={disabled} />
+          <SelectClinico campo="consumo_agua" label="Consumo de agua" valor={datos.consumo_agua} onChange={set('consumo_agua')} disabled={disabled} />
+          <SelectClinico campo="vomitos" label="Vómitos" valor={datos.vomitos} onChange={set('vomitos')} disabled={disabled} />
+          <SelectClinico campo="heces_consistencia" label="Heces: consistencia" valor={datos.heces_consistencia} onChange={set('heces_consistencia')} disabled={disabled} />
+          <SelectClinico campo="heces_color" label="Heces: color" valor={datos.heces_color} onChange={set('heces_color')} disabled={disabled} />
+          <SelectClinico campo="orina" label="Orina" valor={datos.orina} onChange={set('orina')} disabled={disabled} />
           <FieldGroup label="Desparasitación al día">
             <Select
               value={datos.desparasitacion_al_dia}
@@ -246,17 +262,17 @@ export function FormularioClinico({ datos, onChange, disabled }: Props) {
       {/* ---------- Examen físico ---------- */}
       <Seccion titulo="Examen físico">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <NumeroClinico campo="peso_kg" label="Peso (kg)" step="0.1" />
-          <NumeroClinico campo="temperatura_c" label="Temp. (°C)" step="0.1" />
-          <NumeroClinico campo="frecuencia_cardiaca" label="Frec. cardíaca (lpm)" />
-          <NumeroClinico campo="frecuencia_respiratoria" label="Frec. respiratoria (rpm)" />
+          <NumeroClinico label="Peso (kg)" step="0.01" valor={datos.peso_kg} onChange={set('peso_kg')} disabled={disabled} />
+          <NumeroClinico label="Temp. (°C)" step="0.01" valor={datos.temperatura_c} onChange={set('temperatura_c')} disabled={disabled} />
+          <NumeroClinico label="Frec. cardíaca (lpm)" valor={datos.frecuencia_cardiaca} onChange={set('frecuencia_cardiaca')} disabled={disabled} />
+          <NumeroClinico label="Frec. respiratoria (rpm)" valor={datos.frecuencia_respiratoria} onChange={set('frecuencia_respiratoria')} disabled={disabled} />
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <SelectClinico campo="deshidratacion" label="Deshidratación" />
-          <SelectClinico campo="mucosas" label="Mucosas" />
-          <SelectClinico campo="tllc" label="Llenado capilar (TLLC)" />
-          <SelectClinico campo="estado_conciencia" label="Estado de conciencia" />
+          <SelectClinico campo="deshidratacion" label="Deshidratación" valor={datos.deshidratacion} onChange={set('deshidratacion')} disabled={disabled} />
+          <SelectClinico campo="mucosas" label="Mucosas" valor={datos.mucosas} onChange={set('mucosas')} disabled={disabled} />
+          <SelectClinico campo="tllc" label="Llenado capilar (TLLC)" valor={datos.tllc} onChange={set('tllc')} disabled={disabled} />
+          <SelectClinico campo="estado_conciencia" label="Estado de conciencia" valor={datos.estado_conciencia} onChange={set('estado_conciencia')} disabled={disabled} />
           <FieldGroup label="Condición corporal">
             <Select
               value={datos.condicion_corporal}

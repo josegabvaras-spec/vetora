@@ -1,4 +1,4 @@
-$token = (Get-Content "$env:USERPROFILE\.gemini\config\mcp_config.json" -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue).mcpServers.'github-mcp-server'.env.GITHUB_PERSONAL_ACCESS_TOKEN
+$token = (Get-Content "$env:USERPROFILE\.gemini\config\mcp_config.json" -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue).mcpServers.'github'.env.GITHUB_PERSONAL_ACCESS_TOKEN
 if (-not $token) {
     Write-Error "No se encontró el token de GitHub. Por favor, configúrelo en mcp_config.json."
     exit 1
@@ -6,7 +6,7 @@ if (-not $token) {
 
 $owner = "josegabvaras-spec"
 $repo = "vetora"
-$basePath = "c:\Users\Fable\Desktop\vetora"
+$basePath = "c:\Users\Sonnet\Desktop\syraxproyects\vetora"
 
 $headers = @{
     "Authorization" = "token $token"
