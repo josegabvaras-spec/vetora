@@ -38,6 +38,9 @@ function calcularCrecimiento(actual: number, anterior: number): number {
 }
 
 export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
+  // Los meses se comparan como 'yyyy-MM' en la zona de la clínica: con
+  // getMonth() se resolvían en la del navegador y el cierre de mes se
+  // descuadraba en las horas nocturnas, que son las de más caja.
   const ahora = new Date()
   const mesActual = clinicMonth(ahora.toISOString())
 
@@ -45,6 +48,7 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
   fechaMesAnterior.setMonth(ahora.getMonth() - 1)
   const mesAnterior = clinicMonth(fechaMesAnterior.toISOString())
 
+  // Traemos los datos para calcular todo
   const { data: cobrosData } = await supabase.from('cobros').select('monto_bs, created_at')
   const { data: pacientesData } = await supabase.from('pacientes').select('created_at')
   const { data: turnosCajaData } = await supabase.from('turnos_caja').select('abierto_at, created_at')
@@ -55,6 +59,7 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
   const turnosCaja = turnosCajaData || []
   const productos = productosData || []
 
+  // --- FINANZAS ---
   let ingresosMesActual = 0
   let ingresosMesAnterior = 0
 
@@ -67,6 +72,7 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
     }
   }
 
+  // --- PACIENTES ---
   let nuevosMesActual = 0
   let nuevosMesAnterior = 0
 
@@ -79,6 +85,7 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
     }
   }
 
+  // --- TURNOS DE CAJA ---
   let turnosCreadosMesActual = 0
   let turnosCreadosMesAnterior = 0
 
@@ -91,6 +98,7 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
     }
   }
 
+  // --- INVENTARIO ---
   let valorTotal = 0
   const productosBajoStock: Producto[] = []
 
@@ -101,6 +109,7 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
     }
   }
 
+  // --- HISTORIAL (Últimos 6 meses) ---
   const historial = []
   const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
   

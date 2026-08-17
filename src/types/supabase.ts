@@ -1240,8 +1240,10 @@ export type Database = {
     Functions: {
       auth_clinica_id: { Args: never; Returns: string }
       auth_es_admin: { Args: never; Returns: boolean }
+      auth_es_personal: { Args: never; Returns: boolean }
       auth_es_plataforma: { Args: never; Returns: boolean }
       auth_sucursal_id: { Args: never; Returns: string }
+      clinicas_para_registro: { Args: never; Returns: { id: string; nombre: string }[] }
       get_citas_end_time: { Args: { start_time: string }; Returns: string }
     }
     Enums: {

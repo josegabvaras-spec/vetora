@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FieldGroup, Input, Select } from '../components/ui/Field'
-import type { Clinica } from '../types/database'
+import {
+  listClinicasParaRegistro,
+  registrarClientePortal,
+  type ClinicaParaRegistro,
+} from '../services/portalCliente'
 
 export function RegistroClientePage() {
   const navigate = useNavigate()
-  
-  const [clinicas, setClinicas] = useState<Clinica[]>([])
+
+  const [clinicas, setClinicas] = useState<ClinicaParaRegistro[]>([])
   const [form, setForm] = useState({
     clinicaId: '',
     nombre: '',
@@ -23,11 +26,17 @@ export function RegistroClientePage() {
   const [registrando, setRegistrando] = useState(false)
 
   useEffect(() => {
-    async function cargarClinicas() {
-      const { data } = await supabase.rpc('clinicas_para_registro')
-      if (data) setClinicas(data as any)
+    let montado = true
+    listClinicasParaRegistro()
+      .then((lista) => {
+        if (montado) setClinicas(lista)
+      })
+      .catch(() => {
+        if (montado) setError('No se pudieron cargar las clínicas. Vuelve a intentarlo.')
+      })
+    return () => {
+      montado = false
     }
-    cargarClinicas()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -36,66 +45,20 @@ export function RegistroClientePage() {
     setError(null)
 
     try {
-      // 1. Crear el usuario en auth (esto iniciará sesión automáticamente)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-      })
-
-      if (authError) throw new Error(authError.message)
-      if (!authData.user) throw new Error('No se pudo crear la cuenta.')
-
-      const userId = authData.user.id
-
-      // 2. Crear registro en la tabla pública de usuarios
-      const { error: userError } = await supabase.from('usuarios').insert({
-        id: userId,
+      // El alta entera ocurre en el servidor: el rol y la clínica no salen de
+      // este formulario, y la vinculación por CI tampoco se decide aquí.
+      await registrarClientePortal({
         clinica_id: form.clinicaId,
         nombre: form.nombre,
         email: form.email,
+        password: form.password,
+        ci: form.ci,
         whatsapp: form.whatsapp,
-        rol: 'cliente',
-        activo: true,
       })
 
-      if (userError) throw new Error(`Error al registrar usuario: ${userError.message}`)
-
-      // 3. Vincular o crear el Cliente
-      // Primero buscamos si ya existe en esta clínica con el mismo CI
-      const { data: clientesExistentes } = await supabase
-        .from('clientes')
-        .select('*')
-        .eq('clinica_id', form.clinicaId)
-        .eq('ci', form.ci)
-
-      if (clientesExistentes && clientesExistentes.length > 0) {
-        // Actualizar cliente existente vinculando su usuario_id
-        const clienteExistente = clientesExistentes[0]
-        const { error: updateError } = await supabase
-          .from('clientes')
-          .update({ usuario_id: userId } as any)
-          .eq('id', clienteExistente.id)
-          
-        if (updateError) throw new Error(`Error al vincular perfil: ${updateError.message}`)
-      } else {
-        // Crear nuevo cliente
-        const { error: insertError } = await supabase
-          .from('clientes')
-          .insert({
-            clinica_id: form.clinicaId,
-            usuario_id: userId,
-            nombre: form.nombre,
-            whatsapp: form.whatsapp,
-            ci: form.ci,
-          } as any)
-
-        if (insertError) throw new Error(`Error al crear perfil de cliente: ${insertError.message}`)
-      }
-
       navigate('/portal-cliente/dashboard', { replace: true })
-
-    } catch (err: any) {
-      setError(err.message || 'Ocurrió un error al registrarse.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ocurrió un error al registrarse.')
       setRegistrando(false)
     }
   }
@@ -119,7 +82,7 @@ export function RegistroClientePage() {
             >
               <option value="">Selecciona tu clínica...</option>
               {clinicas.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre} - {c.ciudad}</option>
+                <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
             </Select>
           </FieldGroup>
