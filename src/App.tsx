@@ -23,6 +23,7 @@ import { RespaldoPage } from './pages/RespaldoPage'
 import { MetricasPage } from './pages/MetricasPage'
 import { AsistentePage } from './pages/AsistentePage'
 import { InternacionImprimirPage } from './pages/InternacionImprimirPage'
+import { PoliticaPrivacidadPage } from './pages/PoliticaPrivacidadPage'
 import { PlataformaLayout } from './components/layout/PlataformaLayout'
 import { PlataformaResumenPage } from './pages/plataforma/PlataformaResumenPage'
 import { PlataformaClinicasPage } from './pages/plataforma/PlataformaClinicasPage'
@@ -48,6 +49,7 @@ export default function App() {
           </Route>
 
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/privacidad" element={<PoliticaPrivacidadPage />} />
           <Route path="/registro-cliente" element={<RegistroClientePage />} />
           {/* Enlace que reciben por WhatsApp quienes acaban de ser dados de alta */}
           <Route path="/acceso/:token" element={<AccesoPage />} />

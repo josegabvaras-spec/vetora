@@ -104,8 +104,11 @@ export function LoginPage() {
           </Button>
         </div>
 
-        <div className="mt-8 text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-          Bolivia · v0.1
+        <div className="mt-8 flex flex-col items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+          <span>Bolivia · v1.0.1</span>
+          <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-700 hover:underline">
+            Política de Privacidad
+          </a>
         </div>
       </Card>
     </div>

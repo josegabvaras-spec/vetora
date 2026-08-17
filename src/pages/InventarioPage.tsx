@@ -52,6 +52,10 @@ export function InventarioPage() {
     return productos
   }, [productos, filtroStock])
 
+  const valorTotalInventario = useMemo(() => {
+    return productosFiltrados.reduce((total, p) => total + (p.precio_bs * p.stock_actual), 0)
+  }, [productosFiltrados])
+
   const columnas = useMemo<Columna<ProductoConMovimientos>[]>(
     () => [
       {
@@ -79,6 +83,11 @@ export function InventarioPage() {
         clave: 'precio',
         cabecera: 'Precio Unitario',
         celda: (p) => <span className="font-bold text-slate-700">{formatBs(p.precio_bs)}</span>,
+      },
+      {
+        clave: 'valor',
+        cabecera: 'Valor Total',
+        celda: (p) => <span className="font-bold text-slate-700">{formatBs(p.precio_bs * p.stock_actual)}</span>,
       },
       {
         clave: 'acciones',
@@ -133,7 +142,7 @@ export function InventarioPage() {
         </div>
       </div>
 
-      <div className="border-b border-slate-200">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
         <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
           <button
             onClick={() => setFiltroStock('todos')}
@@ -169,6 +178,10 @@ export function InventarioPage() {
             Agotados
           </button>
         </nav>
+        <div className="py-2 text-sm">
+          <span className="text-slate-500">Valor total en inventario:</span>{' '}
+          <span className="font-bold text-slate-900">{formatBs(valorTotalInventario)}</span>
+        </div>
       </div>
 
       <Card padding="none" className="overflow-hidden shadow-md">

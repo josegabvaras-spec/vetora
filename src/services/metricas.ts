@@ -53,11 +53,13 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
   const { data: pacientesData } = await supabase.from('pacientes').select('created_at')
   const { data: turnosCajaData } = await supabase.from('turnos_caja').select('abierto_at, created_at')
   const { data: productosData } = await supabase.from('productos').select('*')
+  const { data: movData } = await supabase.from('movimientos_inventario').select('tipo, cantidad, producto_id, created_at')
 
   const cobros = cobrosData || []
   const pacientes = pacientesData || []
   const turnosCaja = turnosCajaData || []
   const productos = productosData || []
+  const movs = (movData || []) as {tipo: string, cantidad: number, producto_id: string, created_at: string}[]
 
   // --- FINANZAS ---
   let ingresosMesActual = 0
@@ -137,14 +139,39 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
       if (fecha.getMonth() === tMes && fecha.getFullYear() === tAnio) tur++
     }
     
-    const valorInv = valorTotal * (1 - (i * 0.05))
+    // Calculamos el valor del inventario para este mes.
+    // Partimos del valor actual (almacenado en valorTotal) y deshacemos los movimientos
+    // que ocurrieron DESPUÉS del mes que estamos evaluando.
+    let valorInvMes = valorTotal
+      
+    // Necesitamos el precio de cada producto para deshacer su valor
+    const mapPrecios = new Map(productos.map(p => [p.id, p.precio_bs]))
+    
+    // Mes y año del historial se evalúan a fin de mes, así que deshacemos todo lo que sea posterior a eso.
+    // Target Date es el mes objetivo (tMes, tAnio). El final de ese mes es:
+    const finMesObjetivo = new Date(tAnio, tMes + 1, 1).getTime()
+
+    for (const mov of movs) {
+      const fechaMov = new Date(mov.created_at).getTime()
+      if (fechaMov >= finMesObjetivo) {
+        // Este movimiento ocurrió después del mes objetivo, hay que deshacerlo.
+        const precio = mapPrecios.get(mov.producto_id) || 0
+        if (mov.tipo === 'ingreso') {
+          // Si ingresó después, en el mes objetivo había MENOS
+          valorInvMes -= (mov.cantidad * precio)
+        } else if (mov.tipo === 'egreso') {
+          // Si salió después, en el mes objetivo había MÁS
+          valorInvMes += (mov.cantidad * precio)
+        }
+      }
+    }
 
     historial.push({
       mes: `${nombresMeses[tMes]} ${tAnio.toString().slice(2)}`,
       ingresos: ing,
       pacientes: pac,
       turnos: tur,
-      inventario: Math.round(valorInv)
+      inventario: Math.round(Math.max(0, valorInvMes))
     })
   }
 
