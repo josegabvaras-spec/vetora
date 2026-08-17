@@ -33,7 +33,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 p-6">
+    <div className="relative flex min-h-screen items-center justify-center overflow-x-hidden overflow-y-auto bg-slate-50 p-6">
       {/* Elementos de fondo decorativos (Premium SaaS Look) */}
       <div className="absolute top-[-10%] right-[-5%] h-[500px] w-[500px] rounded-full bg-gradient-to-br from-teal-200/40 to-teal-100/10 blur-[80px]" />
       <div className="absolute bottom-[-10%] left-[-5%] h-[600px] w-[600px] rounded-full bg-gradient-to-tr from-emerald-200/30 to-teal-50/10 blur-[100px]" />
