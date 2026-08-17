@@ -62,6 +62,13 @@ export interface Clinica {
   whatsapp: string
   ciudad: string
   whatsapp_mensajes_enviados: number
+  /**
+   * Mes al que pertenece el contador (`yyyy-MM-dd`, día 1). El tope es mensual
+   * pero no se reinicia a medianoche: lo reinicia el primer envío del mes nuevo,
+   * dentro de `consumir_cuota_whatsapp()`. Por eso hay que leerlo junto al
+   * contador para saber cuánto se lleva gastado de verdad.
+   */
+  whatsapp_periodo: string
   estado: EstadoClinica
 
   /** Suscripción: lo pactado puede diferir del precio de lista del plan. */

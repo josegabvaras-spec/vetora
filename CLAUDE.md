@@ -132,7 +132,7 @@ Cada una tiene su barrera en el SQL y su réplica en un servicio; si escribes c�
 | Consentimientos, cobros y notas de internación: solo INSERT | policies sin UPDATE/DELETE | servicios que solo insertan |
 | Internación congelada tras el alta | `trg_internacion_inmutable` | [services/internacion.ts](src/services/internacion.ts) |
 | Un veterinario sin citas solapadas (bloques de 30 min) | `exclude using gist` | [lib/agenda.ts](src/lib/agenda.ts) (`SLOT_MINUTOS`, franjas mañana/tarde) |
-| Tope mensual de WhatsApp antes de disparar el API | — | `enviarMensajeWhatsapp` valida contra el plan; **todo** envío pasa por ahí |
+| Tope **mensual** de WhatsApp por plan | `consumir_cuota_whatsapp()` comprueba y consume en una sola sentencia | `enviarMensajeWhatsapp` la invoca; **todo aviso a un cliente** pasa por ahí |
 | Precios congelados en `cobro_lineas` e `internaciones.precio_dia_bs` | columnas persistidas | los servicios copian el precio, no lo recalculan |
 
 Además:
@@ -140,6 +140,13 @@ Además:
 - **Moneda:** siempre `formatBs()` de [lib/currency.ts](src/lib/currency.ts) (`Bs. 0.00`).
 - **Tiempo:** siempre los helpers de [lib/datetime.ts](src/lib/datetime.ts) (`America/La_Paz`). Nunca `toLocaleString` ni `new Date().getHours()` sobre una fecha de negocio: el navegador puede estar en otra zona.
 - **Límites del plan:** se consultan por sus **números** (`max_sucursales`, `max_usuarios`, `whatsapp_limite`), nunca por el nombre del plan — el dueño de la plataforma crea planes desde el panel. `limitesDe()` en [services/plataforma.ts](src/services/plataforma.ts) es la fuente única para validar y para mostrar.
+- **WhatsApp no es una API.** [lib/whatsapp.ts](src/lib/whatsapp.ts) compone un enlace `wa.me` y **lo envía una persona** desde su propio teléfono; no hay token, ni webhook, ni coste por mensaje. El `whatsapp_limite` es una palanca comercial, no la repercusión de una factura.
+
+  El tope se consume en la base con `consumir_cuota_whatsapp()`: comprobar y sumar son la misma sentencia, porque hacerlo en tres viajes desde el navegador deja pasar dos pestañas con la cuota al límite. Es `security definer` **a propósito y acotado** — dar al admin una policy de UPDATE sobre `clinicas` le permitiría cambiarse `plan_id` y `precio_acordado_bs`.
+
+  El contador **no se reinicia a medianoche**: lo reinicia el primer envío de cada mes, comparando `whatsapp_periodo`. Por eso quien lo muestre debe leer las dos columnas — `enviadosEsteMes()` en [services/whatsapp.ts](src/services/whatsapp.ts) es la fuente única.
+
+  Los enlaces de acceso del superadmin (`EnviarAccesoModal`) **no consumen cuota**, y es correcto: los manda el dueño de la plataforma, que tiene `clinica_id = null`, y son alta de personal, no aviso a un cliente.
 - **Roles:** ocultar un enlace en el `Sidebar` no basta; la ruta va envuelta en `RolRoute` en [App.tsx](src/App.tsx). Ambas cosas. El reparto actual:
 
   | `RolRoute` | Rutas |

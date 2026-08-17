@@ -3,6 +3,7 @@ import type { Clinica, EstadoClinica, Rol, Sucursal, Usuario } from '../types/da
 import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma } from '../types/views'
 import { getPlan } from './planes'
 import { exigirEmailLibre } from './cuentas'
+import { enviadosEsteMes } from './whatsapp'
 
 // Servicios del dueño de la plataforma: dar de alta clínicas que contratan,
 // asignarles plan, controlar cobros y suspensiones, y gestionar sus usuarios.
@@ -48,7 +49,12 @@ export async function limitesDe(clinicaId: string): Promise<LimitesClinica> {
       usados: usuariosCount ?? 0,
       maximo: plan.max_usuarios,
     },
-    whatsapp: { usados: clinica.whatsapp_mensajes_enviados, maximo: plan.whatsapp_limite },
+    whatsapp: {
+      // El contador guardado puede ser del mes pasado: solo cuenta si su periodo
+      // es el mes en curso (ver `consumir_cuota_whatsapp`).
+      usados: enviadosEsteMes(clinica.whatsapp_mensajes_enviados, clinica.whatsapp_periodo),
+      maximo: plan.whatsapp_limite,
+    },
   }
 }
 
@@ -152,7 +158,12 @@ export async function resumenPlataforma(): Promise<ResumenPlataforma> {
     ingreso_mensual_bs: ingresoMensual,
     en_mora: enMora.length,
     importe_en_mora_bs: Number(enMora.reduce((n, c) => n + c.precio_acordado_bs, 0).toFixed(2)),
-    whatsapp_enviados: todasClinicas.reduce((n, c) => n + c.whatsapp_mensajes_enviados, 0),
+    // Consumo del mes en curso, no acumulado histórico: cada clínica aporta 0
+    // si su contador todavía es el del mes pasado.
+    whatsapp_enviados: todasClinicas.reduce(
+      (n, c) => n + enviadosEsteMes(c.whatsapp_mensajes_enviados, c.whatsapp_periodo),
+      0,
+    ),
     whatsapp_limite,
     mrr_crecimiento_pct: Number(crecimiento.toFixed(1)),
     usuarios_totales: usuariosTotal ?? 0,

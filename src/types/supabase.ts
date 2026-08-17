@@ -156,6 +156,7 @@ export type Database = {
           responsable: string
           whatsapp: string
           whatsapp_mensajes_enviados: number
+          whatsapp_periodo: string
         }
         Insert: {
           ciudad?: string
@@ -172,6 +173,7 @@ export type Database = {
           responsable?: string
           whatsapp?: string
           whatsapp_mensajes_enviados?: number
+          whatsapp_periodo?: string
         }
         Update: {
           ciudad?: string
@@ -188,6 +190,7 @@ export type Database = {
           responsable?: string
           whatsapp?: string
           whatsapp_mensajes_enviados?: number
+          whatsapp_periodo?: string
         }
         Relationships: [
           {
@@ -1244,6 +1247,7 @@ export type Database = {
       auth_es_plataforma: { Args: never; Returns: boolean }
       auth_sucursal_id: { Args: never; Returns: string }
       clinicas_para_registro: { Args: never; Returns: { id: string; nombre: string }[] }
+      consumir_cuota_whatsapp: { Args: never; Returns: number }
       get_citas_end_time: { Args: { start_time: string }; Returns: string }
     }
     Enums: {
