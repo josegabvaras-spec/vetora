@@ -264,8 +264,8 @@ export function FormularioClinico({ datos, onChange, disabled }: Props) {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <NumeroClinico label="Peso (kg)" step="0.01" valor={datos.peso_kg} onChange={set('peso_kg')} disabled={disabled} />
           <NumeroClinico label="Temp. (°C)" step="0.01" valor={datos.temperatura_c} onChange={set('temperatura_c')} disabled={disabled} />
-          <NumeroClinico label="Frec. cardíaca (lpm)" valor={datos.frecuencia_cardiaca} onChange={set('frecuencia_cardiaca')} disabled={disabled} />
-          <NumeroClinico label="Frec. respiratoria (rpm)" valor={datos.frecuencia_respiratoria} onChange={set('frecuencia_respiratoria')} disabled={disabled} />
+          <NumeroClinico label="Frec. cardíaca (lpm)" step="0.01" valor={datos.frecuencia_cardiaca} onChange={set('frecuencia_cardiaca')} disabled={disabled} />
+          <NumeroClinico label="Frec. respiratoria (rpm)" step="0.01" valor={datos.frecuencia_respiratoria} onChange={set('frecuencia_respiratoria')} disabled={disabled} />
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">

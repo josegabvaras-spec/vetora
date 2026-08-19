@@ -45,6 +45,11 @@ export function NuevoPacienteModal({
   const [error, setError] = useState<string | null>(null)
 
   const faltaMotivo = !datosClinicos.motivo.trim()
+  const faltanCamposFisico =
+    !datosClinicos.peso_kg.trim() ||
+    !datosClinicos.temperatura_c.trim() ||
+    !datosClinicos.frecuencia_cardiaca.trim() ||
+    !datosClinicos.frecuencia_respiratoria.trim()
 
   /** Valida contra el stock real menos lo ya pendiente, para avisar antes de crear al paciente. */
   async function agregarProductoPendiente(p: ProductoPendiente) {
@@ -65,6 +70,10 @@ export function NuevoPacienteModal({
     setError(null)
     if (faltaMotivo) {
       setError('Indica el motivo de la primera consulta')
+      return
+    }
+    if (faltanCamposFisico) {
+      setError('Debes completar los campos de examen físico (peso, temperatura, frecuencia cardíaca y respiratoria)')
       return
     }
     setEnviando(true)
@@ -169,7 +178,7 @@ export function NuevoPacienteModal({
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={enviando || faltaMotivo}>
+          <Button type="submit" disabled={enviando || faltaMotivo || faltanCamposFisico}>
             {enviando ? 'Guardando…' : 'Registrar'}
           </Button>
         </div>

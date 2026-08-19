@@ -75,7 +75,7 @@ export function RegistrarEvolucionModal({
             <FieldGroup label="Temp. (°C)">
               <Input
                 type="number"
-                step="0.1"
+                step="0.01"
                 placeholder="38.5"
                 value={temperatura}
                 onChange={(e) => setTemperatura(e.target.value)}
@@ -84,6 +84,7 @@ export function RegistrarEvolucionModal({
             <FieldGroup label="Frec. Card.">
               <Input
                 type="number"
+                step="0.01"
                 placeholder="110"
                 value={frecCardiaca}
                 onChange={(e) => setFrecCardiaca(e.target.value)}
@@ -92,6 +93,7 @@ export function RegistrarEvolucionModal({
             <FieldGroup label="Frec. Resp.">
               <Input
                 type="number"
+                step="0.01"
                 placeholder="24"
                 value={frecRespiratoria}
                 onChange={(e) => setFrecRespiratoria(e.target.value)}
@@ -100,7 +102,7 @@ export function RegistrarEvolucionModal({
             <FieldGroup label="Peso (kg)">
               <Input
                 type="number"
-                step="0.1"
+                step="0.01"
                 placeholder="5.2"
                 value={peso}
                 onChange={(e) => setPeso(e.target.value)}
