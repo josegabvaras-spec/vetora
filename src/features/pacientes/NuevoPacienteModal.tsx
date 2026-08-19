@@ -10,6 +10,7 @@ import {
   registrarVacuna,
 } from '../../services/historial'
 import { useAuth } from '../../context/AuthContext'
+import { useTable } from '../../mocks/useDb'
 import { supabase } from '../../lib/supabase'
 import { FormularioPaciente, datosPacienteVacios } from './FormularioPaciente'
 import { FormularioClinico, aCamposHistorial, datosClinicosVacios } from './FormularioClinico'
@@ -29,6 +30,7 @@ export function NuevoPacienteModal({
   onCreated: (resultado: AltaPacienteResultado) => void
 }) {
   const { usuario, sucursalActivaId } = useAuth()
+  const sucursales = useTable('sucursales')
 
   const [datosPaciente, setDatosPaciente] = useState(datosPacienteVacios)
 
@@ -78,7 +80,7 @@ export function NuevoPacienteModal({
     }
     setEnviando(true)
     try {
-      const sucursalId = sucursalActivaId || usuario?.sucursal_id
+      const sucursalId = sucursalActivaId || usuario?.sucursal_id || sucursales[0]?.id
       if (!sucursalId) throw new Error('No hay sucursal activa. Selecciona una sucursal antes de continuar.')
       const resultado = await registrarClienteYPaciente({
         clienteNombre: datosPaciente.clienteNombre,
