@@ -27,6 +27,7 @@ import { getFichaPaciente } from '../services/clientesPacientes'
 import { iniciarConsultaLibre, iniciarHistorialDesdeCita } from '../services/historial'
 import { FichaConsulta } from '../features/pacientes/FichaConsulta'
 import { useAuth } from '../context/AuthContext'
+import { useTable } from '../mocks/useDb'
 import { calcularEdad } from '../lib/paciente'
 import { formatClinicDate, formatClinicDateTime, formatClinicTime } from '../lib/datetime'
 import { etiquetaDias, ESTADO_INTERNACION_LABEL, ESTADO_INTERNACION_TONE } from '../lib/internacion'
@@ -62,6 +63,7 @@ export function FichaPacientePage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { usuario, sucursalActivaId } = useAuth()
+  const sucursales = useTable('sucursales')
   const [ficha, setFicha] = useState<FichaPaciente | null>(null)
   const [motivoNuevaConsulta, setMotivoNuevaConsulta] = useState('')
   const [creando, setCreando] = useState(false)
@@ -119,7 +121,7 @@ export function FichaPacientePage() {
     setCreando(true)
     setErrorConsulta(null)
     try {
-      const sucursalId = sucursalActivaId || usuario.sucursal_id
+      const sucursalId = sucursalActivaId || usuario.sucursal_id || sucursales[0]?.id
       if (!sucursalId) {
         throw new Error('Debes seleccionar una sucursal activa antes de iniciar una consulta.')
       }
