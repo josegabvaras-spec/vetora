@@ -94,6 +94,11 @@ export async function actualizarProducto(id: string, datos: DatosProducto): Prom
   if (error) throw new Error(`Error al actualizar producto: ${error.message}`)
 }
 
+export async function eliminarProducto(id: string): Promise<void> {
+  const { error } = await supabase.from('productos').delete().eq('id', id)
+  if (error) throw new Error(`Error al eliminar producto: ${error.message}`)
+}
+
 export async function listProductos(sucursalId?: string): Promise<ProductoConMovimientos[]> {
   let query = supabase.from('productos').select('*').order('nombre')
   if (sucursalId) query = query.eq('sucursal_id', sucursalId)

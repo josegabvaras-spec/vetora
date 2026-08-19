@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { clsx } from 'clsx'
-import { Pencil, Plus, PlusCircle } from 'lucide-react'
+import { Pencil, Plus, PlusCircle, Trash2 } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Field'
 import { Button } from '../components/ui/Button'
@@ -8,7 +8,7 @@ import { Badge } from '../components/ui/Badge'
 import { TablaResponsive, type Columna } from '../components/ui/Tabla'
 import { useAuth } from '../context/AuthContext'
 import { useTable } from '../mocks/useDb'
-import { listProductos } from '../services/inventario'
+import { listProductos, eliminarProducto } from '../services/inventario'
 import { AjustarStockModal } from '../features/inventario/AjustarStockModal'
 import { ProductoModal } from '../features/inventario/ProductoModal'
 import { formatBs } from '../lib/currency'
@@ -39,6 +39,18 @@ export function InventarioPage() {
 
   async function recargar() {
     setProductos(await listProductos(sucursalActivaId || undefined))
+  }
+
+  const handleEliminarProducto = async (producto: ProductoConMovimientos) => {
+    if (window.confirm(`¿Estás seguro de eliminar el producto "${producto.nombre}"?`)) {
+      try {
+        await eliminarProducto(producto.id)
+        alert('Producto eliminado correctamente')
+        recargar()
+      } catch (error: any) {
+        alert(error.message)
+      }
+    }
   }
 
   useEffect(() => {
@@ -111,9 +123,14 @@ export function InventarioPage() {
         celda: (p) => (
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
             {esAdmin && (
-              <Button variant="secondary" onClick={() => setEditandoProducto(p)} className="flex-1 px-3 py-1 text-xs md:flex-none">
-                <Pencil size={13} /> Editar
-              </Button>
+              <>
+                <Button variant="secondary" onClick={() => setEditandoProducto(p)} className="flex-1 px-3 py-1 text-xs md:flex-none">
+                  <Pencil size={13} /> Editar
+                </Button>
+                <Button variant="secondary" onClick={() => handleEliminarProducto(p)} className="flex-1 px-3 py-1 text-xs md:flex-none text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200">
+                  <Trash2 size={13} /> Eliminar
+                </Button>
+              </>
             )}
             <Button variant="secondary" onClick={() => setProductoSeleccionado(p)} className="flex-1 px-3 py-1 text-xs md:flex-none">
               <PlusCircle size={13} /> Ajustar Stock
