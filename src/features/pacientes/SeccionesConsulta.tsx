@@ -270,7 +270,7 @@ export function SeccionProductos({
           {registrados.map((p) => (
             <li key={p.movimiento_id} className="flex justify-between gap-2">
               <span className="font-medium">
-                {p.nombre} <span className="text-slate-400">{p.cantidad} ml</span>
+                {p.nombre} <span className="text-slate-400">{p.cantidad}</span>
               </span>
               <span className="text-slate-500">{formatBs(p.precio_bs * p.cantidad)}</span>
             </li>
@@ -280,7 +280,7 @@ export function SeccionProductos({
             return (
               <li key={`pendiente-${i}`} className="flex justify-between gap-2">
                 <span className="font-medium">
-                  {producto?.nombre ?? 'Producto'} <span className="text-slate-400">{p.cantidad} ml</span>
+                  {producto?.nombre ?? 'Producto'} <span className="text-slate-400">{p.cantidad} {producto?.unidad_medida ?? ''}</span>
                 </span>
                 <span className="text-slate-500">{formatBs((producto?.precio_bs ?? 0) * p.cantidad)}</span>
               </li>
@@ -297,18 +297,18 @@ export function SeccionProductos({
                 <option value="">Selecciona un producto…</option>
                 {productos.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.nombre} (stock: {p.stock_actual})
+                    {p.nombre} (stock: {p.stock_actual} {p.unidad_medida})
                   </option>
                 ))}
               </Select>
             </FieldGroup>
           </div>
           <div className="sm:w-28">
-            <FieldGroup label="Cantidad (ml)">
+            <FieldGroup label="Cantidad">
               <Input
                 type="number"
-                min="0.1"
-                step="0.1"
+                min="0.01"
+                step="any"
                 value={cantidad}
                 onChange={(e) => setCantidad(e.target.value)}
               />

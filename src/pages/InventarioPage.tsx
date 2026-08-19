@@ -62,7 +62,21 @@ export function InventarioPage() {
         clave: 'nombre',
         cabecera: 'Nombre del Producto',
         movil: 'titulo',
-        celda: (p) => <span className="font-bold text-slate-800">{p.nombre}</span>,
+        celda: (p) => (
+          <div>
+            <span className="font-bold text-slate-800">{p.nombre}</span>
+            {(p.presentacion || p.composicion) && (
+              <div className="mt-0.5 text-xs text-slate-500">
+                {p.presentacion && <span>{p.presentacion}</span>}
+                {p.presentacion && p.composicion && <span> · </span>}
+                {p.composicion && <span>{p.composicion}</span>}
+              </div>
+            )}
+            <div className="mt-0.5 text-xs font-medium text-slate-500">
+              Contenido: {p.contenido_presentacion} {p.unidad_medida}
+            </div>
+          </div>
+        ),
       },
       {
         clave: 'stock',

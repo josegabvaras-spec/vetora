@@ -41,7 +41,7 @@ export function AjustarStockModal({
   return (
     <Modal title={`Ajustar stock — ${producto.nombre}`} onClose={onClose}>
       <p className="mb-4 text-sm text-slate-500">
-        Stock actual: <span className="font-semibold text-slate-800">{producto.stock_actual}</span> · Precio:{' '}
+        Stock actual: <span className="font-semibold text-slate-800">{producto.stock_actual} {producto.unidad_medida}</span> · Precio:{' '}
         {formatBs(producto.precio_bs)}
       </p>
       <form className="space-y-4" onSubmit={handleSubmit}>
@@ -54,7 +54,8 @@ export function AjustarStockModal({
         <FieldGroup label="Cantidad">
           <Input
             type="number"
-            min={1}
+            min="0.01"
+            step="any"
             value={cantidad}
             onChange={(e) => setCantidad(Number(e.target.value))}
             required

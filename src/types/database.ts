@@ -334,6 +334,10 @@ export interface Producto {
   sucursal_id: string
   sku: string
   nombre: string
+  presentacion: string
+  composicion: string
+  unidad_medida: string
+  contenido_presentacion: number
   precio_bs: number
   stock_actual: number // CHECK (stock_actual >= 0)
   stock_minimo: number

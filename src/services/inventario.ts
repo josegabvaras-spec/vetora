@@ -6,6 +6,10 @@ export interface DatosProducto {
   sku: string
   nombre: string
   precio_bs: number
+  presentacion: string
+  composicion: string
+  unidad_medida: string
+  contenido_presentacion: number
   stock_minimo: number
 }
 
@@ -17,6 +21,10 @@ async function validarProducto(datos: DatosProducto, sucursalId: string, ignorar
   }
   if (!Number.isFinite(datos.stock_minimo) || datos.stock_minimo < 0) {
     throw new Error('El stock mínimo no puede ser negativo')
+  }
+  if (!datos.unidad_medida.trim()) throw new Error('La unidad de medida es obligatoria')
+  if (!Number.isFinite(datos.contenido_presentacion) || datos.contenido_presentacion <= 0) {
+    throw new Error('El contenido de presentación debe ser mayor a 0')
   }
 
   let query = supabase.from('productos').select('id').eq('sucursal_id', sucursalId).ilike('sku', datos.sku.trim())
@@ -42,6 +50,10 @@ export async function crearProducto(
       sucursal_id: sucursalId,
       sku: datos.sku.trim(),
       nombre: datos.nombre.trim(),
+      presentacion: datos.presentacion.trim(),
+      composicion: datos.composicion.trim(),
+      unidad_medida: datos.unidad_medida.trim(),
+      contenido_presentacion: datos.contenido_presentacion,
       precio_bs: datos.precio_bs,
       stock_actual: stockInicial,
       stock_minimo: datos.stock_minimo,
@@ -70,9 +82,13 @@ export async function actualizarProducto(id: string, datos: DatosProducto): Prom
     .update({
       sku: datos.sku.trim(),
       nombre: datos.nombre.trim(),
+      presentacion: datos.presentacion.trim(),
+      composicion: datos.composicion.trim(),
+      unidad_medida: datos.unidad_medida.trim(),
+      contenido_presentacion: datos.contenido_presentacion,
       precio_bs: datos.precio_bs,
       stock_minimo: datos.stock_minimo,
-    })
+    } as any)
     .eq('id', id)
 
   if (error) throw new Error(`Error al actualizar producto: ${error.message}`)

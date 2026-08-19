@@ -28,6 +28,10 @@ export function ProductoModal({
   const [sucursalId, setSucursalId] = useState(producto?.sucursal_id ?? sucursalIdPorDefecto)
   const [sku, setSku] = useState(producto?.sku ?? '')
   const [nombre, setNombre] = useState(producto?.nombre ?? '')
+  const [presentacion, setPresentacion] = useState(producto?.presentacion ?? '')
+  const [composicion, setComposicion] = useState(producto?.composicion ?? '')
+  const [unidadMedida, setUnidadMedida] = useState(producto?.unidad_medida ?? 'unidad')
+  const [contenido, setContenido] = useState(producto ? String(producto.contenido_presentacion) : '1')
   const [precio, setPrecio] = useState(producto ? String(producto.precio_bs) : '')
   const [stockMinimo, setStockMinimo] = useState(producto ? String(producto.stock_minimo) : '3')
   const [stockInicial, setStockInicial] = useState('0')
@@ -41,6 +45,10 @@ export function ProductoModal({
     const datos: DatosProducto = {
       sku,
       nombre,
+      presentacion,
+      composicion,
+      unidad_medida: unidadMedida,
+      contenido_presentacion: Number(contenido),
       precio_bs: Number(precio),
       stock_minimo: Number(stockMinimo),
     }
@@ -85,6 +93,37 @@ export function ProductoModal({
           </div>
         </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FieldGroup label="Presentación">
+            <Input value={presentacion} onChange={(e) => setPresentacion(e.target.value)} placeholder="Ej. Frasco, Blíster" />
+          </FieldGroup>
+          <FieldGroup label="Composición">
+            <Input value={composicion} onChange={(e) => setComposicion(e.target.value)} placeholder="Ej. Ivermectina 1%" />
+          </FieldGroup>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <FieldGroup label="Unidad de medida">
+            <Select value={unidadMedida} onChange={(e) => setUnidadMedida(e.target.value)}>
+              <option value="unidad">Unidad</option>
+              <option value="ml">Mililitros (ml)</option>
+              <option value="mg">Miligramos (mg)</option>
+              <option value="gr">Gramos (gr)</option>
+              <option value="comprimido">Comprimidos</option>
+            </Select>
+          </FieldGroup>
+          <FieldGroup label="Contenido total">
+            <Input
+              type="number"
+              min="0.01"
+              step="any"
+              value={contenido}
+              onChange={(e) => setContenido(e.target.value)}
+              required
+            />
+          </FieldGroup>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-3">
           <FieldGroup label="Precio (Bs.)">
             <Input
@@ -97,11 +136,11 @@ export function ProductoModal({
             />
           </FieldGroup>
           <FieldGroup label="Stock mínimo">
-            <Input type="number" min="0" value={stockMinimo} onChange={(e) => setStockMinimo(e.target.value)} />
+            <Input type="number" step="any" min="0" value={stockMinimo} onChange={(e) => setStockMinimo(e.target.value)} />
           </FieldGroup>
           {!producto && (
             <FieldGroup label="Stock inicial">
-              <Input type="number" min="0" value={stockInicial} onChange={(e) => setStockInicial(e.target.value)} />
+              <Input type="number" step="any" min="0" value={stockInicial} onChange={(e) => setStockInicial(e.target.value)} />
             </FieldGroup>
           )}
         </div>

@@ -112,6 +112,7 @@ export type Database = {
           created_at: string
           id: string
           nombre: string
+          usuario_id: string | null
           whatsapp: string
         }
         Insert: {
@@ -120,6 +121,7 @@ export type Database = {
           created_at?: string
           id?: string
           nombre: string
+          usuario_id?: string | null
           whatsapp: string
         }
         Update: {
@@ -128,6 +130,7 @@ export type Database = {
           created_at?: string
           id?: string
           nombre?: string
+          usuario_id?: string | null
           whatsapp?: string
         }
         Relationships: [
@@ -136,6 +139,13 @@ export type Database = {
             columns: ["clinica_id"]
             isOneToOne: false
             referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clientes_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -696,7 +706,7 @@ export type Database = {
           usuario_id: string
         }
         Insert: {
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           enviado_at?: string | null
           expira_at: string
@@ -863,8 +873,8 @@ export type Database = {
           alergias: string | null
           antecedentes: string | null
           cliente_id: string
-          codigo: string | null
           clinica_id: string
+          codigo: string | null
           created_at: string
           especie: string
           fecha_nacimiento: string | null
@@ -878,8 +888,8 @@ export type Database = {
           alergias?: string | null
           antecedentes?: string | null
           cliente_id: string
-          codigo?: string | null
           clinica_id?: string
+          codigo?: string | null
           created_at?: string
           especie: string
           fecha_nacimiento?: string | null
@@ -893,8 +903,8 @@ export type Database = {
           alergias?: string | null
           antecedentes?: string | null
           cliente_id?: string
-          codigo?: string | null
           clinica_id?: string
+          codigo?: string | null
           created_at?: string
           especie?: string
           fecha_nacimiento?: string | null
@@ -957,36 +967,48 @@ export type Database = {
       productos: {
         Row: {
           clinica_id: string
+          composicion: string
+          contenido_presentacion: number
           created_at: string
           id: string
           nombre: string
           precio_bs: number
+          presentacion: string
           sku: string
           stock_actual: number
           stock_minimo: number
           sucursal_id: string
+          unidad_medida: string
         }
         Insert: {
           clinica_id?: string
+          composicion?: string
+          contenido_presentacion?: number
           created_at?: string
           id?: string
           nombre: string
           precio_bs?: number
+          presentacion?: string
           sku: string
           stock_actual?: number
           stock_minimo?: number
           sucursal_id: string
+          unidad_medida?: string
         }
         Update: {
           clinica_id?: string
+          composicion?: string
+          contenido_presentacion?: number
           created_at?: string
           id?: string
           nombre?: string
           precio_bs?: number
+          presentacion?: string
           sku?: string
           stock_actual?: number
           stock_minimo?: number
           sucursal_id?: string
+          unidad_medida?: string
         }
         Relationships: [
           {
@@ -1116,7 +1138,7 @@ export type Database = {
           nombre: string
         }
         Insert: {
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           direccion?: string
           id?: string
@@ -1319,7 +1341,13 @@ export type Database = {
       auth_es_personal: { Args: never; Returns: boolean }
       auth_es_plataforma: { Args: never; Returns: boolean }
       auth_sucursal_id: { Args: never; Returns: string }
-      clinicas_para_registro: { Args: never; Returns: { id: string; nombre: string }[] }
+      clinicas_para_registro: {
+        Args: never
+        Returns: {
+          id: string
+          nombre: string
+        }[]
+      }
       consumir_cuota_whatsapp: { Args: never; Returns: number }
       get_citas_end_time: { Args: { start_time: string }; Returns: string }
     }
