@@ -162,6 +162,19 @@ export interface AltaPacienteResultado {
 }
 
 export async function registrarClienteYPaciente(input: NuevoClientePaciente): Promise<AltaPacienteResultado> {
+  // 1. Prevenir duplicidad accidental
+  const { data: duplicados } = await supabase
+    .from('pacientes')
+    .select('id, clientes!inner(nombre)')
+    .ilike('nombre', input.pacienteNombre)
+    .ilike('clientes.nombre', input.clienteNombre)
+    .limit(1)
+
+  if (duplicados && duplicados.length > 0) {
+    throw new Error(`El paciente "${input.pacienteNombre}" ya está registrado a nombre de "${input.clienteNombre}".`)
+  }
+
+  // 2. Registrar cliente
   const { data: cliente, error: cliError } = await supabase
     .from('clientes')
     .insert({
