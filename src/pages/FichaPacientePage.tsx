@@ -117,13 +117,19 @@ export function FichaPacientePage() {
   async function handleNuevaConsulta() {
     if (!id || !usuario || !motivoNuevaConsulta.trim()) return
     setCreando(true)
+    setErrorConsulta(null)
     try {
-      const sucursalId = sucursalActivaId || usuario.sucursal_id || 'sucursal-centro'
+      const sucursalId = sucursalActivaId || usuario.sucursal_id
+      if (!sucursalId) {
+        throw new Error('Debes seleccionar una sucursal activa antes de iniciar una consulta.')
+      }
       const historial = await iniciarConsultaLibre(id, sucursalId, usuario.id, motivoNuevaConsulta.trim())
       setMotivoNuevaConsulta('')
       setNuevoHistorialId(historial.id)
       await recargar()
       setHistorialModal(historial)
+    } catch (err) {
+      setErrorConsulta(err instanceof Error ? err.message : 'No se pudo iniciar la consulta')
     } finally {
       setCreando(false)
     }
