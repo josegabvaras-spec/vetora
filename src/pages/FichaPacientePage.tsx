@@ -17,15 +17,19 @@ import {
   Scissors,
   Syringe,
   ChevronDown,
+  Edit2,
+  Trash2,
 } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Field'
-import { getFichaPaciente } from '../services/clientesPacientes'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { getFichaPaciente, eliminarPaciente } from '../services/clientesPacientes'
 import { iniciarConsultaLibre, iniciarHistorialDesdeCita } from '../services/historial'
 import { FichaConsulta } from '../features/pacientes/FichaConsulta'
+import { EditarPacienteModal } from '../features/pacientes/EditarPacienteModal'
 import { useAuth } from '../context/AuthContext'
 import { useTable } from '../mocks/useDb'
 import { calcularEdad } from '../lib/paciente'
@@ -81,6 +85,22 @@ export function FichaPacientePage() {
   
   const [menuImpresionAbierto, setMenuImpresionAbierto] = useState(false)
   const menuImpresionRef = useRef<HTMLDivElement>(null)
+
+  const [modalEditar, setModalEditar] = useState(false)
+  const [modalBorrar, setModalBorrar] = useState(false)
+  const [borrando, setBorrando] = useState(false)
+
+  async function handleBorrar() {
+    if (!id) return
+    setBorrando(true)
+    try {
+      await eliminarPaciente(id)
+      navigate('/pacientes')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al borrar el paciente')
+      setBorrando(false)
+    }
+  }
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -182,8 +202,20 @@ export function FichaPacientePage() {
         >
           <ArrowLeft size={14} /> Volver a pacientes
         </Link>
-        <div className="relative" ref={menuImpresionRef}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setModalEditar(true)} className="bg-white">
+            <Edit2 size={16} /> <span className="hidden sm:inline">Editar</span>
+          </Button>
           <Button 
+            variant="outline" 
+            size="sm" 
+            className="bg-white text-rose-600 hover:bg-rose-50 hover:text-rose-700" 
+            onClick={() => setModalBorrar(true)}
+          >
+            <Trash2 size={16} /> <span className="hidden sm:inline">Borrar</span>
+          </Button>
+          <div className="relative" ref={menuImpresionRef}>
+            <Button 
             variant="outline" 
             size="sm" 
             onClick={() => setMenuImpresionAbierto(!menuImpresionAbierto)}
@@ -245,6 +277,7 @@ export function FichaPacientePage() {
               </Link>
             </div>
           )}
+          </div>
         </div>
       </div>
 
@@ -831,6 +864,29 @@ export function FichaPacientePage() {
           />
         </Modal>
       )}
+
+      {modalEditar && (
+        <EditarPacienteModal
+          ficha={ficha}
+          onClose={() => setModalEditar(false)}
+          onUpdated={() => {
+            setModalEditar(false)
+            recargar()
+          }}
+        />
+      )}
+
+      {modalBorrar && (
+        <ConfirmDialog
+          title="Borrar paciente"
+          description="¿Estás seguro de que deseas borrar a este paciente y todo su historial? Esta acción no se puede deshacer."
+          confirmLabel="Borrar permanentemente"
+          loading={borrando}
+          onConfirm={handleBorrar}
+          onCancel={() => setModalBorrar(false)}
+        />
+      )}
     </div>
   )
 }
+

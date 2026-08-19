@@ -218,3 +218,41 @@ export async function registrarClienteYPaciente(input: NuevoClientePaciente): Pr
 
   return { paciente: { ...paciente, cliente: cliente as any, internacion_activa: null } as any, historialId }
 }
+
+export async function actualizarClienteYPaciente(
+  pacienteId: string,
+  clienteId: string,
+  input: Omit<NuevoClientePaciente, 'primeraConsulta' | 'veterinarioId' | 'sucursalId'>
+): Promise<void> {
+  const { error: cliError } = await supabase
+    .from('clientes')
+    .update({
+      nombre: input.clienteNombre,
+      whatsapp: input.clienteWhatsapp,
+      ci: input.clienteCi,
+    })
+    .eq('id', clienteId)
+
+  if (cliError) throw new Error(`Error al actualizar cliente: ${cliError.message}`)
+
+  const { error: pacError } = await supabase
+    .from('pacientes')
+    .update({
+      nombre: input.pacienteNombre,
+      especie: input.especie,
+      raza: input.raza,
+      sexo: input.sexo,
+      foto: input.foto || null,
+      fecha_nacimiento: input.fechaNacimiento || null,
+      alergias: input.alergias?.trim() || null,
+      antecedentes: input.antecedentes?.trim() || null,
+    })
+    .eq('id', pacienteId)
+
+  if (pacError) throw new Error(`Error al actualizar paciente: ${pacError.message}`)
+}
+
+export async function eliminarPaciente(pacienteId: string): Promise<void> {
+  const { error } = await supabase.from('pacientes').delete().eq('id', pacienteId)
+  if (error) throw new Error(`Error al eliminar paciente: ${error.message}`)
+}
