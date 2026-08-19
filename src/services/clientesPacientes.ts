@@ -74,7 +74,7 @@ export async function getFichaPaciente(pacienteId: string): Promise<FichaPacient
   const { data: desparasitaciones } = await supabase.from('desparasitaciones_aplicadas').select('*').eq('paciente_id', pacienteId)
   const { data: movimientos } = await supabase.from('movimientos_inventario').select('*')
   const { data: productos } = await supabase.from('productos').select('*')
-  const { data: recetas } = await (supabase as any).from('recetas').select('*').eq('paciente_id', pacienteId)
+  const { data: recetas } = await supabase.from('recetas').select('*').eq('paciente_id', pacienteId)
   const { data: citas } = await supabase.from('citas').select('*').eq('paciente_id', pacienteId)
   const { data: servicios } = await supabase.from('servicios').select('*')
   const { data: internacionesData } = await supabase.from('internaciones').select('*').eq('paciente_id', pacienteId)
@@ -168,20 +168,19 @@ export async function registrarClienteYPaciente(input: NuevoClientePaciente): Pr
       nombre: input.clienteNombre,
       whatsapp: input.clienteWhatsapp,
       ci: input.clienteCi,
-    } as any)
+    })
     .select()
     .single()
 
   if (cliError || !cliente) throw new Error(`Error al registrar cliente: ${cliError?.message || 'desconocido'}`)
 
-  const { count } = await supabase.from('pacientes').select('*', { count: 'exact', head: true })
-  const codigoAutogenerado = `MAS-${String((count ?? 0) + 1).padStart(3, '0')}`
-
+  // El `codigo` lo asigna el trigger `trg_codigo_paciente`. Formarlo aquí con
+  // `count(*) + 1` era un check-then-act: dos altas simultáneas leían el mismo
+  // total y generaban el mismo código.
   const { data: paciente, error: pacError } = await supabase
     .from('pacientes')
     .insert({
       cliente_id: cliente.id,
-      codigo: codigoAutogenerado,
       nombre: input.pacienteNombre,
       especie: input.especie,
       raza: input.raza,
@@ -190,7 +189,7 @@ export async function registrarClienteYPaciente(input: NuevoClientePaciente): Pr
       fecha_nacimiento: input.fechaNacimiento || null,
       alergias: input.alergias?.trim() || null,
       antecedentes: input.antecedentes?.trim() || null,
-    } as any)
+    })
     .select()
     .single()
 

@@ -25,7 +25,7 @@ export async function generarConsentimiento(
       // En producción: PDF real generado y subido a Supabase Storage.
       url_pdf: `#consentimiento-${citaId}.pdf`,
       metodo_aceptacion: metodoAceptacion,
-    } as any)
+    })
     .select()
     .single()
 

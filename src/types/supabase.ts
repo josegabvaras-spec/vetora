@@ -32,7 +32,7 @@ export type Database = {
         }
         Insert: {
           cita_origen_id?: string | null
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           estado?: string
           fecha_hora: string
@@ -116,7 +116,7 @@ export type Database = {
         }
         Insert: {
           ci?: string | null
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           id?: string
           nombre: string
@@ -216,7 +216,7 @@ export type Database = {
         }
         Insert: {
           cantidad: number
-          clinica_id: string
+          clinica_id?: string
           cobro_id: string
           concepto: string
           id?: string
@@ -270,6 +270,7 @@ export type Database = {
       cobros: {
         Row: {
           cita_id: string | null
+          cliente_nombre: string | null
           clinica_id: string
           created_at: string
           id: string
@@ -282,7 +283,8 @@ export type Database = {
         }
         Insert: {
           cita_id?: string | null
-          clinica_id: string
+          cliente_nombre?: string | null
+          clinica_id?: string
           created_at?: string
           id?: string
           internacion_id?: string | null
@@ -294,6 +296,7 @@ export type Database = {
         }
         Update: {
           cita_id?: string | null
+          cliente_nombre?: string | null
           clinica_id?: string
           created_at?: string
           id?: string
@@ -361,7 +364,7 @@ export type Database = {
         }
         Insert: {
           cita_id: string
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           id?: string
           metodo_aceptacion: string
@@ -414,7 +417,7 @@ export type Database = {
           via: string
         }
         Insert: {
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           fecha_aplicacion?: string
           fecha_proxima?: string | null
@@ -494,7 +497,7 @@ export type Database = {
         Insert: {
           apetito?: string | null
           cita_id: string
-          clinica_id: string
+          clinica_id?: string
           condicion_corporal?: number | null
           consumo_agua?: string | null
           created_at?: string
@@ -604,7 +607,7 @@ export type Database = {
         }
         Insert: {
           cita_id?: string | null
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           estado?: string
           fecha_alta?: string | null
@@ -744,7 +747,7 @@ export type Database = {
         Insert: {
           cantidad: number
           cita_id?: string | null
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           id?: string
           internacion_id?: string | null
@@ -808,7 +811,7 @@ export type Database = {
           veterinario_id: string
         }
         Insert: {
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           frecuencia_cardiaca?: number | null
           frecuencia_respiratoria?: number | null
@@ -860,10 +863,12 @@ export type Database = {
           alergias: string | null
           antecedentes: string | null
           cliente_id: string
+          codigo: string | null
           clinica_id: string
           created_at: string
           especie: string
           fecha_nacimiento: string | null
+          foto: string | null
           id: string
           nombre: string
           raza: string | null
@@ -873,10 +878,12 @@ export type Database = {
           alergias?: string | null
           antecedentes?: string | null
           cliente_id: string
-          clinica_id: string
+          codigo?: string | null
+          clinica_id?: string
           created_at?: string
           especie: string
           fecha_nacimiento?: string | null
+          foto?: string | null
           id?: string
           nombre: string
           raza?: string | null
@@ -886,10 +893,12 @@ export type Database = {
           alergias?: string | null
           antecedentes?: string | null
           cliente_id?: string
+          codigo?: string | null
           clinica_id?: string
           created_at?: string
           especie?: string
           fecha_nacimiento?: string | null
+          foto?: string | null
           id?: string
           nombre?: string
           raza?: string | null
@@ -958,7 +967,7 @@ export type Database = {
           sucursal_id: string
         }
         Insert: {
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           id?: string
           nombre: string
@@ -996,6 +1005,70 @@ export type Database = {
           },
         ]
       }
+      recetas: {
+        Row: {
+          clinica_id: string
+          created_at: string
+          dosis: string
+          duracion: string
+          frecuencia: string
+          historial_id: string
+          id: string
+          indicaciones: string | null
+          medicamento: string
+          paciente_id: string
+          via: string
+        }
+        Insert: {
+          clinica_id?: string
+          created_at?: string
+          dosis: string
+          duracion: string
+          frecuencia: string
+          historial_id: string
+          id?: string
+          indicaciones?: string | null
+          medicamento: string
+          paciente_id: string
+          via: string
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string
+          dosis?: string
+          duracion?: string
+          frecuencia?: string
+          historial_id?: string
+          id?: string
+          indicaciones?: string | null
+          medicamento?: string
+          paciente_id?: string
+          via?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recetas_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recetas_historial_id_fkey"
+            columns: ["historial_id"]
+            isOneToOne: false
+            referencedRelation: "historial_clinico"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recetas_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       servicios: {
         Row: {
           activo: boolean
@@ -1009,7 +1082,7 @@ export type Database = {
         Insert: {
           activo?: boolean
           categoria: string
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           id?: string
           nombre: string
@@ -1083,7 +1156,7 @@ export type Database = {
         Insert: {
           abierto_at?: string
           cerrado_at?: string | null
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           diferencia_bs?: number | null
           estado?: string
@@ -1193,7 +1266,7 @@ export type Database = {
           paciente_id: string
         }
         Insert: {
-          clinica_id: string
+          clinica_id?: string
           created_at?: string
           fecha_aplicacion?: string
           fecha_refuerzo?: string | null

@@ -139,7 +139,7 @@ export async function crearCita(input: NuevaCitaInput): Promise<Cita> {
       servicio_id: input.servicioId ?? null,
       notas: input.notas ?? null,
       recordatorio_enviado: false,
-    } as any)
+    })
     .select()
     .single()
 

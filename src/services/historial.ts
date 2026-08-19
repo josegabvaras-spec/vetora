@@ -79,7 +79,7 @@ export async function iniciarConsultaLibre(
       tipo_cita: 'consulta',
       estado: 'completada',
       recordatorio_enviado: true,
-    } as any)
+    })
     .select()
     .single()
 
@@ -118,7 +118,7 @@ export async function crearBorradorHistorial(input: NuevaConsultaInput): Promise
       diagnostico: input.diagnostico,
       tratamiento: input.tratamiento,
       editable: true,
-    } as any)
+    })
     .select()
     .single()
 
@@ -161,7 +161,7 @@ export async function registrarVacuna(
       nombre_vacuna: nombreVacuna.trim(),
       fecha_aplicacion: new Date().toISOString().slice(0, 10),
       fecha_refuerzo: fechaRefuerzo || null,
-    } as any)
+    })
     .select()
     .single()
 
@@ -187,7 +187,7 @@ export async function registrarDesparasitacion(
       via,
       fecha_aplicacion: new Date().toISOString().slice(0, 10),
       fecha_proxima: fechaProxima || null,
-    } as any)
+    })
     .select()
     .single()
 
@@ -246,7 +246,7 @@ export async function registrarRecetaItem(
   if (!input.frecuencia.trim()) throw new Error('Indica la frecuencia de administración')
   if (!input.duracion.trim()) throw new Error('Indica la duración del tratamiento')
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('recetas')
     .insert({
       historial_id: historialId,
@@ -270,6 +270,6 @@ export async function eliminarRecetaItem(
   historialId: string,
 ): Promise<void> {
   await exigirBorrador(historialId)
-  const { error } = await (supabase as any).from('recetas').delete().eq('id', recetaItemId)
+  const { error } = await supabase.from('recetas').delete().eq('id', recetaItemId)
   if (error) throw new Error(`Error al eliminar receta: ${error.message}`)
 }

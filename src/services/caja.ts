@@ -102,7 +102,7 @@ export async function abrirTurno(sucursalId: string, usuarioId: string, saldoIni
       saldo_inicial_bs: saldoInicial,
       abierto_at: new Date().toISOString(),
       estado: 'abierto',
-    } as any)
+    })
     .select()
     .single()
 
@@ -273,7 +273,7 @@ export async function registrarCobro(
       usuario_id: usuarioId,
       monto_bs: monto,
       metodo_pago: metodoPago,
-    } as any)
+    })
     .select()
     .single()
 
@@ -352,7 +352,7 @@ export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<C
       usuario_id: datos.usuarioId,
       monto_bs: monto,
       metodo_pago: datos.metodoPago,
-    } as any)
+    })
     .select()
     .single()
 
