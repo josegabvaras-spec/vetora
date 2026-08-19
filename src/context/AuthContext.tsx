@@ -17,15 +17,33 @@ interface AuthContextValue {
    */
   entrarComo: (usuario: Usuario) => Promise<void>
   logout: () => Promise<void>
-  setSucursalActivaId: (id: string) => void
+  setSucursalActivaId: (id: string | null) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function esUUIDValido(id: string | null): boolean {
+  if (!id) return false
+  return UUID_REGEX.test(id)
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [cargando, setCargando] = useState(true)
-  const [sucursalOverride, setSucursalOverride] = useState<string | null>(null)
+  const [sucursalOverride, setSucursalOverride] = useState<string | null>(() => {
+    const guardada = localStorage.getItem('vetora_sucursal')
+    return esUUIDValido(guardada) ? guardada : null
+  })
+
+  useEffect(() => {
+    if (sucursalOverride && esUUIDValido(sucursalOverride)) {
+      localStorage.setItem('vetora_sucursal', sucursalOverride)
+    } else {
+      localStorage.removeItem('vetora_sucursal')
+    }
+  }, [sucursalOverride])
 
   useEffect(() => {
     let montado = true

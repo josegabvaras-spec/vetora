@@ -166,8 +166,8 @@ export async function registrarClienteYPaciente(input: NuevoClientePaciente): Pr
   const { data: duplicados } = await supabase
     .from('pacientes')
     .select('id, clientes!inner(nombre)')
-    .ilike('nombre', input.pacienteNombre)
-    .ilike('clientes.nombre', input.clienteNombre)
+    .ilike('nombre', input.pacienteNombre.trim())
+    .ilike('clientes.nombre', input.clienteNombre.trim())
     .limit(1)
 
   if (duplicados && duplicados.length > 0) {
