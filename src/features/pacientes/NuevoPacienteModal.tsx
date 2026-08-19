@@ -78,6 +78,8 @@ export function NuevoPacienteModal({
     }
     setEnviando(true)
     try {
+      const sucursalId = sucursalActivaId || usuario?.sucursal_id
+      if (!sucursalId) throw new Error('No hay sucursal activa. Selecciona una sucursal antes de continuar.')
       const resultado = await registrarClienteYPaciente({
         clienteNombre: datosPaciente.clienteNombre,
         clienteWhatsapp: datosPaciente.clienteWhatsapp,
@@ -91,7 +93,7 @@ export function NuevoPacienteModal({
         alergias: datosPaciente.alergias,
         antecedentes: datosPaciente.antecedentes,
         veterinarioId: usuario?.id,
-        sucursalId: sucursalActivaId || usuario?.sucursal_id || 'sucursal-centro',
+        sucursalId,
         primeraConsulta: aCamposHistorial(datosClinicos),
       })
 
