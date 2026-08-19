@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2 } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Field'
 import { TablaResponsive, type Columna } from '../components/ui/Tabla'
-import { listPacientes } from '../services/clientesPacientes'
+import { listPacientes, eliminarPaciente } from '../services/clientesPacientes'
 import { NuevoPacienteModal } from '../features/pacientes/NuevoPacienteModal'
+import { EditarPacienteModal } from '../features/pacientes/EditarPacienteModal'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useTable } from '../mocks/useDb'
 import { etiquetaDias } from '../lib/internacion'
 import type { PacienteConDueno } from '../types/views'
@@ -27,8 +29,26 @@ export function PacientesListPage() {
   const [busqueda, setBusqueda] = useState('')
   const [modalNuevo, setModalNuevo] = useState(false)
   const navigate = useNavigate()
+  const [pacienteEditar, setPacienteEditar] = useState<PacienteConDueno | null>(null)
+  const [pacienteBorrar, setPacienteBorrar] = useState<PacienteConDueno | null>(null)
+  const [borrando, setBorrando] = useState(false)
+
   // Internar o dar de alta debe reflejarse aquí sin recargar la página.
   const internaciones = useTable('internaciones')
+
+  async function handleBorrar() {
+    if (!pacienteBorrar) return
+    setBorrando(true)
+    try {
+      await eliminarPaciente(pacienteBorrar.id)
+      setPacienteBorrar(null)
+      recargar()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al borrar el paciente')
+    } finally {
+      setBorrando(false)
+    }
+  }
 
   async function recargar() {
     setPacientes(await listPacientes())
@@ -105,6 +125,36 @@ export function PacientesListPage() {
         cabecera: 'WhatsApp',
         celda: (p) => <span className="whitespace-nowrap text-slate-600">{p.cliente.whatsapp}</span>,
       },
+      {
+        clave: 'acciones',
+        cabecera: '',
+        celda: (p) => (
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-white px-2 py-1"
+              onClick={(e) => {
+                e.stopPropagation()
+                setPacienteEditar(p)
+              }}
+            >
+              <Edit2 size={16} className="text-slate-500 hover:text-teal-600 transition-colors" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-white px-2 py-1 hover:bg-rose-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                setPacienteBorrar(p)
+              }}
+            >
+              <Trash2 size={16} className="text-rose-500 hover:text-rose-700 transition-colors" />
+            </Button>
+          </div>
+        ),
+      },
     ],
     [],
   )
@@ -145,6 +195,28 @@ export function PacientesListPage() {
             // Si el alta abrió una primera consulta, se aterriza con ese acordeón desplegado.
             navigate(`/pacientes/${paciente.id}${historialId ? `?historial=${historialId}` : ''}`)
           }}
+        />
+      )}
+
+      {pacienteEditar && (
+        <EditarPacienteModal
+          paciente={pacienteEditar}
+          onClose={() => setPacienteEditar(null)}
+          onUpdated={() => {
+            setPacienteEditar(null)
+            recargar()
+          }}
+        />
+      )}
+
+      {pacienteBorrar && (
+        <ConfirmDialog
+          title={`Borrar a ${pacienteBorrar.nombre}`}
+          description="¿Estás seguro de que deseas borrar a este paciente y todo su historial? Esta acción no se puede deshacer."
+          confirmLabel="Borrar permanentemente"
+          loading={borrando}
+          onConfirm={handleBorrar}
+          onCancel={() => setPacienteBorrar(null)}
         />
       )}
     </div>

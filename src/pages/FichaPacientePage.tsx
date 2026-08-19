@@ -867,7 +867,7 @@ export function FichaPacientePage() {
 
       {modalEditar && (
         <EditarPacienteModal
-          ficha={ficha}
+          paciente={paciente}
           onClose={() => setModalEditar(false)}
           onUpdated={() => {
             setModalEditar(false)

@@ -3,18 +3,17 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { actualizarClienteYPaciente } from '../../services/clientesPacientes'
 import { FormularioPaciente, type DatosPaciente } from './FormularioPaciente'
-import type { FichaPaciente } from '../../types/views'
+import type { PacienteConDueno } from '../../types/views'
 
 export function EditarPacienteModal({
-  ficha,
+  paciente,
   onClose,
   onUpdated,
 }: {
-  ficha: FichaPaciente
+  paciente: PacienteConDueno
   onClose: () => void
   onUpdated: () => void
 }) {
-  const { paciente } = ficha
   const { cliente } = paciente
 
   const [datosPaciente, setDatosPaciente] = useState<DatosPaciente>({
