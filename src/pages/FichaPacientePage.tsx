@@ -38,6 +38,7 @@ import { etiquetaDias, ESTADO_INTERNACION_LABEL, ESTADO_INTERNACION_TONE } from 
 import type { CitaConDetalle, FichaPaciente } from '../types/views'
 import { avisoDeCita } from '../services/programados'
 import { MensajeModal } from '../features/asistente/MensajeModal'
+import { FirmarConsentimientoModal } from '../features/agenda/FirmarConsentimientoModal'
 import { InternacionModal } from '../features/internacion/InternacionModal'
 import { RegistrarEvolucionModal } from '../features/internacion/RegistrarEvolucionModal'
 import { TIPO_LABEL, TIPO_TONE, ESTADO_LABEL, ESTADO_TONE } from '../lib/citas'
@@ -75,6 +76,8 @@ export function FichaPacientePage() {
   const [nuevoHistorialId, setNuevoHistorialId] = useState<string | null>(null)
   /** Cita cuyo recordatorio se está revisando antes de mandarlo. */
   const [avisoCita, setAvisoCita] = useState<{ cita: CitaConDetalle; destino: 'cliente' | 'equipo' } | null>(null)
+  /** Cirugía cuyo consentimiento se está firmando, igual que desde la agenda. */
+  const [firmandoCita, setFirmandoCita] = useState<CitaConDetalle | null>(null)
   const [consultaAbierta, setConsultaAbierta] = useState<string | null>(null)
   const [historialModal, setHistorialModal] = useState<any | null>(null)
   const [abriendoConsultaId, setAbriendoConsultaId] = useState<string | null>(null)
@@ -412,7 +415,9 @@ export function FichaPacientePage() {
                       )}
                       
                       <div className="mt-2 flex flex-col gap-1 text-[11px]">
-                        {/* Generación/visualización de consentimiento de cirugía */}
+                        {/* La cirugía se firma aquí igual que desde la agenda:
+                            quien abre la ficha del paciente no debería tener
+                            que volver a la cita para recoger la firma. */}
                         {esCirugia && (
                           c.consentimiento ? (
                             <Link
@@ -422,12 +427,13 @@ export function FichaPacientePage() {
                               ✓ Consentimiento firmado
                             </Link>
                           ) : (
-                            <Link
-                              to={`/consentimientos/${c.id}`}
-                              className="text-rose-600 hover:text-rose-700 hover:underline font-bold flex items-center gap-1"
+                            <button
+                              type="button"
+                              onClick={() => setFirmandoCita(c)}
+                              className="text-rose-600 hover:text-rose-700 hover:underline font-bold flex items-center gap-1 text-left"
                             >
-                              → Generar consentimiento
-                            </Link>
+                              → Firmar consentimiento
+                            </button>
                           )
                         )}
                         
@@ -620,7 +626,7 @@ export function FichaPacientePage() {
                           </div>
 
                           <div className="flex shrink-0 flex-col items-end justify-center gap-1.5 text-xs">
-                            {/* Generación/visualización de consentimiento de cirugía */}
+                            {/* Igual que en la agenda: se firma antes de imprimir. */}
                             {esCirugia &&
                               (c.consentimiento ? (
                                 <Link
@@ -630,12 +636,13 @@ export function FichaPacientePage() {
                                   ✓ Consentimiento firmado
                                 </Link>
                               ) : (
-                                <Link
-                                  to={`/consentimientos/${c.id}`}
+                                <button
+                                  type="button"
+                                  onClick={() => setFirmandoCita(c)}
                                   className="font-bold text-rose-600 hover:text-rose-700 hover:underline"
                                 >
-                                  → Generar consentimiento
-                                </Link>
+                                  → Firmar consentimiento
+                                </button>
                               ))}
 
                             {/* Recordatorio de WhatsApp */}
@@ -786,6 +793,19 @@ export function FichaPacientePage() {
           onClose={() => setAvisoCita(null)}
           onEnviado={async () => {
             setAvisoCita(null)
+            await recargar()
+          }}
+        />
+      )}
+
+      {/* Las dos firmas se recogen aquí mismo; después el documento ya se puede
+          imprimir con ellas dibujadas. */}
+      {firmandoCita && (
+        <FirmarConsentimientoModal
+          cita={firmandoCita}
+          onClose={() => setFirmandoCita(null)}
+          onFirmado={async () => {
+            setFirmandoCita(null)
             await recargar()
           }}
         />
