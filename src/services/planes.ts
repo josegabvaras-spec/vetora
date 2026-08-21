@@ -3,8 +3,16 @@ import type { Database } from '../types/supabase'
 
 type Plan = Database['public']['Tables']['planes']['Row']
 
+/**
+ * Devuelve `undefined` solo si el plan no existe.
+ *
+ * Un fallo de lectura (RLS, red) lanza en vez de devolver `undefined`: quien lo
+ * consume lo trataba como «plan sin límites» y acababa enseñando topes de cero
+ * que parecían cuota agotada.
+ */
 export async function getPlan(planId: string): Promise<Plan | undefined> {
-  const { data } = await supabase.from('planes').select('*').eq('id', planId).single()
+  const { data, error } = await supabase.from('planes').select('*').eq('id', planId).maybeSingle()
+  if (error) throw new Error(`No se pudo leer el plan: ${error.message}`)
   return data ?? undefined
 }
 

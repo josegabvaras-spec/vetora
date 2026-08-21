@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Ban, Building2, CheckCircle2, MessageCircle, Plus, Users } from 'lucide-react'
+import { Ban, Building2, CheckCircle2, MessageCircle, Plus, RotateCcw, Users } from 'lucide-react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -14,6 +14,7 @@ import {
   crearUsuario,
   marcarCobroAlDia,
   marcarEnMora,
+  reiniciarCuotaWhatsapp,
   type DatosClinica,
 } from '../../services/plataforma'
 import { listPlanes } from '../../services/planes'
@@ -271,6 +272,25 @@ export function ClinicaDetalleModal({
             )}
             <Button onClick={guardarCuenta} disabled={guardando} className="px-3 py-1.5 text-xs">
               {guardando ? 'Guardando…' : 'Guardar cambios'}
+            </Button>
+          </div>
+        </Seccion>
+
+        <Seccion
+          titulo={`Recordatorios de WhatsApp (${clinica.limites.whatsapp.usados}/${clinica.limites.whatsapp.maximo})`}
+          icono={<MessageCircle size={13} className="text-teal-600" />}
+        >
+          <p className="text-xs text-slate-500">
+            El tope es mensual y lo fija el plan. El contador no se reinicia a medianoche del día 1: lo reinicia el
+            primer envío del mes nuevo.
+          </p>
+          <div className="mt-3 flex justify-end">
+            <Button
+              variant="secondary"
+              className="px-3 py-1.5 text-xs"
+              onClick={() => ejecutar(() => reiniciarCuotaWhatsapp(clinica.id))}
+            >
+              <RotateCcw size={14} /> Reiniciar contador del mes
             </Button>
           </div>
         </Seccion>

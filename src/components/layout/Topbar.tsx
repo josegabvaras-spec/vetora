@@ -22,31 +22,42 @@ const ROL_LABEL: Record<string, string> = {
 /** Barra de consumo de recordatorios frente al tope del plan. */
 function CuotaWhatsapp({ className }: { className?: string }) {
   const { usuario } = useAuth()
-  const [cuota, setCuota] = useState({ enviados: 0, limite: 0, disponible: 0 })
+  // `null` mientras no se sabe, y si la lectura falla se queda así.
+  //
+  // Antes el estado arrancaba en `{0,0,0}` y el `.then()` no tenía `.catch()`:
+  // cualquier fallo dejaba la barra en «0/0», que se lee como cuota agotada.
+  // «No lo sé» y «no te queda nada» no pueden verse igual.
+  const [cuota, setCuota] = useState<{ enviados: number; limite: number } | null>(null)
 
   useEffect(() => {
     if (!usuario?.clinica_id) return
     let montado = true
-    getCuotaWhatsapp(usuario.clinica_id).then(c => {
-      if (montado) setCuota(c)
-    })
+    getCuotaWhatsapp(usuario.clinica_id)
+      .then((c) => {
+        if (montado) setCuota(c)
+      })
+      .catch(() => {
+        if (montado) setCuota(null)
+      })
     return () => { montado = false }
   }, [usuario])
 
-  const pct = cuota.limite > 0 ? (cuota.enviados / cuota.limite) * 100 : 0
+  const pct = cuota && cuota.limite > 0 ? (cuota.enviados / cuota.limite) * 100 : 0
 
   return (
     <div
       className={clsx('flex flex-col gap-1', className)}
-      title={`Recordatorios enviados: ${cuota.enviados} de ${cuota.limite} mensuales`}
+      title={
+        cuota
+          ? `Recordatorios enviados: ${cuota.enviados} de ${cuota.limite} mensuales`
+          : 'No se pudo leer la cuota de recordatorios'
+      }
     >
       <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
         <span className="flex items-center gap-1">
           <MessageCircle size={12} className="text-teal-600" /> WhatsApp
         </span>
-        <span>
-          {cuota.enviados}/{cuota.limite}
-        </span>
+        <span>{cuota ? `${cuota.enviados}/${cuota.limite}` : '—/—'}</span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
         <div

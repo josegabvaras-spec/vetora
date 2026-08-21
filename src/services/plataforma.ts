@@ -494,6 +494,36 @@ export async function marcarEnMora(clinicaId: string): Promise<void> {
   exigirFilaAfectada(data, 'marcar en mora')
 }
 
+/**
+ * Pone a cero el consumo de WhatsApp del mes en curso.
+ *
+ * Existe porque el contador puede quedar inflado sin que nadie haya enviado
+ * nada —así lo dejó un script de pruebas ejecutado contra producción—, y hasta
+ * ahora la única salida era un UPDATE a mano en el editor SQL.
+ *
+ * Solo la plataforma: `clinicas_plataforma` es la única policy de UPDATE sobre
+ * `clinicas`. Dársela al admin de la clínica le permitiría cambiarse `plan_id`
+ * y `precio_acordado_bs`, que es justo lo que `consumir_cuota_whatsapp()` evita
+ * siendo `security definer`.
+ *
+ * El periodo se pone al mes en curso: dejarlo en uno viejo haría que el primer
+ * envío lo interpretara como mes nuevo y volviera a 1 en vez de a 0, con lo que
+ * el reinicio se comería un mensaje.
+ */
+export async function reiniciarCuotaWhatsapp(clinicaId: string): Promise<void> {
+  await exigirClinica(clinicaId)
+  const { data, error } = await supabase
+    .from('clinicas')
+    .update({
+      whatsapp_mensajes_enviados: 0,
+      whatsapp_periodo: `${clinicMonth(new Date().toISOString())}-01`,
+    })
+    .eq('id', clinicaId)
+    .select('id')
+  if (error) throw new Error(`Error al reiniciar la cuota: ${error.message}`)
+  exigirFilaAfectada(data, 'reiniciar la cuota de WhatsApp')
+}
+
 /** Alta de sucursal, sujeta al tope del plan contratado. */
 export async function crearSucursal(clinicaId: string, nombre: string, direccion: string): Promise<Sucursal> {
   const limites = await limitesDe(clinicaId)

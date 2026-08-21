@@ -19,7 +19,10 @@ export async function getCuotaWhatsapp(clinicaId: string) {
   if (!clinica) throw new Error('Clínica no encontrada')
 
   const plan = await getPlan(clinica.plan_id)
-  const limite = plan?.whatsapp_limite ?? 0
+  // Sin `?? 0`: un plan que no se pudo leer no es un plan con tope cero. Ese
+  // fallback pintaba «0/0» en el Topbar, indistinguible de una cuota agotada.
+  if (!plan) throw new Error('No se pudo leer el plan de la clínica')
+  const limite = plan.whatsapp_limite
   const enviados = enviadosEsteMes(clinica.whatsapp_mensajes_enviados, clinica.whatsapp_periodo)
 
   return {
@@ -61,7 +64,14 @@ export async function enviarMensajeWhatsapp(
   const { error } = await supabase.rpc('consumir_cuota_whatsapp')
 
   if (error) {
-    throw new Error(await motivoSinCuota(clinicaId))
+    // Solo `P0001` significa cuota agotada: es el errcode que levanta a mano
+    // `consumir_cuota_whatsapp()`. Etiquetar así CUALQUIER fallo —la función sin
+    // desplegar, un JWT caducado, la red— mandaba a buscar una cuota que no era
+    // el problema, y ese cartel costó un diagnóstico entero.
+    if (error.code === 'P0001') {
+      throw new Error(await motivoSinCuota(clinicaId))
+    }
+    throw new Error(`No se pudo registrar el envío: ${error.message}`)
   }
 
   return enlaceWhatsapp(whatsapp, mensaje)
