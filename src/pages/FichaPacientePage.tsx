@@ -415,9 +415,12 @@ export function FichaPacientePage() {
                         {/* Generación/visualización de consentimiento de cirugía */}
                         {esCirugia && (
                           c.consentimiento ? (
-                            <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                            <Link
+                              to={`/consentimientos/${c.id}`}
+                              className="text-emerald-600 font-semibold flex items-center gap-1 hover:underline"
+                            >
                               ✓ Consentimiento firmado
-                            </span>
+                            </Link>
                           ) : (
                             <Link
                               to={`/consentimientos/${c.id}`}
@@ -620,9 +623,12 @@ export function FichaPacientePage() {
                             {/* Generación/visualización de consentimiento de cirugía */}
                             {esCirugia &&
                               (c.consentimiento ? (
-                                <span className="text-[11px] font-semibold text-emerald-600">
+                                <Link
+                                  to={`/consentimientos/${c.id}`}
+                                  className="text-[11px] font-semibold text-emerald-600 hover:underline"
+                                >
                                   ✓ Consentimiento firmado
-                                </span>
+                                </Link>
                               ) : (
                                 <Link
                                   to={`/consentimientos/${c.id}`}

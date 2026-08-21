@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Paciente, HistorialClinico, VacunaAplicada } from '../types/database'
+import type { ConsentimientoCirugia, Paciente, HistorialClinico, VacunaAplicada } from '../types/database'
 import { addDays } from 'date-fns'
 import { clinicDayIso } from '../lib/datetime'
 
@@ -120,6 +120,27 @@ export async function getVacunasPacientePortal(clinicaId: string, pacienteId: st
     .order('fecha_aplicacion', { ascending: false })
 
   return (vacunas || []) as VacunaAplicada[]
+}
+
+/**
+ * Consentimientos de cirugía que el tutor firmó, para que pueda releer y
+ * reimprimir lo que autorizó.
+ *
+ * Lo hace visible la policy `consentimientos_portal` (0012): la de personal
+ * exige `auth_es_personal()`, así que antes el dueño no veía ni su propia firma.
+ */
+export async function getConsentimientosPacientePortal(
+  clinicaId: string,
+  pacienteId: string,
+): Promise<ConsentimientoCirugia[]> {
+  const { data: consentimientos } = await supabase
+    .from('consentimientos_cirugia')
+    .select('*')
+    .eq('clinica_id', clinicaId)
+    .eq('paciente_id', pacienteId)
+    .order('created_at', { ascending: false })
+
+  return (consentimientos || []) as ConsentimientoCirugia[]
 }
 
 export async function getNotificacionesPortal(clinicaId: string, usuarioId: string): Promise<NotificacionPortal[]> {

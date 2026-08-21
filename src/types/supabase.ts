@@ -367,28 +367,43 @@ export type Database = {
           cita_id: string
           clinica_id: string
           created_at: string
+          firma_tutor: string | null
+          firma_veterinario: string | null
           id: string
           metodo_aceptacion: string
+          nombre_tutor: string | null
+          nombre_veterinario: string | null
           paciente_id: string
           url_pdf: string
+          veterinario_id: string | null
         }
         Insert: {
           cita_id: string
           clinica_id?: string
           created_at?: string
+          firma_tutor?: string | null
+          firma_veterinario?: string | null
           id?: string
           metodo_aceptacion: string
+          nombre_tutor?: string | null
+          nombre_veterinario?: string | null
           paciente_id: string
           url_pdf: string
+          veterinario_id?: string | null
         }
         Update: {
           cita_id?: string
           clinica_id?: string
           created_at?: string
+          firma_tutor?: string | null
+          firma_veterinario?: string | null
           id?: string
           metodo_aceptacion?: string
+          nombre_tutor?: string | null
+          nombre_veterinario?: string | null
           paciente_id?: string
           url_pdf?: string
+          veterinario_id?: string | null
         }
         Relationships: [
           {

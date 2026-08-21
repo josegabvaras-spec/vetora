@@ -150,12 +150,39 @@ export function ConsentimientoPage() {
           )}
         </section>
 
+        {/* Las firmas se dibujan encima de la raya, no la sustituyen: el
+            documento impreso tiene que verse igual con trazo y sin él, y los
+            consentimientos anteriores a la firma digital no tienen imagen. */}
         <section className="grid grid-cols-2 gap-8 pt-10 text-sm">
           <div className="text-center">
+            <div className="flex h-20 items-end justify-center">
+              {consentimiento?.firma_tutor && (
+                <img
+                  src={consentimiento.firma_tutor}
+                  alt="Firma del propietario o tutor"
+                  className="max-h-20 object-contain"
+                />
+              )}
+            </div>
             <div className="mb-1 border-t border-slate-400 pt-2">Firma del propietario/a o tutor/a</div>
+            {consentimiento?.nombre_tutor && (
+              <p className="text-xs text-slate-600">{consentimiento.nombre_tutor}</p>
+            )}
           </div>
           <div className="text-center">
+            <div className="flex h-20 items-end justify-center">
+              {consentimiento?.firma_veterinario && (
+                <img
+                  src={consentimiento.firma_veterinario}
+                  alt="Firma del veterinario responsable"
+                  className="max-h-20 object-contain"
+                />
+              )}
+            </div>
             <div className="mb-1 border-t border-slate-400 pt-2">Firma del veterinario/a responsable</div>
+            {consentimiento?.nombre_veterinario && (
+              <p className="text-xs text-slate-600">{consentimiento.nombre_veterinario}</p>
+            )}
           </div>
         </section>
 

@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { getHistorialPacientePortal, getVacunasPacientePortal, getPacientesPortal } from '../../services/portalCliente'
-import type { HistorialClinico, Paciente, VacunaAplicada } from '../../types/database'
-import { ArrowLeft, Syringe, FileText, AlertTriangle, Calendar } from 'lucide-react'
+import {
+  getConsentimientosPacientePortal,
+  getHistorialPacientePortal,
+  getVacunasPacientePortal,
+  getPacientesPortal,
+} from '../../services/portalCliente'
+import type { ConsentimientoCirugia, HistorialClinico, Paciente, VacunaAplicada } from '../../types/database'
+import { ArrowLeft, Syringe, FileText, AlertTriangle, Calendar, ShieldCheck } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
@@ -16,6 +21,7 @@ export function PortalPacientePage() {
   const [paciente, setPaciente] = useState<Paciente | null>(null)
   const [historial, setHistorial] = useState<HistorialClinico[]>([])
   const [vacunas, setVacunas] = useState<VacunaAplicada[]>([])
+  const [consentimientos, setConsentimientos] = useState<ConsentimientoCirugia[]>([])
   const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
@@ -23,10 +29,11 @@ export function PortalPacientePage() {
       if (usuario?.clinica_id && usuario.id && pacienteId) {
         try {
           const clinicaId = usuario.clinica_id
-          const [pacientesData, historialData, vacunasData] = await Promise.all([
+          const [pacientesData, historialData, vacunasData, consentimientosData] = await Promise.all([
             getPacientesPortal(clinicaId, usuario.id),
             getHistorialPacientePortal(clinicaId, pacienteId),
-            getVacunasPacientePortal(clinicaId, pacienteId)
+            getVacunasPacientePortal(clinicaId, pacienteId),
+            getConsentimientosPacientePortal(clinicaId, pacienteId),
           ])
 
           const pacienteActual = pacientesData.find(p => p.id === pacienteId)
@@ -34,6 +41,7 @@ export function PortalPacientePage() {
             setPaciente(pacienteActual)
             setHistorial(historialData)
             setVacunas(vacunasData)
+            setConsentimientos(consentimientosData)
           }
         } catch (e) {
           console.error(e)
@@ -162,6 +170,44 @@ export function PortalPacientePage() {
               )}
             </div>
           </div>
+
+          {/* Consentimientos firmados: lo que el propio dueño autorizó. Solo
+              aparece la tarjeta si hay alguno — la mayoría de mascotas nunca
+              pasa por cirugía y una tarjeta vacía permanente sobra. */}
+          {consentimientos.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+              <div className="p-5 border-b border-slate-100 bg-slate-50">
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-emerald-500" />
+                  Consentimientos firmados
+                </h3>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {consentimientos.map((consentimiento) => (
+                  <div key={consentimiento.id} className="p-4">
+                    <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {format(new Date(consentimiento.created_at), "d 'de' MMMM, yyyy", { locale: es })}
+                    </div>
+                    {consentimiento.firma_tutor && (
+                      <img
+                        src={consentimiento.firma_tutor}
+                        alt="Su firma"
+                        className="mt-2 h-12 object-contain"
+                      />
+                    )}
+                    <Link
+                      to={`/consentimientos/${consentimiento.cita_id}`}
+                      className="mt-2 inline-block text-xs font-medium text-teal-700 hover:underline"
+                    >
+                      Ver documento completo
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Columna Derecha: Historial Clínico */}

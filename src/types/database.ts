@@ -344,6 +344,16 @@ export interface ConsentimientoCirugia {
   paciente_id: string
   url_pdf: string
   metodo_aceptacion: MetodoAceptacionConsentimiento
+  /**
+   * Base64 del PNG firmado en pantalla táctil (0012). Nulos cuando el método no
+   * es 'firma_digital' y en los consentimientos anteriores a esa migración.
+   */
+  firma_tutor?: string | null
+  firma_veterinario?: string | null
+  /** Congelados al firmar: el documento no se rehace si cambia la ficha. */
+  nombre_tutor?: string | null
+  nombre_veterinario?: string | null
+  veterinario_id?: string | null
   created_at: string // Solo INSERT, nunca UPDATE/DELETE
 }
 

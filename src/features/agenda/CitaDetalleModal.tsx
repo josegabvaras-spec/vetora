@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BedDouble, CheckCircle2, FileCheck2, MessageCircle, Printer, ShieldCheck, Stethoscope } from 'lucide-react'
+import { BedDouble, CheckCircle2, FileCheck2, MessageCircle, PenLine, Printer, ShieldCheck, Stethoscope } from 'lucide-react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -13,10 +13,12 @@ import { avisoDeCita } from '../../services/programados'
 import { generarConsentimiento } from '../../services/consentimientos'
 import { iniciarHistorialDesdeCita } from '../../services/historial'
 import { MensajeModal } from '../asistente/MensajeModal'
+import { FirmarConsentimientoModal } from './FirmarConsentimientoModal'
 import type { EstadoCita, MetodoAceptacionConsentimiento } from '../../types/database'
 
 export function CitaDetalleModal({ cita, onClose, onChanged }: { cita: CitaConDetalle; onClose: () => void; onChanged: () => void }) {
   const [metodo, setMetodo] = useState<MetodoAceptacionConsentimiento>('firma_digital')
+  const [firmando, setFirmando] = useState(false)
   const [generando, setGenerando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [avisando, setAvisando] = useState(false)
@@ -197,9 +199,17 @@ export function CitaDetalleModal({ cita, onClose, onChanged }: { cita: CitaConDe
                   <option value="aceptacion_verbal_registrada">Aceptación verbal registrada</option>
                 </Select>
                 {error && <p className="text-sm text-rose-600">{error}</p>}
-                <Button variant="danger" onClick={handleGenerarConsentimiento} disabled={generando}>
-                  {generando ? 'Generando…' : 'Generar Consentimiento'}
-                </Button>
+                {/* La firma digital abre el recuadro táctil; los otros dos
+                    métodos registran el documento sin trazo, como hasta ahora. */}
+                {metodo === 'firma_digital' ? (
+                  <Button variant="danger" onClick={() => setFirmando(true)}>
+                    <PenLine size={16} /> Firmar en pantalla
+                  </Button>
+                ) : (
+                  <Button variant="danger" onClick={handleGenerarConsentimiento} disabled={generando}>
+                    {generando ? 'Generando…' : 'Generar Consentimiento'}
+                  </Button>
+                )}
               </div>
             )}
 
@@ -237,6 +247,17 @@ export function CitaDetalleModal({ cita, onClose, onChanged }: { cita: CitaConDe
           onClose={() => setAvisando(false)}
           onEnviado={() => {
             setAvisando(false)
+            onChanged()
+          }}
+        />
+      )}
+
+      {firmando && (
+        <FirmarConsentimientoModal
+          cita={cita}
+          onClose={() => setFirmando(false)}
+          onFirmado={() => {
+            setFirmando(false)
             onChanged()
           }}
         />
