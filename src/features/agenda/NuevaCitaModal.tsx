@@ -36,7 +36,10 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   // pedía "selecciona paciente y veterinario" sin nada que seleccionar.
   const sinPacientes = pacientes.length === 0
   const sinVeterinarios = veterinarios.length === 0
-  // Con un solo veterinario en la clínica no hay a quién elegir: el campo sobra.
+  // Con un solo veterinario no hay a quién elegir, pero su nombre SÍ se enseña:
+  // en el Plan Consultorio atiende el propio admin y quien agenda suele ser
+  // recepción, que necesita ver a nombre de quién queda la cita. Ocultar el
+  // campo entero dejaba la agenda sin decir nunca quién atiende.
   // Con NINGUNO hay que decirlo, no esconderlo: `<= 1` tapaba también ese caso,
   // dejando el formulario pidiendo un veterinario sin campo donde elegirlo.
   const unSoloVeterinario = veterinarios.length === 1
@@ -195,21 +198,23 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
 
         {/* En celular la fecha y el veterinario van uno debajo del otro: dos
             columnas dejan el campo de fecha en ~150 px y el selector nativo no cabe. */}
-        <div className={clsx(!unSoloVeterinario && !sinVeterinarios && 'grid gap-4 sm:grid-cols-2')}>
+        <div className={clsx(!sinVeterinarios && 'grid gap-4 sm:grid-cols-2')}>
           <FieldGroup label="Fecha">
             <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
           </FieldGroup>
-          {sinVeterinarios && (
-            <FieldGroup label="Veterinario">
+          <FieldGroup label="Veterinario">
+            {sinVeterinarios ? (
               <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 <AlertTriangle size={18} className="mt-0.5 shrink-0" />
                 No hay ningún veterinario activo en la clínica. El administrador debe darlo de alta antes de que se
                 pueda agendar.
               </p>
-            </FieldGroup>
-          )}
-          {!unSoloVeterinario && !sinVeterinarios && (
-            <FieldGroup label="Veterinario">
+            ) : unSoloVeterinario ? (
+              // Sin desplegable, pero visible: es a quien se le asigna la cita.
+              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                {veterinarios[0]?.nombre}
+              </p>
+            ) : (
               <Select value={veterinarioId} onChange={(e) => setVeterinarioId(e.target.value)}>
                 {veterinarios.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -217,8 +222,8 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
                   </option>
                 ))}
               </Select>
-            </FieldGroup>
-          )}
+            )}
+          </FieldGroup>
         </div>
 
         {/* Espacios disponibles del veterinario para la fecha elegida */}
