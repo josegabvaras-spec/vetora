@@ -7,6 +7,7 @@ import { registrarMovimiento } from '../../services/inventario'
 import type { TipoMovimientoInventario } from '../../types/database'
 import type { ProductoConMovimientos } from '../../types/views'
 import { formatBs } from '../../lib/currency'
+import { dosisDesdeEnvases, dosisDisponible, formatDosis, formatEnvases } from '../../lib/inventario'
 
 export function AjustarStockModal({
   producto,
@@ -29,7 +30,11 @@ export function AjustarStockModal({
     setEnviando(true)
     setError(null)
     try {
-      await registrarMovimiento(producto.id, tipo, cantidad, motivo.trim(), { usuarioId: usuario?.id })
+      // Aquí se cuentan envases (lo que se compra y se cuenta en el estante),
+      // pero el movimiento va en la unidad de medida: es el trigger quien
+      // vuelve a dividir para dejar el stock en envases.
+      const dosis = dosisDesdeEnvases(cantidad, producto.contenido_presentacion)
+      await registrarMovimiento(producto.id, tipo, dosis, motivo.trim(), { usuarioId: usuario?.id })
       onUpdated()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar el movimiento')
@@ -41,8 +46,12 @@ export function AjustarStockModal({
   return (
     <Modal title={`Ajustar stock — ${producto.nombre}`} onClose={onClose}>
       <p className="mb-4 text-sm text-slate-500">
-        Stock actual: <span className="font-semibold text-slate-800">{producto.stock_actual} {producto.unidad_medida}</span> · Precio:{' '}
-        {formatBs(producto.precio_bs)}
+        Stock actual:{' '}
+        <span className="font-semibold text-slate-800">
+          {formatEnvases(producto.stock_actual)} envases
+        </span>{' '}
+        ({formatDosis(dosisDisponible(producto))} {producto.unidad_medida}) · Precio:{' '}
+        {formatBs(producto.precio_bs)} por {producto.unidad_medida}
       </p>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <FieldGroup label="Tipo de movimiento">
@@ -51,7 +60,7 @@ export function AjustarStockModal({
             <option value="egreso">Egreso (-)</option>
           </Select>
         </FieldGroup>
-        <FieldGroup label="Cantidad">
+        <FieldGroup label="Cantidad (envases)">
           <Input
             type="number"
             min="0.01"
@@ -60,6 +69,11 @@ export function AjustarStockModal({
             onChange={(e) => setCantidad(Number(e.target.value))}
             required
           />
+          <p className="mt-1 text-[11px] text-slate-500">
+            Equivale a {formatDosis(dosisDesdeEnvases(cantidad, producto.contenido_presentacion))}{' '}
+            {producto.unidad_medida} · cada envase trae {producto.contenido_presentacion}{' '}
+            {producto.unidad_medida}
+          </p>
         </FieldGroup>
         <FieldGroup label="Motivo">
           <Textarea

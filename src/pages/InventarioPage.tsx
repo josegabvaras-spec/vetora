@@ -9,19 +9,35 @@ import { TablaResponsive, type Columna } from '../components/ui/Tabla'
 import { useAuth } from '../context/AuthContext'
 import { useTable } from '../mocks/useDb'
 import { listProductos, eliminarProducto } from '../services/inventario'
+import { dosisDisponible, formatDosis, formatEnvases } from '../lib/inventario'
 import { AjustarStockModal } from '../features/inventario/AjustarStockModal'
 import { ProductoModal } from '../features/inventario/ProductoModal'
 import { formatBs } from '../lib/currency'
 import type { ProductoConMovimientos } from '../types/views'
 
+/**
+ * El stock se cuenta en envases (0013), pero quien va a usar el producto piensa
+ * en dosis: por eso el badge lleva los envases y debajo lo que queda en la
+ * unidad de medida. "0.9 envases" no dice si alcanza para una aplicación de
+ * 5 ml; "45 ml" sí.
+ */
 function renderStockBadge(p: ProductoConMovimientos) {
-  if (p.stock_actual === 0) {
-    return <Badge tone="rose">Agotado (0)</Badge>
+  const envases = formatEnvases(p.stock_actual)
+  const restante = `${formatDosis(dosisDisponible(p))} ${p.unidad_medida}`
+
+  if (p.stock_actual <= 0) {
+    return <Badge tone="rose">Agotado</Badge>
   }
-  if (p.stock_actual <= p.stock_minimo) {
-    return <Badge tone="amber">Bajo Stock ({p.stock_actual})</Badge>
-  }
-  return <Badge tone="emerald">Disponible ({p.stock_actual})</Badge>
+  return (
+    <div>
+      {p.stock_actual <= p.stock_minimo ? (
+        <Badge tone="amber">Bajo stock ({envases} env.)</Badge>
+      ) : (
+        <Badge tone="emerald">Disponible ({envases} env.)</Badge>
+      )}
+      <div className="mt-0.5 text-xs font-medium text-slate-500">{restante}</div>
+    </div>
+  )
 }
 
 export function InventarioPage() {

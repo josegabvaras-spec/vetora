@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { dosisDesdeEnvases, dosisDisponible } from '../lib/inventario'
 import type { Producto } from '../types/database'
 import type { ProductoConMovimientos } from '../types/views'
 
@@ -47,13 +48,19 @@ async function validarProducto(datos: DatosProducto, sucursalId: string, ignorar
   }
 }
 
+/**
+ * @param stockInicialEnvases Envases completos con los que arranca el producto
+ *   (3 frascos, no 150 ml). Se convierte a la unidad de medida antes de crear
+ *   el movimiento, porque desde 0013 el movimiento va en ml y es el trigger
+ *   quien vuelve a dividir para dejar el stock en envases.
+ */
 export async function crearProducto(
   sucursalId: string,
   datos: DatosProducto,
-  stockInicial: number,
+  stockInicialEnvases: number,
 ): Promise<Producto> {
   await validarProducto(datos, sucursalId)
-  if (!Number.isFinite(stockInicial) || stockInicial < 0) {
+  if (!Number.isFinite(stockInicialEnvases) || stockInicialEnvases < 0) {
     throw new Error('El stock inicial no puede ser negativo')
   }
 
@@ -79,8 +86,9 @@ export async function crearProducto(
 
   if (error || !producto) throw new Error(`Error al crear producto: ${error?.message || 'desconocido'}`)
 
-  if (stockInicial > 0) {
-    await registrarMovimiento(producto.id, 'ingreso', stockInicial, 'Stock inicial del producto')
+  if (stockInicialEnvases > 0) {
+    const dosisIniciales = dosisDesdeEnvases(stockInicialEnvases, datos.contenido_presentacion)
+    await registrarMovimiento(producto.id, 'ingreso', dosisIniciales, 'Stock inicial del producto')
   }
 
   const { data: final } = await supabase.from('productos').select('*').eq('id', producto.id).single()
@@ -190,7 +198,12 @@ export async function registrarMovimiento(
 
   // Aviso temprano para dar un mensaje decente; NO es la barrera. La de verdad
   // es `check (stock_actual >= 0)`, que sí resiste dos egresos simultáneos.
-  if (tipo === 'egreso' && cantidad > producto.stock_actual) {
+  //
+  // La comparación va en la unidad de medida, no en envases: desde 0013
+  // `cantidad` son mililitros y `stock_actual` son frascos, así que compararlos
+  // en crudo decía "stock insuficiente" en cuanto se pedían más de 3 ml de un
+  // producto del que quedaban 3 frascos.
+  if (tipo === 'egreso' && cantidad > dosisDisponible(producto)) {
     throw new Error('Stock insuficiente')
   }
 

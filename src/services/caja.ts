@@ -3,6 +3,7 @@ import type { Cita, Cobro, Internacion, MetodoPago, TurnoCaja } from '../types/d
 import type { AtencionPorCobrar, CobroConDetalle, LineaCobro } from '../types/views'
 import { TIPO_LABEL } from '../lib/citas'
 import { diasDeEstadia, etiquetaDias } from '../lib/internacion'
+import { dosisDisponible, formatDosis } from '../lib/inventario'
 import { registrarMovimiento } from './inventario'
 
 async function lineasDeConsumo(columnaFk: 'cita_id' | 'internacion_id', id: string): Promise<LineaCobro[]> {
@@ -331,8 +332,14 @@ export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<C
     const { data: p } = await supabase.from('productos').select('*').eq('id', item.productoId).single()
     if (!p) throw new Error('Producto no encontrado')
     if (item.cantidad <= 0) throw new Error(`Cantidad inválida para ${p.nombre}`)
-    if (item.cantidad > p.stock_actual) {
-      throw new Error(`Stock insuficiente para ${p.nombre} (disponible: ${p.stock_actual})`)
+    // La venta se expresa en la unidad de medida (ml, g), igual que el precio;
+    // el stock, en envases desde 0013. Sin convertir, vender 5 ml de un producto
+    // con 3 frascos en ficha daba "stock insuficiente".
+    const disponible = dosisDisponible(p)
+    if (item.cantidad > disponible) {
+      throw new Error(
+        `Stock insuficiente para ${p.nombre} (disponible: ${formatDosis(disponible)} ${p.unidad_medida})`,
+      )
     }
     const precio = Number.isFinite(p.precio_bs) ? p.precio_bs : 0
     lineas.push({

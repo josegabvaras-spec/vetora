@@ -5,6 +5,7 @@ import { FieldGroup, Input, Select } from '../../components/ui/Field'
 import { Seccion } from '../../components/ui/Seccion'
 import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
+import { dosisDisponible, formatDosis, formatEnvases } from '../../lib/inventario'
 // Son columnas `date`: `desdeFechaSola` las ancla al mediodía para que no se
 // desplacen un día al formatearlas, y `formatClinicDate` las deja en dd/MM/yyyy
 // en vez del ISO crudo que se imprimía en la ficha clínica.
@@ -310,14 +311,15 @@ export function SeccionProductos({
                 <option value="">Selecciona un producto…</option>
                 {productos.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.nombre} (stock: {p.stock_actual} {p.unidad_medida})
+                    {p.nombre} (quedan: {formatDosis(dosisDisponible(p))} {p.unidad_medida})
                   </option>
                 ))}
               </Select>
               {productoElegido && (
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Envase de {productoElegido.contenido_presentacion} {unidad} · quedan{' '}
-                  {productoElegido.stock_actual} {unidad}
+                  Envase de {productoElegido.contenido_presentacion} {unidad} ·{' '}
+                  {formatEnvases(productoElegido.stock_actual)} envases ={' '}
+                  {formatDosis(dosisDisponible(productoElegido))} {unidad} disponibles
                 </p>
               )}
             </FieldGroup>

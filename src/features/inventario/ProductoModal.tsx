@@ -125,7 +125,10 @@ export function ProductoModal({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <FieldGroup label="Precio (Bs.)">
+          {/* El precio es por unidad de medida y el stock en envases: son
+              magnitudes distintas y confundirlas descuadra la caja o el
+              inventario, así que cada campo lo dice en su etiqueta. */}
+          <FieldGroup label={`Precio por ${unidadMedida} (Bs.)`}>
             <Input
               type="number"
               min="0"
@@ -135,15 +138,20 @@ export function ProductoModal({
               required
             />
           </FieldGroup>
-          <FieldGroup label="Stock mínimo">
+          <FieldGroup label="Stock mínimo (envases)">
             <Input type="number" step="any" min="0" value={stockMinimo} onChange={(e) => setStockMinimo(e.target.value)} />
           </FieldGroup>
           {!producto && (
-            <FieldGroup label="Stock inicial">
+            <FieldGroup label="Stock inicial (envases)">
               <Input type="number" step="any" min="0" value={stockInicial} onChange={(e) => setStockInicial(e.target.value)} />
             </FieldGroup>
           )}
         </div>
+
+        <p className="text-xs text-slate-500">
+          El stock se cuenta en <strong>envases</strong> y el precio va <strong>por {unidadMedida}</strong>. De un
+          envase de {contenido || '1'} {unidadMedida}, aplicar una dosis descuenta la fracción que corresponda.
+        </p>
 
         {!producto && (
           <p className="text-xs text-slate-500">
