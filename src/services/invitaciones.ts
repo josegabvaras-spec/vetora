@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { motivoDelFallo, supabase } from '../lib/supabase'
 import type { Invitacion, Usuario } from '../types/database'
 
 /** Días que vive un enlace de acceso antes de caducar. */
@@ -145,21 +145,6 @@ async function invocarAcceso(cuerpo: Record<string, unknown>): Promise<AccesoRes
   if (!data || data.error) throw new Error(data?.error ?? 'No se pudo abrir el acceso')
 
   return { usuario: data.usuario, clinica_nombre: data.clinica_nombre }
-}
-
-/**
- * El motivo real (caducado, ya usado, cuenta desactivada) viaja en el cuerpo de
- * la respuesta; `supabase-js` lo deja en `context`, no en `error.message`.
- */
-async function motivoDelFallo(error: unknown): Promise<string | null> {
-  const contexto = (error as { context?: Response }).context
-  if (!contexto || typeof contexto.json !== 'function') return null
-  try {
-    const cuerpo = await contexto.clone().json()
-    return typeof cuerpo?.error === 'string' ? cuerpo.error : null
-  } catch {
-    return null
-  }
 }
 
 /** Abrir la pantalla no gasta el enlace; lo gasta crear la contraseña. */

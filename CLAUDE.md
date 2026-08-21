@@ -170,6 +170,20 @@ Las altas de usuario generan una `Invitacion` (token de un solo uso, con caducid
 
 **Ese canje vive entero en la Edge Function `acceso`** ([supabase/functions/acceso/](supabase/functions/acceso/)), y no por capricho: quien abre el enlace **todavía no tiene sesión**, así que para la RLS es un anónimo y no puede leer ni su propia invitación. Fijar la contraseña de otra cuenta es además `auth.admin.updateUserById`, que exige `service_role` — la única función que la usa. El **token es la credencial**: sus defensas son la caducidad, el uso único y el reclamo atómico (`update … .is('usado_at', null)`), que además libera el token si el cambio de contraseña falla después. Al volver, el frontend inicia sesión de verdad con la contraseña recién puesta; sin eso la RLS seguiría viendo un anónimo y la aplicación saldría vacía.
 
+### Crear cuentas de Auth: nunca desde el navegador
+
+El proyecto tiene **«Confirm email» activado** en Supabase Auth, y eso decide la forma de las tres altas. Ninguna crea la cuenta con `supabase.auth.signUp` desde el cliente: las tres usan `service_role` en una Edge Function y marcan `email_confirm: true`, porque **quien demuestra que el correo es suyo es el enlace de WhatsApp o el formulario, no un clic en la bandeja de entrada**.
+
+| Alta | Función | Crea la cuenta con |
+|---|---|---|
+| Personal (clínica nueva o usuario nuevo) | `crear-cuenta` | `admin.createUser` + `email_confirm` |
+| Canje del enlace de acceso | `acceso` | `admin.updateUserById` + `email_confirm` |
+| Cliente del portal (`/registro-cliente`) | `registro-portal` | `admin.createUser` + `email_confirm` |
+
+`signUp` desde el navegador falla de tres maneras a la vez con esa opción activa, y las tres están documentadas en la cabecera de [supabase/functions/crear-cuenta/](supabase/functions/crear-cuenta/): manda un correo de confirmación que sobra, **oculta que el correo ya existe** (devuelve un usuario falso con un uuid inventado, que al insertarse en `usuarios.id` —FK a `auth.users`— revienta con un 23503 con la clínica ya creada), y sustituye la sesión de quien opera. Si añades un alta, replica el patrón; no reintroduzcas `signUp`.
+
+`crear-cuenta` **exige que quien llama sea un superadmin activo** (valida el JWT y lee el rol con el cliente admin): crea credenciales, así que no puede ser pública. Su acción `borrar` solo toca cuentas **sin fila en `usuarios`** — es el rollback de un perfil que no llegó a crearse, no un «borrar cualquier cuenta»; las cuentas con perfil se desactivan (`activo = false`), que para eso firman historiales y cobros.
+
 ## Respaldo y métricas
 
 Dos áreas que no pasan por el patrón habitual y conviene conocer antes de tocarlas:

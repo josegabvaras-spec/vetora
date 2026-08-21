@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { motivoDelFallo, supabase } from '../lib/supabase'
 import { clinicDayIso, clinicMonth, desdeFechaSola, sumarMeses } from '../lib/datetime'
 import type { Clinica, EstadoClinica, Rol, Sucursal, Usuario } from '../types/database'
 import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma } from '../types/views'
@@ -26,46 +26,50 @@ function exigirFilaAfectada(filas: unknown[] | null, accion: string): void {
 }
 
 /**
- * Crea una cuenta en Supabase Auth **sin perder la sesión de quien la crea**.
+ * Crea la cuenta de Supabase Auth del personal, en la Edge Function
+ * `crear-cuenta` (`service_role`).
  *
- * `supabase.auth.signUp` no es una llamada administrativa: cuando el proyecto
- * no exige confirmación por correo, devuelve una sesión del usuario recién
- * creado y `supabase-js` la persiste, sustituyendo la del superadmin. A partir
- * de ahí todo corre con la identidad nueva —que todavía no tiene fila en
- * `usuarios`, así que `auth_es_plataforma()` es null y la RLS rechaza los
- * inserts siguientes—, y el rollback también, de modo que borraba **cero filas
- * sin dar error** y dejaba la clínica y la sucursal huérfanas. El operador,
- * además, quedaba expulsado de su propia sesión.
+ * Aquí vivía una versión que llamaba a `supabase.auth.signUp` desde el
+ * navegador y hacía malabares para no perder la sesión del superadmin. No
+ * sobrevive a tener «Confirm email» activado en Auth: `signUp` manda entonces
+ * un correo de confirmación que aquí sobra (el acceso llega por WhatsApp) y,
+ * peor, **oculta que el correo ya existe** devolviendo un usuario falso con un
+ * uuid inventado —protección contra enumeración—, que al insertarse en
+ * `usuarios.id` (FK a `auth.users`) reventaba con un 23503 incomprensible con
+ * la clínica ya creada.
  *
- * Se guardan los tokens antes y se restauran después, pase lo que pase.
- *
- * Lo ideal sería no llamar a `signUp` desde el navegador sino crear la cuenta
- * con `service_role` desde una Edge Function, como ya hace `registro-portal`
- * con su `deshacer()`. Eso exige desplegar una función; esta versión arregla el
- * fallo sin tocar el despliegue.
+ * `admin.createUser` no obfusca, no manda correo y no toca la sesión de quien
+ * llama, así que el problema de la sesión desaparece de raíz en vez de
+ * remendarse. El motivo del rechazo va en el cuerpo de la respuesta.
  */
-async function crearCuentaAuthConservandoSesion(
+async function crearCuentaAuth(
   email: string,
   nombre: string,
 ): Promise<{ userId: string | null; error: string | null }> {
-  const { data: { session: sesionPrevia } } = await supabase.auth.getSession()
+  const { data, error } = await supabase.functions.invoke<{ user_id?: string }>('crear-cuenta', {
+    body: { accion: 'crear', email, nombre },
+  })
 
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password: crypto.randomUUID(), // Temporal: la persona la fija con su enlace.
-      options: { data: { nombre } },
-    })
-    if (error || !data.user) return { userId: null, error: error?.message ?? 'desconocido' }
-    return { userId: data.user.id, error: null }
-  } finally {
-    if (sesionPrevia) {
-      await supabase.auth.setSession({
-        access_token: sesionPrevia.access_token,
-        refresh_token: sesionPrevia.refresh_token,
-      })
-    }
+  if (error) {
+    return { userId: null, error: (await motivoDelFallo(error)) ?? error.message }
   }
+  if (!data?.user_id) return { userId: null, error: 'desconocido' }
+  return { userId: data.user_id, error: null }
+}
+
+/**
+ * Deshace la cuenta de Auth cuando el perfil no llegó a crearse.
+ *
+ * Sin esto el correo quedaba quemado para siempre: `exigirEmailLibre` solo mira
+ * la tabla `usuarios`, así que seguía diciendo que estaba libre y cada reintento
+ * moría con "User already registered". La función solo borra cuentas sin perfil,
+ * de modo que un fallo aquí no puede llevarse por delante a nadie real.
+ */
+async function deshacerCuentaAuth(userId: string): Promise<boolean> {
+  const { data, error } = await supabase.functions.invoke<{ ok?: boolean }>('crear-cuenta', {
+    body: { accion: 'borrar', user_id: userId },
+  })
+  return !error && data?.ok === true
 }
 
 async function exigirClinica(clinicaId: string): Promise<Clinica> {
@@ -376,7 +380,7 @@ export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinica
   }
 
   // 3. Crear cuenta en Supabase Auth para el administrador
-  const { userId, error: authError } = await crearCuentaAuthConservandoSesion(
+  const { userId, error: authError } = await crearCuentaAuth(
     adminEmail,
     input.adminNombre.trim(),
   )
@@ -405,7 +409,9 @@ export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinica
     .single()
 
   if (adminError || !adminData) {
-    // Rollback
+    // Rollback completo: también la cuenta de Auth, que si no dejaría el correo
+    // inutilizable para volver a intentar el alta.
+    await deshacerCuentaAuth(userId)
     await supabase.from('sucursales').delete().eq('clinica_id', clinica.id)
     await supabase.from('clinicas').delete().eq('id', clinica.id)
     throw new Error(`Error al crear el perfil del administrador: ${adminError?.message ?? 'desconocido'}`)
@@ -535,11 +541,7 @@ export async function crearUsuario(clinicaId: string, datos: DatosUsuario): Prom
     )
   }
 
-  // Crear cuenta en Supabase Auth sin perder la sesión del superadmin.
-  const { userId, error: authError } = await crearCuentaAuthConservandoSesion(
-    email,
-    datos.nombre.trim(),
-  )
+  const { userId, error: authError } = await crearCuentaAuth(email, datos.nombre.trim())
 
   if (authError || !userId) {
     throw new Error(`Error al crear cuenta: ${authError ?? 'desconocido'}`)
@@ -561,14 +563,15 @@ export async function crearUsuario(clinicaId: string, datos: DatosUsuario): Prom
     .single()
 
   if (error || !data) {
-    // La cuenta de Auth ya existe pero se quedó sin perfil. No se puede borrar
-    // desde el navegador (`auth.admin` exige `service_role`), así que el aviso
-    // tiene que decir qué pasó: sin esto, `exigirEmailLibre` —que solo mira la
-    // tabla `usuarios`— seguiría diciendo que el correo está libre y cada
-    // reintento moriría con "User already registered", sin explicar por qué.
+    // La cuenta de Auth quedó sin perfil: se deshace para que el correo siga
+    // sirviendo. Antes no se podía (`auth.admin` exige `service_role`) y el
+    // aviso solo sabía decir "ese correo ya no se puede reutilizar".
+    const deshecha = await deshacerCuentaAuth(userId)
     throw new Error(
-      `Se creó la cuenta de acceso de ${email} pero no su perfil: ${error?.message ?? 'desconocido'}. ` +
-        'Ese correo ya no se puede reutilizar para un alta nueva; usa otro o borra la cuenta desde el panel de Supabase (Authentication → Users).',
+      `No se pudo crear el perfil de ${email}: ${error?.message ?? 'desconocido'}.` +
+        (deshecha
+          ? ' Puedes volver a intentarlo con el mismo correo.'
+          : ' Además quedó una cuenta de acceso suelta: bórrala desde el panel de Supabase (Authentication → Users) antes de reintentar.'),
     )
   }
   return data as Usuario

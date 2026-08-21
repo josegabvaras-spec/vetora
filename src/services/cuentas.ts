@@ -88,6 +88,19 @@ export async function establecerPassword(_usuarioId: string, password: string): 
 }
 
 /**
+ * Auth marca este caso con `code`, pero las versiones antiguas solo traían el
+ * mensaje en inglés; se miran los dos para no depender de cuál responda.
+ */
+function esCorreoSinConfirmar(error: unknown): boolean {
+  const fallo = error as { code?: string; message?: string } | null
+  if (!fallo) return false
+  return (
+    fallo.code === 'email_not_confirmed' ||
+    (fallo.message ?? '').toLowerCase().includes('email not confirmed')
+  )
+}
+
+/**
  * Verifica correo y contraseña e inicia sesión.
  */
 export async function verificarCredenciales(email: string, password: string): Promise<Usuario> {
@@ -99,6 +112,16 @@ export async function verificarCredenciales(email: string, password: string): Pr
   })
 
   if (error || !data.user) {
+    // Con «Confirm email» activo en Auth, una cuenta sin confirmar rechaza la
+    // contraseña **aunque sea correcta**. Decir "incorrectos" manda a la persona
+    // a reintentarla una y otra vez; las cuentas que nacen del enlace de acceso
+    // o del registro del portal ya vienen confirmadas, así que esto solo
+    // aparece en las creadas a mano desde el panel de Supabase.
+    if (esCorreoSinConfirmar(error)) {
+      throw new Error(
+        'Esta cuenta todavía no tiene el correo confirmado. Entra con tu enlace de acceso o pide que te envíen uno nuevo.',
+      )
+    }
     throw new Error('Correo o contraseña incorrectos')
   }
 
