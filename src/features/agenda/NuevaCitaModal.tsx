@@ -14,6 +14,7 @@ import { formatBs } from '../../lib/currency'
 import { formatClinicDateTime, TIMEZONE } from '../../lib/datetime'
 import { calcularDisponibilidad, contarDisponibles } from '../../lib/agenda'
 import { requiereConsultaOrigen, requiereProcedimiento, TIPO_LABEL, TIPOS_CITA } from '../../lib/citas'
+import { puedeAtender } from '../../lib/personal'
 import type { TipoCita, Cita } from '../../types/database'
 
 interface NuevaCitaModalProps {
@@ -29,7 +30,7 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   const clientes = useTable('clientes')
   const usuarios = useTable('usuarios')
   const citas = useTable('citas') as Cita[]
-  const veterinarios = usuarios.filter((u) => u.rol === 'veterinario' && u.activo)
+  const veterinarios = usuarios.filter(puedeAtender)
   // Una clínica recién dada de alta no tiene ni pacientes ni veterinarios. Sin
   // distinguir ese caso, los `<Select>` se dibujaban vacíos y el formulario
   // pedía "selecciona paciente y veterinario" sin nada que seleccionar.
@@ -58,7 +59,7 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   const pacienteId = pacienteElegido ?? pacientes[0]?.id ?? ''
   const veterinarioId =
     veterinarioElegido ??
-    (usuario?.rol === 'veterinario' ? usuario.id : veterinarios[0]?.id ?? '')
+    (usuario && puedeAtender(usuario) ? usuario.id : veterinarios[0]?.id ?? '')
 
   const setPacienteId = setPacienteElegido
   const setVeterinarioId = setVeterinarioElegido

@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { internarPaciente } from '../../services/internacion'
 import { serviciosDeCategoria } from '../../services/servicios'
 import { formatBs } from '../../lib/currency'
+import { puedeAtender } from '../../lib/personal'
 
 /**
  * Alta de una internación. La tarifa por día sale del catálogo de servicios
@@ -31,7 +32,7 @@ export function InternarModal({
   const clientes = useTable('clientes')
   const usuarios = useTable('usuarios')
   const servicios = useTable('servicios')
-  const veterinarios = usuarios.filter((u) => u.rol === 'veterinario' || u.rol === 'admin')
+  const veterinarios = usuarios.filter(puedeAtender)
 
   const [tarifas, setTarifas] = useState<any[]>([])
   const [servicioDiaId, setServicioDiaId] = useState('')
@@ -65,7 +66,7 @@ export function InternarModal({
   const pacienteId = pacienteIdInicial ?? pacienteElegido ?? pacientes[0]?.id ?? ''
   const veterinarioId =
     veterinarioElegido ??
-    (usuario?.rol === 'veterinario' ? usuario.id : veterinarios[0]?.id ?? '')
+    (usuario && puedeAtender(usuario) ? usuario.id : veterinarios[0]?.id ?? '')
 
   const setPacienteId = setPacienteElegido
   const setVeterinarioId = setVeterinarioElegido
