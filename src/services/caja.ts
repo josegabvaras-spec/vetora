@@ -23,8 +23,47 @@ async function lineasDeConsumo(columnaFk: 'cita_id' | 'internacion_id', id: stri
       precio_unitario_bs: precio,
       subtotal_bs: Number((precio * m.cantidad).toFixed(2)),
       producto_id: m.producto_id,
+      movimiento_id: m.id,
     }
   })
+}
+
+/**
+ * Importe que caja fijó a mano para una línea de producto.
+ *
+ * El cálculo del catálogo (`precio_bs × dosis`) queda como **referencia
+ * interna**: el precio está expresado por unidad de medida, así que aplicar
+ * 2 ml de un producto a Bs. 2/ml daría un recibo de "2 ml × Bs. 2", que no es
+ * lo que la clínica cobra ni lo que el cliente debe leer. Quien cobra escribe
+ * el importe final y **eso** es lo que se congela en `cobro_lineas`.
+ *
+ * Del navegador se acepta únicamente este número. El concepto, el producto y la
+ * cantidad se siguen derivando del catálogo y de los movimientos en el
+ * servidor, así que un operador puede fijar el precio —que es la
+ * funcionalidad— pero no renombrar conceptos ni inventar líneas.
+ */
+function conImporteAjustado(linea: LineaCobro, importe: number | undefined): LineaCobro {
+  if (importe === undefined) return linea
+  if (!Number.isFinite(importe) || importe < 0) {
+    throw new Error(`Importe inválido para ${linea.concepto}`)
+  }
+
+  const subtotal = Number(importe.toFixed(2))
+  return {
+    ...linea,
+    subtotal_bs: subtotal,
+    // Se recalcula para que la fila siga siendo coherente: `cobro_lineas` exige
+    // el precio unitario y el recibo ya no lo enseña, pero el kardex del cobro
+    // sí lo conserva. Con cantidad 0 se guarda el importe tal cual.
+    precio_unitario_bs: linea.cantidad > 0 ? Number((subtotal / linea.cantidad).toFixed(2)) : subtotal,
+  }
+}
+
+/** Importes fijados en caja, indexados por `movimiento_id`. */
+export type AjustesDePrecio = Record<string, number>
+
+function aplicarAjustes(lineas: LineaCobro[], ajustes: AjustesDePrecio = {}): LineaCobro[] {
+  return lineas.map((l) => (l.movimiento_id ? conImporteAjustado(l, ajustes[l.movimiento_id]) : l))
 }
 
 export async function lineasDeProductos(cita: Cita): Promise<LineaCobro[]> {
@@ -240,11 +279,19 @@ export type ReferenciaAtencion =
   | { tipo: 'cita'; id: string }
   | { tipo: 'internacion'; id: string }
 
+/**
+ * @param ajustes Importes que caja fijó a mano para las líneas de producto,
+ *   indexados por `movimiento_id`. Las líneas sin ajuste conservan el cálculo
+ *   del catálogo, y la estadía de una internación nunca se ajusta: no tiene
+ *   `movimiento_id`, porque su precio ya viene congelado en la propia
+ *   internación (`precio_dia_bs`).
+ */
 export async function registrarCobro(
   atencion: ReferenciaAtencion,
   metodoPago: MetodoPago,
   usuarioId: string,
   servicios: ServicioSeleccionado[] = [],
+  ajustes: AjustesDePrecio = {},
 ): Promise<Cobro> {
   let sucursalId: string
   let lineasFijas: LineaCobro[]
@@ -272,7 +319,7 @@ export async function registrarCobro(
   if (!turno) throw new Error('Abre la caja antes de registrar cobros')
 
   const lineasServ = await lineasDeServicios(servicios)
-  const lineas = [...lineasServ, ...lineasFijas]
+  const lineas = [...lineasServ, ...aplicarAjustes(lineasFijas, ajustes)]
   const monto = totalDe(lineas)
   if (monto <= 0) throw new Error('Agrega al menos un servicio o producto para cobrar')
 
@@ -311,6 +358,8 @@ export async function registrarCobro(
 export interface ItemVentaDirecta {
   productoId: string
   cantidad: number
+  /** Importe fijado en caja. Sin él se cobra el cálculo del catálogo. */
+  monto_bs?: number
 }
 
 export interface DatosVentaDirecta {
@@ -342,13 +391,16 @@ export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<C
       )
     }
     const precio = Number.isFinite(p.precio_bs) ? p.precio_bs : 0
-    lineas.push({
+    const calculada: LineaCobro = {
       concepto: p.nombre,
       cantidad: item.cantidad,
       precio_unitario_bs: precio,
       subtotal_bs: Number((precio * item.cantidad).toFixed(2)),
       producto_id: p.id,
-    })
+    }
+    // El mostrador cobra igual que la consulta: el cálculo por unidad de medida
+    // es la referencia y quien vende fija el importe.
+    lineas.push(conImporteAjustado(calculada, item.monto_bs))
   }
 
   const monto = totalDe(lineas)

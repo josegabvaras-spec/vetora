@@ -165,6 +165,16 @@ export interface LineaCobro {
   subtotal_bs: number
   servicio_id?: string | null
   producto_id?: string | null
+  /**
+   * Movimiento de inventario que generó esta línea. **Solo de interfaz**:
+   * `cobro_lineas` no tiene esta columna y no se persiste.
+   *
+   * Es la clave con la que caja identifica qué línea está ajustando de precio.
+   * `producto_id` no serviría —un mismo producto puede consumirse en dos
+   * movimientos de la misma atención— y el índice del array tampoco, porque el
+   * servidor reconstruye las líneas por su cuenta al registrar el cobro.
+   */
+  movimiento_id?: string | null
 }
 
 /** Lo que se cobra: una cita atendida o una internación dada de alta. */
@@ -181,8 +191,13 @@ export interface AtencionPorCobrar {
   concepto: string
   fecha: string
   /**
-   * Lo ya devengado y no editable en caja: productos consumidos y, en una
-   * internación, los días de estadía. Los servicios se eligen al cobrar.
+   * Lo ya devengado: productos consumidos y, en una internación, los días de
+   * estadía. Los servicios se eligen al cobrar.
+   *
+   * «Fijas» se refiere a que la atención ya las causó —no se añaden ni se
+   * quitan en caja—, no a su importe: las de producto llevan `movimiento_id` y
+   * quien cobra puede fijarles el precio que se le cobra al cliente. La estadía
+   * no lo lleva y conserva su `precio_dia_bs` congelado.
    */
   lineasFijas: LineaCobro[]
   subtotal_fijo_bs: number

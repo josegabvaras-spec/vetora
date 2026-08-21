@@ -94,30 +94,30 @@ export function ReciboPage() {
           </tbody>
         </table>
 
+        {/* Dos columnas a propósito: el precio unitario está expresado por
+            unidad de medida (Bs. 2 por ml), así que imprimirlo enseñaba al
+            cliente "2 ml × Bs. 2" en vez del importe que la clínica cobra. Lo
+            que se cobra es el subtotal, ya fijado en caja. */}
         <table className="w-full border-collapse text-[11px]">
           <thead>
             <tr>
               <th className="border border-slate-400 bg-slate-100 px-2 py-1 text-left font-bold uppercase tracking-wide text-slate-600">
                 Concepto
               </th>
-              <th className="w-16 border border-slate-400 bg-slate-100 px-2 py-1 text-right font-bold uppercase tracking-wide text-slate-600">
-                Cant.
-              </th>
-              <th className="w-24 border border-slate-400 bg-slate-100 px-2 py-1 text-right font-bold uppercase tracking-wide text-slate-600">
-                P. unit.
-              </th>
-              <th className="w-24 border border-slate-400 bg-slate-100 px-2 py-1 text-right font-bold uppercase tracking-wide text-slate-600">
-                Subtotal
+              <th className="w-28 border border-slate-400 bg-slate-100 px-2 py-1 text-right font-bold uppercase tracking-wide text-slate-600">
+                Monto
               </th>
             </tr>
           </thead>
           <tbody>
             {cobro.lineas.map((l, i) => (
               <tr key={i}>
-                <td className="border border-slate-400 px-2 py-1 text-slate-800">{l.concepto}</td>
-                <td className="border border-slate-400 px-2 py-1 text-right text-slate-800">{l.cantidad}</td>
-                <td className="border border-slate-400 px-2 py-1 text-right text-slate-800">
-                  {formatBs(l.precio_unitario_bs)}
+                <td className="border border-slate-400 px-2 py-1 text-slate-800">
+                  {l.concepto}
+                  {/* Sin la columna de cantidad, "dos consultas" y "una" se
+                      imprimirían igual; en productos la cantidad es la dosis y
+                      es justo lo que no debe salir. */}
+                  {l.cantidad > 1 && !l.producto_id && ` (×${l.cantidad})`}
                 </td>
                 <td className="border border-slate-400 px-2 py-1 text-right text-slate-800">
                   {formatBs(l.subtotal_bs)}
@@ -125,7 +125,7 @@ export function ReciboPage() {
               </tr>
             ))}
             <tr>
-              <td className="border border-slate-400 bg-slate-100 px-2 py-1 text-right font-bold text-slate-700" colSpan={3}>
+              <td className="border border-slate-400 bg-slate-100 px-2 py-1 text-right font-bold text-slate-700">
                 Total pagado ({METODO_LABEL[cobro.metodo_pago]})
               </td>
               <td className="border border-slate-400 bg-slate-100 px-2 py-1 text-right text-sm font-black text-slate-900">

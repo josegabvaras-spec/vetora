@@ -43,7 +43,7 @@ import { CATEGORIA_LABEL, CATEGORIAS } from '../services/servicios'
 import { formatBs } from '../lib/currency'
 import { formatClinicDateTime } from '../lib/datetime'
 import type { CategoriaServicio, MetodoPago, TurnoCaja } from '../types/database'
-import type { AtencionPorCobrar, CobroConDetalle } from '../types/views'
+import type { AtencionPorCobrar, CobroConDetalle, LineaCobro } from '../types/views'
 
 const METODO_LABEL: Record<MetodoPago, string> = { efectivo: 'Efectivo', qr: 'QR' }
 
@@ -402,15 +402,47 @@ function CobrarModal({
       },
     ]
   })
+  // Importe que se le cobra al cliente por cada línea de producto. Arranca en
+  // el cálculo del catálogo (precio por ml × dosis), que queda como referencia
+  // interna, y quien cobra lo ajusta a lo que la clínica realmente cobra.
+  const [ajustes, setAjustes] = useState<Record<string, string>>({})
+
+  function importeDe(linea: LineaCobro): number {
+    if (!linea.movimiento_id) return linea.subtotal_bs
+    const escrito = ajustes[linea.movimiento_id]
+    if (escrito === undefined || escrito.trim() === '') return linea.subtotal_bs
+    const n = Number(escrito)
+    return Number.isFinite(n) && n >= 0 ? n : linea.subtotal_bs
+  }
+
   const total = Number(
-    [...lineasServicios, ...atencion.lineasFijas].reduce((n, l) => n + l.subtotal_bs, 0).toFixed(2),
+    [
+      ...lineasServicios.map((l) => l.subtotal_bs),
+      ...atencion.lineasFijas.map(importeDe),
+    ].reduce((n, s) => n + s, 0).toFixed(2),
   )
 
   async function confirmar() {
     setEnviando(true)
     setError(null)
     try {
-      await registrarCobro({ tipo: atencion.tipo, id: atencion.referencia_id }, metodo, usuario!.id, seleccion)
+      // Solo se mandan las líneas realmente tocadas; el resto conserva su
+      // cálculo en el servidor.
+      const ajustesNumericos: Record<string, number> = {}
+      for (const linea of atencion.lineasFijas) {
+        if (!linea.movimiento_id) continue
+        const escrito = ajustes[linea.movimiento_id]
+        if (escrito === undefined || escrito.trim() === '') continue
+        ajustesNumericos[linea.movimiento_id] = Number(escrito)
+      }
+
+      await registrarCobro(
+        { tipo: atencion.tipo, id: atencion.referencia_id },
+        metodo,
+        usuario!.id,
+        seleccion,
+        ajustesNumericos,
+      )
       onCobrado()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar el cobro')
@@ -577,11 +609,43 @@ function CobrarModal({
             </tr>
           </thead>
           <tbody>
-            {[...lineasServicios, ...atencion.lineasFijas].map((l, i) => (
-              <tr key={i}>
+            {lineasServicios.map((l, i) => (
+              <tr key={`serv-${i}`}>
                 <td className="py-1.5 text-slate-800">{l.concepto}</td>
                 <td className="py-1.5 text-right text-slate-600">{l.cantidad}</td>
                 <td className="py-1.5 text-right text-slate-800">{formatBs(l.subtotal_bs)}</td>
+              </tr>
+            ))}
+            {/* Las líneas de producto llevan el importe editable: el cálculo por
+                unidad de medida queda debajo como referencia interna, y es lo
+                único que el cliente NO ve. */}
+            {atencion.lineasFijas.map((l, i) => (
+              <tr key={`fija-${i}`}>
+                <td className="py-1.5 text-slate-800">
+                  {l.concepto}
+                  {l.movimiento_id && (
+                    <span className="block text-[11px] text-slate-400">
+                      Referencia: {l.cantidad} × {formatBs(l.precio_unitario_bs)} = {formatBs(l.subtotal_bs)}
+                    </span>
+                  )}
+                </td>
+                <td className="py-1.5 text-right text-slate-600">{l.cantidad}</td>
+                <td className="py-1.5 text-right text-slate-800">
+                  {l.movimiento_id ? (
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="w-24 text-right"
+                      value={ajustes[l.movimiento_id] ?? String(l.subtotal_bs)}
+                      onChange={(e) =>
+                        setAjustes((prev) => ({ ...prev, [l.movimiento_id!]: e.target.value }))
+                      }
+                    />
+                  ) : (
+                    formatBs(l.subtotal_bs)
+                  )}
+                </td>
               </tr>
             ))}
             {lineasServicios.length === 0 && atencion.lineasFijas.length === 0 && (
@@ -771,15 +835,24 @@ function VentaMedicamentosModal({
     return p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
   })
 
+  // Igual que al cobrar una atención: el cálculo del catálogo es la referencia
+  // interna y quien vende fija el importe que se le cobra al cliente.
+  const [ajustes, setAjustes] = useState<Record<string, string>>({})
+
   const lineasVenta = items.flatMap((it) => {
     const prod = productosSucursal.find((p) => p.id === it.productoId)
     if (!prod) return []
+    const referencia = Number((prod.precio_bs * it.cantidad).toFixed(2))
+    const escrito = ajustes[it.productoId]
+    const ajustado = escrito !== undefined && escrito.trim() !== '' ? Number(escrito) : NaN
     return [
       {
+        productoId: it.productoId,
         concepto: prod.nombre,
         cantidad: it.cantidad,
         precio_unitario_bs: prod.precio_bs,
-        subtotal_bs: Number((prod.precio_bs * it.cantidad).toFixed(2)),
+        referencia_bs: referencia,
+        subtotal_bs: Number.isFinite(ajustado) && ajustado >= 0 ? ajustado : referencia,
       },
     ]
   })
@@ -798,7 +871,12 @@ function VentaMedicamentosModal({
         sucursalId,
         usuarioId: usuario!.id,
         clienteNombre: clienteNombre.trim() || undefined,
-        items,
+        // El importe solo viaja si se tocó; si no, el servidor cobra su cálculo.
+        items: items.map((it) => {
+          const escrito = ajustes[it.productoId]
+          if (escrito === undefined || escrito.trim() === '') return it
+          return { ...it, monto_bs: Number(escrito) }
+        }),
         metodoPago: metodo,
       })
       onVentaCompletada()
@@ -946,9 +1024,23 @@ function VentaMedicamentosModal({
           <tbody>
             {lineasVenta.map((l, i) => (
               <tr key={i}>
-                <td className="py-1.5 text-slate-800">{l.concepto}</td>
+                <td className="py-1.5 text-slate-800">
+                  {l.concepto}
+                  <span className="block text-[11px] text-slate-400">
+                    Referencia: {l.cantidad} × {formatBs(l.precio_unitario_bs)} = {formatBs(l.referencia_bs)}
+                  </span>
+                </td>
                 <td className="py-1.5 text-right text-slate-600">{l.cantidad}</td>
-                <td className="py-1.5 text-right text-slate-800">{formatBs(l.subtotal_bs)}</td>
+                <td className="py-1.5 text-right text-slate-800">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="w-24 text-right"
+                    value={ajustes[l.productoId] ?? String(l.referencia_bs)}
+                    onChange={(e) => setAjustes((prev) => ({ ...prev, [l.productoId]: e.target.value }))}
+                  />
+                </td>
               </tr>
             ))}
             {lineasVenta.length === 0 && (
