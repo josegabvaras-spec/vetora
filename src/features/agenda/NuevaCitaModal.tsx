@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { clsx } from 'clsx'
 import { formatInTimeZone } from 'date-fns-tz'
-import { CalendarX2 } from 'lucide-react'
+import { AlertTriangle, CalendarX2 } from 'lucide-react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -30,8 +30,15 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   const usuarios = useTable('usuarios')
   const citas = useTable('citas') as Cita[]
   const veterinarios = usuarios.filter((u) => u.rol === 'veterinario' && u.activo)
+  // Una clínica recién dada de alta no tiene ni pacientes ni veterinarios. Sin
+  // distinguir ese caso, los `<Select>` se dibujaban vacíos y el formulario
+  // pedía "selecciona paciente y veterinario" sin nada que seleccionar.
+  const sinPacientes = pacientes.length === 0
+  const sinVeterinarios = veterinarios.length === 0
   // Con un solo veterinario en la clínica no hay a quién elegir: el campo sobra.
-  const unSoloVeterinario = veterinarios.length <= 1
+  // Con NINGUNO hay que decirlo, no esconderlo: `<= 1` tapaba también ese caso,
+  // dejando el formulario pidiendo un veterinario sin campo donde elegirlo.
+  const unSoloVeterinario = veterinarios.length === 1
 
   // Estos dos valores se DERIVAN, no se inicializan.
   //
@@ -70,6 +77,14 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   // el paciente, la que estuviera elegida deja de ser válida.
   const [consultasPrevias, setConsultasPrevias] = useState<any[]>([])
   useEffect(() => {
+    // Sin paciente no hay nada que controlar, y preguntarlo igual es un 400:
+    // PostgREST recibe `paciente_id=eq.` (vacío) y lo rechaza por no ser un
+    // uuid. Pasaba en cada apertura del modal —la tabla llega vacía en el
+    // primer render— y siempre en una clínica que aún no tiene pacientes.
+    if (!pacienteId) {
+      setConsultasPrevias([])
+      return
+    }
     let montado = true
     consultasControlables(pacienteId).then((data) => {
       if (montado) setConsultasPrevias(data)
@@ -110,7 +125,15 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
     e.preventDefault()
     setError(null)
     if (!pacienteId || !veterinarioId) {
-      setError('Selecciona paciente y veterinario')
+      // Decir "selecciona" cuando no hay nada que seleccionar manda a la persona
+      // a buscar un campo que no existe: el aviso tiene que nombrar lo que falta.
+      setError(
+        sinPacientes
+          ? 'Registra un paciente antes de agendar una cita'
+          : sinVeterinarios
+            ? 'Da de alta a un veterinario antes de agendar una cita'
+            : 'Selecciona paciente y veterinario',
+      )
       return
     }
     if (!espacioValido) {
@@ -149,25 +172,42 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
     <Modal title="+ Nueva Cita" onClose={onClose}>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <FieldGroup label="Paciente">
-          <Select value={pacienteId} onChange={(e) => setPacienteId(e.target.value)}>
-            {pacientes.map((p) => {
-              const cliente = clientes.find((c) => c.id === p.cliente_id)
-              return (
-                <option key={p.id} value={p.id}>
-                  {p.nombre} ({cliente?.nombre})
-                </option>
-              )
-            })}
-          </Select>
+          {sinPacientes ? (
+            <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+              Todavía no hay pacientes registrados. Da de alta al cliente y a su mascota desde Pacientes antes de
+              agendar una cita.
+            </p>
+          ) : (
+            <Select value={pacienteId} onChange={(e) => setPacienteId(e.target.value)}>
+              {pacientes.map((p) => {
+                const cliente = clientes.find((c) => c.id === p.cliente_id)
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} ({cliente?.nombre})
+                  </option>
+                )
+              })}
+            </Select>
+          )}
         </FieldGroup>
 
         {/* En celular la fecha y el veterinario van uno debajo del otro: dos
             columnas dejan el campo de fecha en ~150 px y el selector nativo no cabe. */}
-        <div className={clsx(!unSoloVeterinario && 'grid gap-4 sm:grid-cols-2')}>
+        <div className={clsx(!unSoloVeterinario && !sinVeterinarios && 'grid gap-4 sm:grid-cols-2')}>
           <FieldGroup label="Fecha">
             <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
           </FieldGroup>
-          {!unSoloVeterinario && (
+          {sinVeterinarios && (
+            <FieldGroup label="Veterinario">
+              <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                No hay ningún veterinario activo en la clínica. El administrador debe darlo de alta antes de que se
+                pueda agendar.
+              </p>
+            </FieldGroup>
+          )}
+          {!unSoloVeterinario && !sinVeterinarios && (
             <FieldGroup label="Veterinario">
               <Select value={veterinarioId} onChange={(e) => setVeterinarioId(e.target.value)}>
                 {veterinarios.map((v) => (
@@ -310,7 +350,12 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={enviando || !espacioValido || faltaOrigen || faltaProcedimiento}>
+          <Button
+            type="submit"
+            disabled={
+              enviando || !pacienteId || !veterinarioId || !espacioValido || faltaOrigen || faltaProcedimiento
+            }
+          >
             {enviando ? 'Guardando…' : 'Guardar cita'}
           </Button>
         </div>
