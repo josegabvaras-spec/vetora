@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { BedDouble, Plus } from 'lucide-react'
+import { AvisoError } from '../components/ui/AvisoError'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Seccion } from '../components/ui/Seccion'
 import { useAuth } from '../context/AuthContext'
-import { useTable } from '../mocks/useDb'
+import { useSuscripcionTabla, useTable } from '../mocks/useDb'
 import { listInternaciones } from '../services/internacion'
 import { InternarModal } from '../features/internacion/InternarModal'
 import { InternacionModal } from '../features/internacion/InternacionModal'
@@ -102,8 +103,11 @@ function TarjetaInternacion({
 export function InternacionPage() {
   const { usuario, sucursalActivaId } = useAuth()
   const sucursales = useTable('sucursales')
-  useTable('internaciones')
-  useTable('notas_internacion')
+  // Solo suscripción: `listInternaciones` ya trae lo que hace falta.
+  const revisionInternacion = [
+    useSuscripcionTabla('internaciones'),
+    useSuscripcionTabla('notas_internacion'),
+  ].join('-')
 
   const [searchParams, setSearchParams] = useSearchParams()
   const [internaciones, setInternaciones] = useState<InternacionConDetalle[]>([])
@@ -118,6 +122,7 @@ export function InternacionPage() {
 
   const sucursalId = sucursalActivaId || usuario?.sucursal_id || sucursales[0]?.id || ''
 
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const recargar = useCallback(async () => {
     const data = await listInternaciones(sucursalActivaId || undefined)
     setInternaciones(data)
@@ -126,8 +131,11 @@ export function InternacionPage() {
   }, [sucursalActivaId])
 
   useEffect(() => {
-    recargar()
-  }, [recargar])
+    setErrorCarga(null)
+    recargar().catch((err) =>
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudieron cargar las internaciones'),
+    )
+  }, [recargar, revisionInternacion])
 
   // Abre directamente lo que pidió el enlace de la agenda, una sola vez.
   useEffect(() => {
@@ -148,6 +156,8 @@ export function InternacionPage() {
 
   return (
     <div className="space-y-5">
+      <AvisoError mensaje={errorCarga} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-xl font-bold text-slate-900">Internación</h1>

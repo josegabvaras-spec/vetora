@@ -14,7 +14,7 @@ Todo el código, los comentarios, los identificadores y la interfaz están **en 
 
 ```powershell
 npm run dev       # Vite dev server
-npm run build     # tsc -b && vite build  (los errores de tipos rompen el build)
+npm run build     # tsc -b --force && vite build  (los errores de tipos rompen el build)
 npm run lint      # oxlint (rápido, NO type-aware)
 npm run preview   # sirve dist/
 ```
@@ -25,15 +25,15 @@ No hay runner de tests configurado. La verificación real es `npm run build` (ty
 
 **No queda modo mock.** `src/mocks/db.ts` y `seed.ts` fueron eliminados en la migración; hoy son ficheros vacíos que solo existen por un motivo de build (ver más abajo). `isMockMode` sigue exportándose en [src/lib/supabase.ts](src/lib/supabase.ts) pero es `const false`: cualquier `if (isMockMode)` es código muerto.
 
-- [supabase/migrations/0001_init.sql](supabase/migrations/0001_init.sql) es el esquema de verdad y **es normativo**: 20 tablas, RLS habilitada en las 20, 35 policies, 3 triggers, 4 funciones `SECURITY DEFINER`.
-- [src/types/database.ts](src/types/database.ts) pretende reflejar fila por fila las tablas del SQL, y [src/types/supabase.ts](src/types/supabase.ts) es el tipo generado desde la base real. **Hoy los tres divergen** (ver «Estado real» abajo): cuando discrepen, **gana el SQL**.
+- [supabase/migrations/](supabase/migrations/) es el esquema de verdad y **es normativo** — pero eso es las **diez** migraciones, no solo la primera. `0001_init.sql` es la base (20 tablas, RLS habilitada en las 20, 35 policies, 3 triggers, 4 funciones `SECURITY DEFINER`); `0002` a `0010` son correcciones de seguridad reales y features que ya están aplicadas encima (RLS de `historial_update`/`internaciones_update`, índices, cuota de WhatsApp, portal del cliente, `pacientes.codigo`/`foto`, venta directa, recetario, tipo de cita `peluqueria`, inventario fraccionado). Leer solo `0001` da una foto vieja del esquema — antes de decir "esta tabla/columna no existe" o "esta policy no tiene `with check`", revisa si una migración posterior ya lo tocó.
+- [src/types/database.ts](src/types/database.ts) pretende reflejar fila por fila las tablas del SQL, y [src/types/supabase.ts](src/types/supabase.ts) es el tipo generado desde la base real. Cuando discrepen, **gana el SQL**.
 
 **Regla estructural: solo `src/services/*.ts` habla con Supabase.** Las páginas y los `features` nunca llaman a `supabase` directamente; consumen servicios, que devuelven los tipos de `types/views.ts`. La única excepción legítima es `useTable` (abajo), que es infraestructura de reactividad, no de negocio.
 
 La deuda que sigue viva:
 
 - [lib/exportacion.ts](src/lib/exportacion.ts) e [lib/importacion.ts](src/lib/importacion.ts) — son `lib/` pero leen y escriben tablas enteras, y con `any`. El respaldo no puede salir de ahí.
-- [lib/password.ts](src/lib/password.ts) — **huérfano**: nadie lo importa. Supabase Auth se encarga de las contraseñas desde la migración. Bórralo cuando toques esa zona.
+- **`apply_migrations.cjs` y `set_limit.cjs` (raíz del repo, versionados) llevan una contraseña de Postgres de producción en texto plano** en la cadena de conexión. Son scripts sueltos de una sola vez, no parte del flujo normal — no los uses como plantilla ni los ejecutes contra producción sin que esa contraseña se haya rotado ya.
 
 Cuando toques una regla de negocio, tiene que quedar en los **tres** sitios: el SQL (constraint/trigger/policy), el servicio que la aplica, y el tipo si cambia la forma de la fila. **Un `as any` de por medio significa que los tres no están alineados**: esos casts son exactamente lo que permitió que el esquema y los tipos derivaran sin romper el build.
 
@@ -82,6 +82,8 @@ Son `SECURITY DEFINER` porque leen `usuarios`, que a su vez está bajo RLS: sin 
 
 El `superadmin` tiene `clinica_id = null`: administra clínicas, planes y cobros de suscripción, y **no puede ver datos clínicos de ningún inquilino**. Eso sale gratis porque `auth_clinica_id()` es null y `clinica_id = null` da null, que las policies tratan como falso. **No lo sustituyas por excepciones explícitas** del tipo `or auth_es_plataforma()` en policies de negocio: eso es precisamente lo que abriría el acceso lateral que hoy no existe.
 
+Hay una tercera cara de esto: el rol `cliente` del portal ([migración 0004](supabase/migrations/0004_portal_cliente.sql)). Tener `clinica_id` ya no basta para el CRUD clínico — `auth_es_personal()` (`rol in ('admin','veterinario','recepcion')`) es lo que separa las policies de negocio (`clientes_personal`, `pacientes_personal`, …) de las de solo-lectura del portal (`clientes.usuario_id = auth.uid()` y sus joins hacia pacientes/citas/historial cerrado/vacunas/recetas). Si añades una tabla al expediente clínico, replica el patrón — policy de personal aparte de policy de portal — en vez de reabrir un `for all` a solo `clinica_id`; eso fue justo lo que este rol tuvo que esperar hasta tener policies propias antes de existir en la base. El alta de una cuenta de portal es pública: `/registro-cliente` llama a `clinicas_para_registro()`, `security definer`, que expone únicamente `id` y `nombre` de clínicas no suspendidas — ampliar ese `select` es ampliar lo que ve todo internet sin sesión.
+
 ## Capas
 
 ```
@@ -98,7 +100,7 @@ lib/            helpers puros: datetime, currency, numeros, agenda, citas, anamn
 types/          database.ts (filas = SQL), views.ts (formas compuestas = joins),
                 supabase.ts (generado desde la base real)
 mocks/          useDb.ts — mal ubicado: ya no es un mock, es la suscripción realtime.
-                db.ts y seed.ts están vacíos (ver «Estado real»)
+                db.ts y seed.ts están vacíos a propósito (residuo de la migración desde mocks)
 ```
 
 ### Patrón de datos en las páginas
@@ -128,7 +130,7 @@ Cada una tiene su barrera en el SQL y su réplica en un servicio; si escribes c�
 | Regla | SQL | Réplica en el servicio |
 |---|---|---|
 | Historial cerrado es inmutable (HU-02) | policy `historial_update` + `trg_historial_inmutable` | `exigirBorrador()` en [services/historial.ts](src/services/historial.ts) |
-| Stock nunca negativo (HU-03) | `check (stock_actual >= 0)` **y** `trg_aplicar_movimiento_inventario`, que ya ajusta el stock al insertar el movimiento | `registrarMovimiento` lanza `'Stock insuficiente'` — **hoy además lo aplica a mano y duplica el descuento; ver «Estado real»** |
+| Stock nunca negativo (HU-03) | `check (stock_actual >= 0)` **y** `trg_aplicar_movimiento_inventario` (`security definer` desde 0002), que ajusta el stock al insertar el movimiento | `registrarMovimiento` lanza `'Stock insuficiente'` como aviso temprano; la barrera real es el trigger — no reintroduzcas un ajuste manual de `stock_actual` ahí, ya se hizo y descontaba doble |
 | Consentimientos, cobros y notas de internación: solo INSERT | policies sin UPDATE/DELETE | servicios que solo insertan |
 | Internación congelada tras el alta | `trg_internacion_inmutable` | [services/internacion.ts](src/services/internacion.ts) |
 | Un veterinario sin citas solapadas (bloques de 30 min) | `exclude using gist` | [lib/agenda.ts](src/lib/agenda.ts) (`SLOT_MINUTOS`, franjas mañana/tarde) |
@@ -151,10 +153,12 @@ Además:
 
   | `RolRoute` | Rutas |
   |---|---|
-  | sin restricción (cualquier sesión) | `/agenda`, `/pacientes`, `/pacientes/:id`, `/internacion`, `/inventario` |
+  | `['admin', 'veterinario', 'recepcion']` | `/agenda`, `/pacientes`, `/pacientes/:id`, `/internacion`, `/inventario` |
   | `['recepcion', 'admin']` | `/caja`, `/asistente`, `/respaldo` |
   | `['admin']` | `/servicios`, `/movimientos`, `/metricas` |
   | `['superadmin']` | `/plataforma`, `/plataforma/clinicas`, `/plataforma/planes` |
+
+  Ese primer `RolRoute` es la barrera de frontend equivalente a `auth_es_personal()`: sin él, una cuenta `cliente` del portal entraría en las mismas pantallas que el personal. El propio portal vive aparte, bajo `/portal-cliente` (`PortalClienteLayout`, sin `RolRoute` porque su propio layout y sus policies de solo-lectura ya acotan lo que se ve).
 
 ## Sesión y acceso
 
@@ -171,35 +175,17 @@ Las altas de usuario generan una `Invitacion` (token de un solo uso, con caducid
 Dos áreas que no pasan por el patrón habitual y conviene conocer antes de tocarlas:
 
 - **`/respaldo`** ([lib/exportacion.ts](src/lib/exportacion.ts) / [lib/importacion.ts](src/lib/importacion.ts)): genera un ZIP (JSZip + file-saver) con un CSV por tabla operativa y una carpeta `fotos/` con las de los pacientes indexadas por `codigo` (fuera del CSV, que solo lleva `tiene_foto`). La importación fusiona por `id` sobre lo existente, no reemplaza. El CSV es plano y sin escapes fuertes: no lo trates como un formato de intercambio estable.
-- **`/metricas`** ([services/metricas.ts](src/services/metricas.ts)): comparativas mes actual contra mes anterior; los gráficos son `recharts`. **Ojo:** hoy calcula los meses con `new Date().getMonth()` en vez de los helpers de `lib/datetime`, así que salta la regla de zona horaria — si tocas ese servicio, arréglalo de paso.
+- **`/metricas`** ([services/metricas.ts](src/services/metricas.ts)): comparativas mes actual contra mes anterior; los gráficos son `recharts`. **Ojo:** el mes actual/anterior ya usa `clinicMonth()` de `lib/datetime`, pero el bucle que arma el historial de los últimos N meses (`obtenerResumenMetricas`, cerca de la línea 119) todavía compara con `getMonth()`/`getFullYear()` del navegador — si tocas ese servicio, termina de migrarlo.
 
 ## Pantallas de impresión
 
-Seis rutas producen documentos en papel: `/recibos/:cobroId`, `/consentimientos/:citaId`, `/pacientes/:id/historial/imprimir`, `/pacientes/:pacienteId/consulta/:consultaId/imprimir`, `/pacientes/:pacienteId/reporte/:tipo/:itemId?` e `/internaciones/:id/imprimir`.
+Siete rutas producen documentos en papel: `/recibos/:cobroId`, `/consentimientos/:citaId`, `/pacientes/:id/historial/imprimir`, `/pacientes/:pacienteId/consulta/:consultaId/imprimir`, `/pacientes/:pacienteId/consulta/:consultaId/receta/imprimir`, `/pacientes/:pacienteId/reporte/:tipo/:itemId?` e `/internaciones/:id/imprimir`.
 
 Cuelgan de `ProtectedRoute` pero **fuera de `AppLayout`**: sin barra lateral, sin `Topbar`, la página entera es el documento. Si añades una, va en ese mismo bloque de [App.tsx](src/App.tsx) — dentro de `AppLayout` saldría el menú impreso en el papel.
 
-Las seis comparten el mismo esqueleto, y copiarlo es lo correcto al añadir la séptima: envoltorio `print:bg-white`; una barra con el `Link` «Volver a…» y un `Button` con `window.print()`, marcada `print:hidden` (sin navegación alrededor, ese enlace es la única salida); y la tarjeta del documento con `print:shadow-none print:p-*`.
+Las siete comparten el mismo esqueleto, y copiarlo es lo correcto al añadir la séptima: envoltorio `print:bg-white`; una barra con el `Link` «Volver a…» y un `Button` con `window.print()`, marcada `print:hidden` (sin navegación alrededor, ese enlace es la única salida); y la tarjeta del documento con `print:shadow-none print:p-*`.
 
 El `@media print` de [src/index.css](src/index.css) es genérico y no conoce ningún documento (márgenes `@page`, `print-color-adjust`, `thead` repetido, `break-inside` en filas e imágenes): lo que cada página esconde o aplana va en sus propias utilidades `print:`.
-
-## Estado real: lo que está roto ahora mismo
-
-La migración a Supabase se hizo deprisa y dejó cosas a medias. Esto está **verificado leyendo el código y el SQL**, no supuesto. Si vas a trabajar en estas zonas, cuenta con ello:
-
-1. **El stock se descuenta dos veces.** El trigger `trg_aplicar_movimiento_inventario` ya ajusta `productos.stock_actual` al insertar el movimiento, pero [services/inventario.ts:122-125](src/services/inventario.ts#L122) lo ajusta **también a mano** justo antes. Cada ingreso suma el doble y cada egreso resta el doble; y si el `check (stock_actual >= 0)` aborta el insert, el `update` manual ya se confirmó y el stock queda movido sin movimiento que lo respalde. **Lo correcto es borrar el `update` manual**: la autoridad es el trigger.
-2. **Ninguna internación se guarda.** [services/internacion.ts:136](src/services/internacion.ts#L136) inserta `estado: 'ingreso'`, y el CHECK solo admite `('internado', 'alta')`.
-3. **Se pierden constantes vitales en silencio.** [services/internacion.ts:180-181](src/services/internacion.ts#L180) leen `(datos as any).frecuenciaRespiratoria` y `.pesoKg` (camelCase), pero la interfaz declara `frecuencia_respiratoria` y `peso_kg`. Siempre guardan `null`, sin error.
-4. **`clinica_id` es `not null` sin `default` en 17 tablas**, y casi ningún INSERT de negocio lo envía. Lo sensato es `alter column clinica_id set default auth_clinica_id()`, que además impide escribir en otra clínica.
-5. **El tope de WhatsApp no se aplica.** `whatsapp.ts` incrementa el contador con un `update` sobre `clinicas`, pero el inquilino no tiene policy de UPDATE ahí. PostgREST **no da error** cuando la RLS filtra filas: afecta 0 filas, `error` es `null`, y el contador no sube. Además `whatsapp_mensajes_enviados` no tiene columna de periodo, así que el modelo no puede expresar un tope *mensual*.
-6. **Deriva entre tipos y esquema.** `database.ts` declara columnas y tablas que no existen (`Paciente.codigo`, `Paciente.foto`, `Cliente.usuario_id`, `Cobro.cliente_nombre`, la tabla `recetas`), y roles/categorías que el CHECK rechaza (`'cliente'`, `'peluqueria'`). Todas las llamadas afectadas van con `(supabase as any)`, que es lo que impidió que `tsc` lo detectara.
-7. **`src/mocks/db.ts` y `seed.ts` existen vacíos a propósito.** Son un parche: el repositorio tiene copias fantasma cuyo *nombre* lleva backslashes literales (`"src\mocks\seed.ts"` en la raíz), y TypeScript, que normaliza `\` a `/`, las confunde con `src/mocks/seed.ts` y falla el build en Linux. **Borrar los ficheros vacíos sin borrar antes los fantasmas rompe Vercel.**
-8. **Cerrar un historial y dar un alta los rechaza la RLS.** `historial_update` ([0001_init.sql:574](supabase/migrations/0001_init.sql#L574)) e `internaciones_update` ([:609](supabase/migrations/0001_init.sql#L609)) declaran `using` **sin `with check`**, y PostgreSQL entonces aplica el `using` también a la fila resultante. Como el `using` exige `editable = true` / `estado = 'internado'`, la fila *nueva* tendría que cumplirlo igual: `update({editable:false})` y `update({estado:'alta'})` fallan con `42501`. ⚠️ **La corrección NO es quitar la condición del `using`** —eso abriría la edición de historiales cerrados—: es añadir un `with check` que solo exija `clinica_id`, dejando el sentido único a los triggers `trg_historial_inmutable` y `trg_internacion_inmutable`.
-9. **Suspender una clínica no revoca el acceso.** `motivoDeBloqueo()` lanza y la UI bloquea, pero `AuthContext` **nunca llama a `supabase.auth.signOut()`**, y la sesión ya se creó en `verificarCredenciales`. El JWT sigue siendo válido contra PostgREST. Ninguna policy consulta `clinicas.estado`: la suspensión es hoy un control solo de frontend, es decir, ninguno.
-
-**Credencial a revisar ya:** `seed.mjs` (versionado) ejecuta `signUp({ email: 'admin@vetora.bo', password: 'admin' })`. Si se llegó a lanzar contra el proyecto real, esa cuenta existe con esa contraseña. Sin fila en `usuarios` la RLS no le concede nada, pero es una credencial viva y adivinable: compruébala en el panel de Auth y bórrala.
-
-⚠️ **Trampa al arreglar el punto 6:** ampliar el CHECK de `usuarios.rol` para admitir `'cliente'` parece la corrección obvia, pero `clientes_all`, `pacientes_all` y `citas_all` son `for all` con `clinica_id = auth_clinica_id()`. Un usuario del portal pasaría a tener **acceso de negocio completo al inquilino**: vería y modificaría los pacientes y las citas de todos los demás clientes de esa clínica. El portal necesita policies propias y estrechas (`clientes.usuario_id = auth.uid()`) **antes** de que ese rol exista en la base.
 
 ## Estilos
 

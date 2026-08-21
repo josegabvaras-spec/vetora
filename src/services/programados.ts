@@ -1,17 +1,53 @@
 import { supabase } from '../lib/supabase'
 import { DIAS_ANTICIPACION, diasDeDiferencia } from '../lib/asistente'
 import { TIPO_LABEL } from '../lib/citas'
-import { desdeFechaSola, formatClinicDate } from '../lib/datetime'
+import { clinicDayIso, desdeFechaSola, formatClinicDate, fromClinicTime } from '../lib/datetime'
 import { enviarMensajeWhatsapp } from './whatsapp'
 import type { Cita, Paciente } from '../types/database'
 import type { CitaConDetalle, Programado, ResumenDelDia, TipoAviso } from '../types/views'
 
+/**
+ * Tope de la barrida de cartera.
+ *
+ * Cumpleaños y pacientes inactivos obligan a mirar TODOS los pacientes: no hay
+ * forma de filtrar "cumple hoy" desde PostgREST sin una función en la base.
+ * Hasta que exista, el límite es explícito en vez de ser el corte invisible de
+ * 1000 filas de PostgREST — que es lo que había antes y hacía desaparecer
+ * avisos sin decir nada. Para pasar de aquí hace falta un RPC.
+ */
+const TOPE_CARTERA = 5000
+
+/**
+ * Ventana de citas que necesitan los avisos.
+ *
+ * Hacia atrás: 400 días, porque el aviso de "paciente inactivo" pregunta si
+ * hace **365** que no viene. Quien no tenga ninguna cita en esta ventana está,
+ * por definición, por encima de ese umbral, así que el resultado no cambia.
+ * Hacia delante: 30 días, de sobra para la mayor `DIAS_ANTICIPACION`.
+ */
+const DIAS_ATRAS = 400
+const DIAS_ADELANTE = 30
+
+function ventanaDeAvisos(): { desde: string; hasta: string } {
+  const desde = new Date()
+  desde.setDate(desde.getDate() - DIAS_ATRAS)
+  const hasta = new Date()
+  hasta.setDate(hasta.getDate() + DIAS_ADELANTE)
+  return { desde: desde.toISOString(), hasta: hasta.toISOString() }
+}
+
 export async function listProgramados(sucursalId?: string): Promise<Programado[]> {
-  const { data: pacientes } = await supabase.from('pacientes').select('*')
-  const { data: clientes } = await supabase.from('clientes').select('*')
+  const { desde, hasta } = ventanaDeAvisos()
+
+  const { data: pacientes } = await supabase.from('pacientes').select('*').limit(TOPE_CARTERA)
+  const { data: clientes } = await supabase.from('clientes').select('*').limit(TOPE_CARTERA)
   const { data: servicios } = await supabase.from('servicios').select('*')
-  
-  let citasQuery = supabase.from('citas').select('*')
+
+  let citasQuery = supabase
+    .from('citas')
+    .select('*')
+    .gte('fecha_hora', desde)
+    .lte('fecha_hora', hasta)
   if (sucursalId) citasQuery = citasQuery.eq('sucursal_id', sucursalId)
   const { data: citas } = await citasQuery
 
@@ -61,7 +97,11 @@ export async function listProgramados(sucursalId?: string): Promise<Programado[]
     })
   }
 
-  const { data: vacunas } = await supabase.from('vacunas_aplicadas').select('*')
+  // Tope explícito, no filtro por fecha: el bucle de abajo SÍ muestra refuerzos
+  // vencidos por antiguos que sean (`dentroDeVentana` acepta los días negativos),
+  // así que acotar por `fecha_refuerzo` cambiaría qué avisos aparecen. Esto solo
+  // convierte el corte invisible de 1000 filas en uno explícito y documentado.
+  const { data: vacunas } = await supabase.from('vacunas_aplicadas').select('*').limit(TOPE_CARTERA)
   for (const vacuna of (vacunas || [])) {
     if (!vacuna.fecha_refuerzo) continue
     const paciente = pacienteDe(vacuna.paciente_id)
@@ -83,7 +123,7 @@ export async function listProgramados(sucursalId?: string): Promise<Programado[]
     })
   }
 
-  const { data: desparasitaciones } = await supabase.from('desparasitaciones_aplicadas').select('*')
+  const { data: desparasitaciones } = await supabase.from('desparasitaciones_aplicadas').select('*').limit(TOPE_CARTERA)
   for (const dosis of (desparasitaciones || [])) {
     if (!dosis.fecha_proxima) continue
     const paciente = pacienteDe(dosis.paciente_id)
@@ -108,7 +148,11 @@ export async function listProgramados(sucursalId?: string): Promise<Programado[]
   const hoyStr = new Date().toISOString()
   const diaHoy = formatClinicDate(hoyStr).substring(0, 2)
   const mesHoy = formatClinicDate(hoyStr).substring(3, 5)
-  const { data: cobros } = await supabase.from('cobros').select('cita_id')
+  // Solo hace falta saber si las citas de la ventana están cobradas.
+  const { data: cobros } = await supabase
+    .from('cobros')
+    .select('cita_id')
+    .gte('created_at', desde)
 
   // 3. Seguimiento post-consulta y atenciones sin cobrar
   for (const cita of (citas || []) as Cita[]) {
@@ -254,12 +298,26 @@ export async function enviarAviso(
   const enlace = await enviarMensajeWhatsapp(clinicaId, numeroDestino, mensaje)
 
   if (destino === 'cliente' && (aviso.tipo === 'recordatorio_cita' || aviso.tipo === 'preparacion_cirugia')) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('citas')
       .update({ recordatorio_enviado: true })
       .eq('id', aviso.referencia_id)
-      
-    if (error) console.error('Error al actualizar recordatorio_enviado', error)
+      .select('id')
+
+    // No se lanza: el mensaje ya salió y la cuota ya se consumió, así que
+    // abortar aquí sería peor. Pero sí se avisa por consola de los dos modos de
+    // fallo, incluido el silencioso: si la RLS filtra la fila, PostgREST
+    // devuelve 204 con `error: null` y el aviso reaparecería como pendiente sin
+    // que nadie entienda por qué.
+    if (error) {
+      console.error('No se pudo marcar el recordatorio como enviado:', error)
+    } else if (!data || data.length === 0) {
+      console.error(
+        'El recordatorio se envió pero no se pudo marcar en la cita',
+        aviso.referencia_id,
+        '— sin permiso sobre esa sucursal. Volverá a aparecer como pendiente.',
+      )
+    }
   }
   return enlace
 }
@@ -268,12 +326,27 @@ export async function resumenDelDia(sucursalId?: string): Promise<ResumenDelDia>
   const hoy = new Date().toISOString()
   const esDeHoy = (iso: string) => formatClinicDate(iso) === formatClinicDate(hoy)
 
-  let citasQuery = supabase.from('citas').select('*')
+  // Ventana: hoy más los siete días que mira el control de consentimientos de
+  // cirugía. Antes se traía la tabla entera de citas para quedarse con las de
+  // hoy, y por encima de 1000 filas el resumen del día salía vacío.
+  const inicioHoy = fromClinicTime(`${clinicDayIso()}T00:00:00`)
+  const finVentana = new Date()
+  finVentana.setDate(finVentana.getDate() + 8)
+
+  let citasQuery = supabase
+    .from('citas')
+    .select('*')
+    .gte('fecha_hora', inicioHoy)
+    .lte('fecha_hora', finVentana.toISOString())
   if (sucursalId) citasQuery = citasQuery.eq('sucursal_id', sucursalId)
   const { data: citas } = await citasQuery
 
   const citasHoy = (citas || []).filter((c) => esDeHoy(c.fecha_hora) && c.estado !== 'cancelada')
-  const { data: consentimientos } = await supabase.from('consentimientos_cirugia').select('cita_id')
+
+  const idsCitasVentana = (citas || []).map((c: any) => c.id)
+  const { data: consentimientos } = idsCitasVentana.length
+    ? await supabase.from('consentimientos_cirugia').select('cita_id').in('cita_id', idsCitasVentana)
+    : { data: [] as any[] }
 
   const cirugiasSinConsentimiento = (citas || []).filter(
     (c) =>
@@ -286,12 +359,21 @@ export async function resumenDelDia(sucursalId?: string): Promise<ResumenDelDia>
 
   const avisos = await listProgramados(sucursalId)
 
-  let prodQuery = supabase.from('productos').select('*')
+  // Sin filtrar por `activo`, un producto dado de baja seguiría generando
+  // alertas de stock bajo que ya no hay que reponer.
+  let prodQuery = supabase.from('productos').select('*').eq('activo', true)
   if (sucursalId) prodQuery = prodQuery.eq('sucursal_id', sucursalId)
   const { data: productos } = await prodQuery
   const prodBajoStock = (productos || []).filter((p) => p.stock_actual <= p.stock_minimo)
 
-  let cobrosQuery = supabase.from('cobros').select('*')
+  // Solo los de hoy: es lo único que se suma. Antes se traía el histórico
+  // completo de cobros para descartarlo casi entero, y por encima de 1000
+  // filas los de hoy podían no venir en el lote — el resumen decía Bs. 0.00
+  // habiendo cobrado.
+  let cobrosQuery = supabase
+    .from('cobros')
+    .select('*')
+    .gte('created_at', fromClinicTime(`${clinicDayIso()}T00:00:00`))
   if (sucursalId) cobrosQuery = cobrosQuery.eq('sucursal_id', sucursalId)
   const { data: cobros } = await cobrosQuery
   const ingresosHoy = (cobros || [])

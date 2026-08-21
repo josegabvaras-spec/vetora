@@ -753,6 +753,7 @@ export type Database = {
           motivo: string
           producto_id: string
           tipo: string
+          usuario_id: string | null
         }
         Insert: {
           cantidad: number
@@ -764,6 +765,7 @@ export type Database = {
           motivo?: string
           producto_id: string
           tipo: string
+          usuario_id?: string | null
         }
         Update: {
           cantidad?: number
@@ -775,6 +777,7 @@ export type Database = {
           motivo?: string
           producto_id?: string
           tipo?: string
+          usuario_id?: string | null
         }
         Relationships: [
           {
@@ -803,6 +806,13 @@ export type Database = {
             columns: ["producto_id"]
             isOneToOne: false
             referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_inventario_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -966,6 +976,7 @@ export type Database = {
       }
       productos: {
         Row: {
+          activo: boolean
           clinica_id: string
           composicion: string
           contenido_presentacion: number
@@ -981,6 +992,7 @@ export type Database = {
           unidad_medida: string
         }
         Insert: {
+          activo?: boolean
           clinica_id?: string
           composicion?: string
           contenido_presentacion?: number
@@ -996,6 +1008,7 @@ export type Database = {
           unidad_medida?: string
         }
         Update: {
+          activo?: boolean
           clinica_id?: string
           composicion?: string
           contenido_presentacion?: number

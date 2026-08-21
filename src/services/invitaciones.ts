@@ -32,6 +32,36 @@ export async function ultimaInvitacionDe(usuarioId: string): Promise<Invitacion 
   return data?.[0] as Invitacion | undefined
 }
 
+/**
+ * Última invitación de cada usuario, en una sola consulta.
+ *
+ * El panel de plataforma pinta el estado de la cuenta de todos los usuarios de
+ * una clínica a la vez. Resolverlo con `ultimaInvitacionDe` por fila disparaba
+ * una consulta por usuario en **cada render**; y como esa función es asíncrona
+ * y allí se consumía como si no lo fuera, el estado que se mostraba nunca era
+ * el real.
+ */
+export async function ultimasInvitacionesDe(
+  usuarioIds: string[],
+): Promise<Map<string, Invitacion>> {
+  const porUsuario = new Map<string, Invitacion>()
+  if (usuarioIds.length === 0) return porUsuario
+
+  const { data, error } = await supabase
+    .from('invitaciones')
+    .select('*')
+    .in('usuario_id', usuarioIds)
+    .order('created_at', { ascending: false })
+
+  if (error) throw new Error(`No se pudieron leer los accesos: ${error.message}`)
+
+  // Vienen de la más reciente a la más antigua: la primera de cada usuario gana.
+  for (const fila of (data ?? []) as Invitacion[]) {
+    if (!porUsuario.has(fila.usuario_id)) porUsuario.set(fila.usuario_id, fila)
+  }
+  return porUsuario
+}
+
 export async function crearInvitacion(usuarioId: string): Promise<Invitacion> {
   const { data: usuario } = await supabase.from('usuarios').select('*').eq('id', usuarioId).single()
   if (!usuario) throw new Error('Usuario no encontrado')

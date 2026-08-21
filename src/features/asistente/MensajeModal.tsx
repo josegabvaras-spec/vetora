@@ -54,12 +54,35 @@ export function MensajeModal({
     if (!usuario?.clinica_id) return
     setEnviando(true)
     setError(null)
+
+    // La pestaña se abre AHORA, dentro del gesto del clic, y se le pone la
+    // dirección después.
+    //
+    // Con `window.open` detrás del `await` el navegador ya no lo asocia a una
+    // acción del usuario y lo bloquea como popup — pero para entonces
+    // `enviarAviso` ya consumió una unidad de la cuota mensual del plan y marcó
+    // la cita como avisada. El mensaje no salía, el aviso desaparecía de
+    // pendientes y nadie se enteraba.
+    //
+    // Sin `noopener` a propósito: con esa opción `window.open` devuelve null
+    // por especificación y no habría handle que redirigir. Se anula el opener
+    // a mano, que da la misma garantía.
+    const ventana = window.open('', '_blank')
+    if (ventana) ventana.opener = null
+
     try {
       const enlace = await enviarAviso(usuario.clinica_id, { ...aviso, whatsapp: destino === 'equipo' ? '' : aviso.whatsapp }, texto, destino)
-      
-      window.open(enlace, '_blank', 'noopener,noreferrer')
+
+      if (ventana) {
+        ventana.location.href = enlace
+      } else {
+        // Popup bloqueado. La cuota ya se gastó, así que lo que no puede pasar
+        // es quedarse sin abrir el mensaje: se navega en la misma pestaña.
+        window.location.href = enlace
+      }
       onEnviado()
     } catch (err) {
+      ventana?.close()
       setError(err instanceof Error ? err.message : 'No se pudo enviar el mensaje')
       setEnviando(false)
     }

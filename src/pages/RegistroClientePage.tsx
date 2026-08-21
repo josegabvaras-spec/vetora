@@ -8,6 +8,7 @@ import {
   registrarClientePortal,
   type ClinicaParaRegistro,
 } from '../services/portalCliente'
+import { PASSWORD_MINIMO } from '../services/cuentas'
 
 export function RegistroClientePage() {
   const navigate = useNavigate()
@@ -41,6 +42,12 @@ export function RegistroClientePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    // Se valida aquí con el mismo mínimo que aplica el servidor: si no, el
+    // requisito se descubría con un error tras el viaje, a veces en inglés.
+    if (form.password.length < PASSWORD_MINIMO) {
+      setError(`La contraseña debe tener al menos ${PASSWORD_MINIMO} caracteres`)
+      return
+    }
     setRegistrando(true)
     setError(null)
 
@@ -128,6 +135,8 @@ export function RegistroClientePage() {
             <Input
               required
               type="password"
+              minLength={PASSWORD_MINIMO}
+              placeholder={`Al menos ${PASSWORD_MINIMO} caracteres`}
               value={form.password}
               onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))}
             />

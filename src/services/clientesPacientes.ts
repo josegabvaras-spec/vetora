@@ -10,7 +10,7 @@ import { consultaOrigenDe } from './citas'
 import { detalleDeInternacion, internacionAbiertaDe } from './internacion'
 import { diasDeEstadia } from '../lib/internacion'
 import { actualizarBorradorHistorial, iniciarConsultaLibre, type CamposEditablesHistorial } from './historial'
-import { formatClinicDate } from '../lib/datetime'
+import { clinicDayIso, formatClinicDate, fromClinicTime } from '../lib/datetime'
 
 async function internacionActivaDe(pacienteId: string): Promise<InternacionResumen | null> {
   const abierta = await internacionAbiertaDe(pacienteId)
@@ -24,29 +24,89 @@ async function internacionActivaDe(pacienteId: string): Promise<InternacionResum
   }
 }
 
-export async function listPacientes(): Promise<PacienteConDueno[]> {
-  const { data: pacientes } = await supabase.from('pacientes').select('*')
-  const { data: clientes } = await supabase.from('clientes').select('*')
-  const { data: citas } = await supabase.from('citas').select('*')
-  const { data: servicios } = await supabase.from('servicios').select('*')
-  const { data: usuarios } = await supabase.from('usuarios').select('*')
-  
-  if (!pacientes) return []
+/** Tope de la lista de pacientes. Suficiente para una pantalla, con margen. */
+export const LIMITE_PACIENTES = 200
+
+/**
+ * Cartera de pacientes, filtrada **en el servidor**.
+ *
+ * Antes traía todos los pacientes más cuatro tablas completas y la página
+ * filtraba en memoria. PostgREST corta en 1000 filas, así que a partir de ahí
+ * había pacientes que no se podían encontrar por mucho que se escribiera su
+ * nombre: no aparecían y nada avisaba.
+ *
+ * `busqueda` compara contra el nombre del paciente y el de su dueño. Como son
+ * dos tablas, se resuelve en dos pasos: primero los dueños que casan, después
+ * los pacientes cuyo nombre casa **o** que pertenecen a esos dueños.
+ */
+export async function listPacientes(busqueda = '', limite = LIMITE_PACIENTES): Promise<PacienteConDueno[]> {
+  const termino = busqueda.trim()
+  // `%` y `_` son comodines de LIKE: sin escaparlos, buscar "50%" listaría de más.
+  const patron = `%${termino.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+
+  let query = supabase.from('pacientes').select('*').order('nombre').limit(limite)
+
+  if (termino) {
+    const { data: duenosQueCasan } = await supabase
+      .from('clientes')
+      .select('id')
+      .ilike('nombre', patron)
+      .limit(limite)
+
+    const idsDuenos = (duenosQueCasan ?? []).map((c) => c.id)
+    query = idsDuenos.length
+      ? query.or(`nombre.ilike.${patron},cliente_id.in.(${idsDuenos.join(',')})`)
+      : query.ilike('nombre', patron)
+  }
+
+  const { data: pacientes, error } = await query
+  if (error) throw new Error(`No se pudo cargar la lista de pacientes: ${error.message}`)
+  if (!pacientes || pacientes.length === 0) return []
+
   const todayStr = formatClinicDate(new Date().toISOString())
+  const pacienteIds = pacientes.map((p: any) => p.id)
+  const clienteIds = [...new Set(pacientes.map((p: any) => p.cliente_id).filter(Boolean))]
+
+  // Solo las citas de HOY de estos pacientes: es lo único que la lista pinta.
+  const desdeHoy = fromClinicTime(`${clinicDayIso()}T00:00:00`)
+  const hastaHoy = fromClinicTime(`${clinicDayIso()}T23:59:59`)
+
+  const [{ data: clientes }, { data: citas }] = await Promise.all([
+    supabase.from('clientes').select('*').in('id', clienteIds),
+    supabase
+      .from('citas')
+      .select('*')
+      .in('paciente_id', pacienteIds)
+      .gte('fecha_hora', desdeHoy)
+      .lte('fecha_hora', hastaHoy),
+  ])
+
+  const citasDeHoy = citas ?? []
+  const veterinarioIds = [...new Set(citasDeHoy.map((c: any) => c.veterinario_id).filter(Boolean))]
+  const servicioIds = [...new Set(citasDeHoy.map((c: any) => c.servicio_id).filter(Boolean))]
+
+  const [{ data: usuarios }, { data: servicios }] = await Promise.all([
+    veterinarioIds.length
+      ? supabase.from('usuarios').select('id, nombre').in('id', veterinarioIds)
+      : Promise.resolve({ data: [] as any[] }),
+    servicioIds.length
+      ? supabase.from('servicios').select('id, nombre').in('id', servicioIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ])
 
   const result = await Promise.all(pacientes.map(async (p: any) => {
-    const cliente = clientes?.find((c) => c.id === p.cliente_id)!
+    const cliente = clientes?.find((c) => c.id === p.cliente_id) ?? null
     const internacion_activa = await internacionActivaDe(p.id)
 
     const citas_hoy = await Promise.all(
-      (citas || [])
-        .filter((c) => c.paciente_id === p.id && formatClinicDate(c.fecha_hora) === todayStr)
-        .map(async (c) => {
+      citasDeHoy
+        .filter((c: any) => c.paciente_id === p.id && formatClinicDate(c.fecha_hora) === todayStr)
+        .map(async (c: any) => {
           return {
             ...c,
             paciente: { ...p, cliente, internacion_activa },
-            veterinario_nombre: usuarios?.find((u) => u.id === c.veterinario_id)?.nombre ?? 'Veterinario',
-            servicio_nombre: servicios?.find((s) => s.id === c.servicio_id)?.nombre ?? null,
+            veterinario_nombre: usuarios?.find((u: any) => u.id === c.veterinario_id)?.nombre ?? 'Veterinario',
+            servicio_nombre: servicios?.find((s: any) => s.id === c.servicio_id)?.nombre ?? null,
             origen: await consultaOrigenDe(c as any),
           } as any
         })
@@ -60,7 +120,7 @@ export async function listPacientes(): Promise<PacienteConDueno[]> {
       citas_hoy,
     }
   }))
-  
+
   return result as any
 }
 
@@ -72,12 +132,25 @@ export async function getFichaPaciente(pacienteId: string): Promise<FichaPacient
   const { data: usuarios } = await supabase.from('usuarios').select('*')
   const { data: vacunas } = await supabase.from('vacunas_aplicadas').select('*').eq('paciente_id', pacienteId)
   const { data: desparasitaciones } = await supabase.from('desparasitaciones_aplicadas').select('*').eq('paciente_id', pacienteId)
-  const { data: movimientos } = await supabase.from('movimientos_inventario').select('*')
-  const { data: productos } = await supabase.from('productos').select('*')
   const { data: recetas } = await supabase.from('recetas').select('*').eq('paciente_id', pacienteId)
   const { data: citas } = await supabase.from('citas').select('*').eq('paciente_id', pacienteId)
   const { data: servicios } = await supabase.from('servicios').select('*')
   const { data: internacionesData } = await supabase.from('internaciones').select('*').eq('paciente_id', pacienteId)
+
+  // Los movimientos se acotan a las citas de ESTE paciente, y los productos a
+  // los que esos movimientos referencian. Antes se traían las dos tablas
+  // enteras —`movimientos_inventario` crece sin techo— para quedarse con un
+  // puñado de filas, y por encima de 1000 los consumos de una consulta reciente
+  // simplemente no aparecían en su ficha.
+  const citaIdsDelPaciente = (citas ?? []).map((c: any) => c.id)
+  const { data: movimientos } = citaIdsDelPaciente.length
+    ? await supabase.from('movimientos_inventario').select('*').in('cita_id', citaIdsDelPaciente)
+    : { data: [] as any[] }
+
+  const productoIds = [...new Set((movimientos ?? []).map((m: any) => m.producto_id).filter(Boolean))]
+  const { data: productos } = productoIds.length
+    ? await supabase.from('productos').select('*').in('id', productoIds)
+    : { data: [] as any[] }
   const { data: consentimientos } = await supabase.from('consentimientos_cirugia').select('*').eq('paciente_id', pacienteId)
   const { data: historialesClinicos } = await supabase.from('historial_clinico').select('*').eq('paciente_id', pacienteId)
 
@@ -206,7 +279,14 @@ export async function registrarClienteYPaciente(input: NuevoClientePaciente): Pr
     .select()
     .single()
 
-  if (pacError || !paciente) throw new Error(`Error al registrar paciente: ${pacError?.message || 'desconocido'}`)
+  if (pacError || !paciente) {
+    // El cliente ya se insertó: si el paciente falla (CHECK de especie/sexo,
+    // colisión del índice de código, RLS) hay que deshacerlo. Sin esto cada
+    // reintento dejaba otra ficha de dueño duplicada, y el guardián de
+    // duplicados de arriba no las detecta porque solo compara pacientes.
+    await supabase.from('clientes').delete().eq('id', cliente.id)
+    throw new Error(`Error al registrar paciente: ${pacError?.message || 'desconocido'}`)
+  }
 
   let historialId: string | null = null
   if (input.primeraConsulta && input.veterinarioId && input.sucursalId) {
@@ -252,7 +332,67 @@ export async function actualizarClienteYPaciente(
   if (pacError) throw new Error(`Error al actualizar paciente: ${pacError.message}`)
 }
 
+/**
+ * Borra un paciente, salvo que tenga dinero cobrado detrás.
+ *
+ * La cadena de claves foráneas es toda `on delete cascade`
+ * (`pacientes` → `citas` → `cobros` → `cobro_lineas`, y lo mismo por
+ * `internaciones`), y **los cascades de PostgreSQL no evalúan la RLS**. Así que
+ * borrar un paciente se llevaba por delante cobros ya contabilizados en turnos
+ * de caja cerrados y arqueados: el arqueo firmado dejaba de cuadrar
+ * retroactivamente y las métricas del mes se reescribían solas, sin ningún
+ * error por medio.
+ *
+ * Se comprueba antes en vez de cambiar la cascada porque el resto de la cadena
+ * (historial, vacunas, notas) sí debe irse con el paciente; lo que no puede
+ * desaparecer es la caja.
+ */
 export async function eliminarPaciente(pacienteId: string): Promise<void> {
-  const { error } = await supabase.from('pacientes').delete().eq('id', pacienteId)
+  const { data: citas, error: errorCitas } = await supabase
+    .from('citas')
+    .select('id')
+    .eq('paciente_id', pacienteId)
+  if (errorCitas) throw new Error(`No se pudo comprobar el paciente: ${errorCitas.message}`)
+
+  const { data: internaciones, error: errorInt } = await supabase
+    .from('internaciones')
+    .select('id')
+    .eq('paciente_id', pacienteId)
+  if (errorInt) throw new Error(`No se pudo comprobar el paciente: ${errorInt.message}`)
+
+  const citaIds = (citas ?? []).map((c) => c.id)
+  const internacionIds = (internaciones ?? []).map((i) => i.id)
+
+  if (citaIds.length > 0 || internacionIds.length > 0) {
+    let cobrosQuery = supabase.from('cobros').select('id')
+    cobrosQuery =
+      citaIds.length > 0 && internacionIds.length > 0
+        ? cobrosQuery.or(
+            `cita_id.in.(${citaIds.join(',')}),internacion_id.in.(${internacionIds.join(',')})`,
+          )
+        : citaIds.length > 0
+          ? cobrosQuery.in('cita_id', citaIds)
+          : cobrosQuery.in('internacion_id', internacionIds)
+
+    const { data: cobros, error: errorCobros } = await cobrosQuery
+    if (errorCobros) throw new Error(`No se pudo comprobar el paciente: ${errorCobros.message}`)
+
+    if (cobros && cobros.length > 0) {
+      throw new Error(
+        `Este paciente tiene ${cobros.length} cobro(s) registrados en caja y no se puede eliminar. ` +
+          'Borrarlo descuadraría turnos de caja ya cerrados.',
+      )
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('pacientes')
+    .delete()
+    .eq('id', pacienteId)
+    .select('id')
+
   if (error) throw new Error(`Error al eliminar paciente: ${error.message}`)
+  if (!data || data.length === 0) {
+    throw new Error('No tienes permiso para eliminar este paciente')
+  }
 }

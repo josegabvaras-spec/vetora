@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { clsx } from 'clsx'
 import { BellRing, MessageCircle, Send, Sparkles } from 'lucide-react'
+import { AvisoError } from '../components/ui/AvisoError'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -9,7 +10,7 @@ import { Textarea } from '../components/ui/Field'
 import { TablaResponsive, type Columna } from '../components/ui/Tabla'
 import { MensajeModal } from '../features/asistente/MensajeModal'
 import { useAuth } from '../context/AuthContext'
-import { useTable } from '../mocks/useDb'
+import { useSuscripcionTabla } from '../mocks/useDb'
 import { listProgramados, resumenDelDia } from '../services/programados'
 import { contactoAdministracion, redactarInforme, type Redaccion } from '../services/asistente'
 import { enviarMensajeWhatsapp } from '../services/whatsapp'
@@ -51,10 +52,19 @@ export function AsistentePage() {
   const { usuario, sucursalActivaId } = useAuth()
   // Suscripción: los avisos se derivan de estas tablas, así que registrar una
   // vacuna o agendar una cita tiene que hacer desaparecer su aviso al instante.
-  useTable('citas')
-  useTable('vacunas_aplicadas')
-  useTable('desparasitaciones_aplicadas')
-  useTable('cobros')
+  // `useSuscripcionTabla` en vez de `useTable`: solo interesa enterarse del
+  // cambio, no descargar cuatro tablas enteras que nadie lee aquí.
+  //
+  // Y ahora sí funciona: con `useTable` el cambio provocaba un re-render, pero
+  // `recargar` vive en un efecto que solo dependía de la sucursal, así que los
+  // avisos no se recalculaban. Lo que prometía el comentario de arriba no
+  // ocurría; con estas revisiones en las dependencias, sí.
+  const revisiones = [
+    useSuscripcionTabla('citas'),
+    useSuscripcionTabla('vacunas_aplicadas'),
+    useSuscripcionTabla('desparasitaciones_aplicadas'),
+    useSuscripcionTabla('cobros'),
+  ].join('-')
 
   const [avisos, setAvisos] = useState<Programado[]>([])
   const [resumen, setResumen] = useState<ResumenDelDia | null>(null)
@@ -64,32 +74,23 @@ export function AsistentePage() {
   const [informe, setInforme] = useState<Redaccion | null>(null)
   const [textoInforme, setTextoInforme] = useState('')
   const [redactandoInforme, setRedactandoInforme] = useState(false)
+  // Sin esto, un doble clic en "Enviar informe" gastaba dos unidades de cuota.
+  const [enviandoInforme, setEnviandoInforme] = useState(false)
   const [errorInforme, setErrorInforme] = useState<string | null>(null)
 
-  const [sincronizandoIA, setSincronizandoIA] = useState(false)
-  const [resultadoIA, setResultadoIA] = useState<string | null>(null)
+  // Aquí vivía "Sincronizar WhatsApp (IA)". Se retiró porque era falso de
+  // principio a fin: esperaba 1,5 s para aparentar trabajo y luego marcaba como
+  // 'confirmada' TODA cita pendiente con recordatorio enviado, anunciando que
+  // "la IA ha leído los últimos mensajes". No existe integración de entrada de
+  // WhatsApp — el PRD §2 excluye el chatbot conversacional del MVP —, así que
+  // no había ningún mensaje que leer: confirmaba citas sin que nadie hubiera
+  // respondido, y encima escribía en la base desde la página, saltándose la
+  // capa de servicios y el principio de que la IA no escribe en la base.
+  //
+  // Confirmar una cita sigue siendo una acción explícita de una persona desde
+  // el detalle de la cita en la agenda.
 
-  async function sincronizarRespuestas() {
-    setSincronizandoIA(true)
-    setResultadoIA(null)
-    
-    await new Promise(r => setTimeout(r, 1500))
-    
-    const { supabase } = await import('../lib/supabase')
-    const { data: citas } = await supabase.from('citas').select('*').eq('estado', 'pendiente').eq('recordatorio_enviado', true)
-    
-    let confirmadas = 0
-    if (citas && citas.length > 0) {
-      for (const cita of citas) {
-        confirmadas++
-        await supabase.from('citas').update({ estado: 'confirmada' as any }).eq('id', cita.id)
-      }
-    }
-    
-    setResultadoIA(`La IA ha ledo los ǧltimos mensajes y confirm ${confirmadas} citas automǭticamente.`)
-    setSincronizandoIA(false)
-  }
-
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   async function recargar() {
     const sucursal = sucursalActivaId || undefined
     setAvisos(await listProgramados(sucursal))
@@ -97,9 +98,12 @@ export function AsistentePage() {
   }
 
   useEffect(() => {
-    recargar()
+    setErrorCarga(null)
+    recargar().catch((err) =>
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudieron cargar los avisos'),
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sucursalActivaId])
+  }, [sucursalActivaId, revisiones])
 
   const avisosFiltrados = useMemo(() => {
     return avisos.filter((a) => {
@@ -130,16 +134,29 @@ export function AsistentePage() {
   }
 
   async function enviarInforme() {
-    if (!usuario?.clinica_id) return
+    if (!usuario?.clinica_id || enviandoInforme) return
     setErrorInforme(null)
+    setEnviandoInforme(true)
+
+    // Igual que en MensajeModal: la pestaña se abre dentro del gesto del clic y
+    // se le pone la dirección después, porque `enviarMensajeWhatsapp` ya
+    // consumió cuota del plan cuando termina y un popup bloqueado la habría
+    // gastado sin enviar nada.
+    const ventana = window.open('', '_blank')
+    if (ventana) ventana.opener = null
+
     try {
       const { whatsapp } = await contactoAdministracion()
       const enlace = await enviarMensajeWhatsapp(usuario.clinica_id, whatsapp, textoInforme)
-      window.open(enlace, '_blank', 'noopener,noreferrer')
+      if (ventana) ventana.location.href = enlace
+      else window.location.href = enlace
       setInforme(null)
       await recargar()
     } catch (err) {
+      ventana?.close()
       setErrorInforme(err instanceof Error ? err.message : 'No se pudo enviar el informe')
+    } finally {
+      setEnviandoInforme(false)
     }
   }
 
@@ -210,6 +227,8 @@ export function AsistentePage() {
 
   return (
     <div className="space-y-6">
+      <AvisoError mensaje={errorCarga} />
+
       <div>
         <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
           Asistente
@@ -293,10 +312,6 @@ export function AsistentePage() {
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4">
         <h2 className="text-xl font-bold text-slate-900">Tareas de Seguimiento</h2>
-        <Button variant="secondary" onClick={sincronizarRespuestas} disabled={sincronizandoIA}>
-          <Sparkles size={16} className={sincronizandoIA ? 'animate-pulse' : ''} />
-          {sincronizandoIA ? 'Sincronizando...' : 'Sincronizar WhatsApp (IA)'}
-        </Button>
       </div>
 
       <div className="border-b border-slate-200">
@@ -347,13 +362,6 @@ export function AsistentePage() {
           </button>
         </nav>
       </div>
-
-      {resultadoIA && (
-        <p className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800 flex items-center gap-2">
-          <Sparkles size={16} />
-          {resultadoIA}
-        </p>
-      )}
 
       <Seccion titulo="Por avisar" tono={pendientes.some((a) => a.vencido) ? 'destacado' : 'neutro'}>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

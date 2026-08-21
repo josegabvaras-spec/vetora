@@ -33,12 +33,28 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   // Con un solo veterinario en la clínica no hay a quién elegir: el campo sobra.
   const unSoloVeterinario = veterinarios.length <= 1
 
-  const [pacienteId, setPacienteId] = useState(pacientes[0]?.id ?? '')
-  const [veterinarioId, setVeterinarioId] = useState(() => {
-    if (usuario?.rol === 'veterinario') return usuario.id
-    const primerVet = usuarios.find((u) => u.rol === 'veterinario')
-    return primerVet?.id ?? usuario?.id ?? ''
-  })
+  // Estos dos valores se DERIVAN, no se inicializan.
+  //
+  // `useTable` devuelve la tabla vacía en el primer render (la consulta ocurre
+  // después del commit) y un inicializador perezoso corre una sola vez, con lo
+  // cual `veterinarios[0]` era siempre `undefined`. El fallback caía entonces
+  // en `usuario.id`: si abría el modal recepción, la cita quedaba asignada a la
+  // propia recepcionista — y con un solo veterinario en la clínica el `<Select>`
+  // ni se dibuja, así que nadie lo corregía. Encima la rejilla de horas se
+  // calculaba con ese id equivocado y enseñaba todo libre.
+  //
+  // El estado guarda solo la elección explícita; mientras sea null manda el
+  // valor derivado, que se corrige solo en cuanto llegan las tablas.
+  const [pacienteElegido, setPacienteElegido] = useState<string | null>(null)
+  const [veterinarioElegido, setVeterinarioElegido] = useState<string | null>(null)
+
+  const pacienteId = pacienteElegido ?? pacientes[0]?.id ?? ''
+  const veterinarioId =
+    veterinarioElegido ??
+    (usuario?.rol === 'veterinario' ? usuario.id : veterinarios[0]?.id ?? '')
+
+  const setPacienteId = setPacienteElegido
+  const setVeterinarioId = setVeterinarioElegido
   const [fecha, setFecha] = useState(fechaInicial ?? formatInTimeZone(new Date(), TIMEZONE, 'yyyy-MM-dd'))
   const [horaSeleccionada, setHoraSeleccionada] = useState<string | null>(null)
   const [tipoCita, setTipoCita] = useState<TipoCita>('consulta')

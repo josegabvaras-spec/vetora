@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Edit2, Trash2 } from 'lucide-react'
+import { AvisoError } from '../components/ui/AvisoError'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -10,7 +11,7 @@ import { listPacientes, eliminarPaciente } from '../services/clientesPacientes'
 import { NuevoPacienteModal } from '../features/pacientes/NuevoPacienteModal'
 import { EditarPacienteModal } from '../features/pacientes/EditarPacienteModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { useTable } from '../mocks/useDb'
+import { useSuscripcionTabla } from '../mocks/useDb'
 import { etiquetaDias } from '../lib/internacion'
 import type { PacienteConDueno } from '../types/views'
 import { formatClinicTime } from '../lib/datetime'
@@ -34,7 +35,9 @@ export function PacientesListPage() {
   const [borrando, setBorrando] = useState(false)
 
   // Internar o dar de alta debe reflejarse aquí sin recargar la página.
-  const internaciones = useTable('internaciones')
+  // Solo dependencia del efecto: no se leen las filas, y `internaciones` crece
+  // sin techo. Con `useTable` se descargaba entera en cada cambio.
+  const revisionInternaciones = useSuscripcionTabla('internaciones')
 
   async function handleBorrar() {
     if (!pacienteBorrar) return
@@ -50,17 +53,34 @@ export function PacientesListPage() {
     }
   }
 
-  async function recargar() {
-    setPacientes(await listPacientes())
-  }
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+
+  /**
+   * Texto de búsqueda ya reposado.
+   *
+   * La búsqueda se resuelve en el servidor (antes se traía la cartera entera y
+   * se filtraba en memoria, lo que dejaba invisibles a los pacientes por encima
+   * de la fila 1000). Sin este retardo se lanzaría una consulta por tecla.
+   */
+  const [busquedaAplicada, setBusquedaAplicada] = useState('')
+  useEffect(() => {
+    const id = setTimeout(() => setBusquedaAplicada(busqueda), 300)
+    return () => clearTimeout(id)
+  }, [busqueda])
+
+  const recargar = useCallback(async () => {
+    setPacientes(await listPacientes(busquedaAplicada))
+  }, [busquedaAplicada])
 
   useEffect(() => {
-    recargar()
-  }, [internaciones])
+    setErrorCarga(null)
+    recargar().catch((err) =>
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar la lista de pacientes'),
+    )
+  }, [recargar, revisionInternaciones])
 
-  const filtrados = pacientes.filter((p) =>
-    `${p.nombre} ${p.cliente.nombre} ${p.raza}`.toLowerCase().includes(busqueda.toLowerCase()),
-  )
+  // El filtrado ya lo hizo la base; aquí solo se pinta lo que llegó.
+  const filtrados = pacientes
 
   // En celular la fila se convierte en tarjeta: el nombre y la agenda del día
   // encabezan, y el resto baja como pares etiqueta/valor.
@@ -161,6 +181,8 @@ export function PacientesListPage() {
 
   return (
     <div className="space-y-5">
+      <AvisoError mensaje={errorCarga} />
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Pacientes</h1>

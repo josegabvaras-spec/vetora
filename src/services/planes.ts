@@ -57,7 +57,10 @@ export async function usoEnClinicas(planId: string): Promise<number> {
     .select('*', { count: 'exact', head: true })
     .eq('plan_id', planId)
     .neq('estado', 'suspendida')
-    
-  if (error) return 0
+
+  // Antes devolvía 0 al fallar, y `setPlanActivo` se fía de ese 0 para permitir
+  // la baja: un corte de red retiraba de la oferta un plan con clínicas dentro.
+  // Ante la duda hay que lanzar, no asumir que no hay nadie.
+  if (error) throw new Error(`No se pudo comprobar el uso del plan: ${error.message}`)
   return count ?? 0
 }

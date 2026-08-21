@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { clsx } from 'clsx'
 import { Pencil, Plus, PlusCircle, Trash2 } from 'lucide-react'
 import { Card } from '../components/ui/Card'
@@ -37,26 +37,42 @@ export function InventarioPage() {
   // stock sigue disponible para todos los roles.
   const esAdmin = usuario?.rol === 'admin'
 
-  async function recargar() {
-    setProductos(await listProductos(sucursalActivaId || undefined))
-  }
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
-  const handleEliminarProducto = async (producto: ProductoConMovimientos) => {
-    if (window.confirm(`¿Estás seguro de eliminar el producto "${producto.nombre}"?`)) {
+  const recargar = useCallback(async () => {
+    try {
+      setErrorCarga(null)
+      setProductos(await listProductos(sucursalActivaId || undefined))
+    } catch (err) {
+      // Sin este catch, un fallo de la consulta dejaba la lista en [] y la
+      // pantalla decía "No hay productos registrados para esta sucursal": el
+      // usuario leía "no hay nada" en vez de "no se pudo cargar".
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar el inventario')
+    }
+  }, [sucursalActivaId])
+
+  // `useCallback` para que la referencia sea estable: el useMemo de las
+  // columnas la captura, y antes se quedaba con la primera versión — la que
+  // cerraba sobre la sucursal inicial. Tras cambiar de sucursal, dar de baja un
+  // producto recargaba la sucursal anterior.
+  const handleEliminarProducto = useCallback(
+    async (producto: ProductoConMovimientos) => {
+      if (!window.confirm(`¿Dar de baja el producto "${producto.nombre}"? Dejará de aparecer en el catálogo, pero su historial de movimientos y sus recibos se conservan.`)) {
+        return
+      }
       try {
         await eliminarProducto(producto.id)
-        alert('Producto eliminado correctamente')
-        recargar()
+        await recargar()
       } catch (error: any) {
         alert(error.message)
       }
-    }
-  }
+    },
+    [recargar],
+  )
 
   useEffect(() => {
     recargar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sucursalActivaId])
+  }, [recargar])
 
   const productosFiltrados = useMemo(() => {
     if (filtroStock === 'agotado') return productos.filter((p) => p.stock_actual <= 0)
@@ -139,7 +155,7 @@ export function InventarioPage() {
         ),
       },
     ],
-    [esAdmin],
+    [esAdmin, handleEliminarProducto],
   )
 
   return (
@@ -152,11 +168,16 @@ export function InventarioPage() {
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {esAdmin && (
             <>
+              {/* `|| 'todas'`, no `?? 'todas'`: al elegir "Todas" se guardaba
+                  cadena vacía, que no es null, así que el `??` no la sustituía,
+                  el value no casaba con ninguna opción y el desplegable se veía
+                  en blanco. Ahora se guarda null, que es lo que el contexto
+                  espera para "sin sucursal fijada". */}
               <Select
                 className="min-h-10 w-full py-1.5 font-semibold sm:w-52"
                 aria-label="Sucursal"
-                value={sucursalActivaId ?? 'todas'}
-                onChange={(e) => setSucursalActivaId(e.target.value === 'todas' ? '' : e.target.value)}
+                value={sucursalActivaId || 'todas'}
+                onChange={(e) => setSucursalActivaId(e.target.value === 'todas' ? null : e.target.value)}
               >
                 <option value="todas">Todas las sucursales</option>
                 {sucursales.map((s) => (
@@ -172,6 +193,12 @@ export function InventarioPage() {
           )}
         </div>
       </div>
+
+      {errorCarga && (
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+          {errorCarga}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
         <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">

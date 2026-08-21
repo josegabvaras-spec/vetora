@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { clinicDayIso } from '../lib/datetime'
 import type {
   Cita,
   DesparasitacionAplicada,
@@ -83,7 +84,18 @@ export async function iniciarConsultaLibre(
     .select()
     .single()
 
-  if (error || !cita) throw new Error(`Error al crear cita de respaldo: ${error?.message || 'desconocido'}`)
+  if (error || !cita) {
+    // 23P01 = violación del EXCLUDE `citas_sin_solapamiento`: el veterinario ya
+    // tiene una cita en el bloque de 30 minutos que cubre este instante. Pasa
+    // de verdad al atender sin cita a alguien que llega mientras hay otra
+    // consulta en curso, y el mensaje crudo de Postgres no dice qué hacer.
+    if ((error as { code?: string } | null)?.code === '23P01') {
+      throw new Error(
+        'Ese veterinario ya tiene una cita en este horario. Registra la consulta desde esa cita, o elige a otro veterinario.',
+      )
+    }
+    throw new Error(`Error al crear cita de respaldo: ${error?.message || 'desconocido'}`)
+  }
 
   return crearBorradorHistorial({
     pacienteId,
@@ -137,12 +149,19 @@ export async function actualizarBorradorHistorial(
     throw new Error('El motivo de la consulta no puede quedar vacío')
   }
 
-  const { error } = await supabase
+  // `.select()` obligatorio: si la RLS filtra la fila (otra pestaña cerró la
+  // consulta mientras se escribía), PostgREST devuelve 204 con error null y el
+  // diagnóstico tecleado se perdía en silencio mostrando "guardado".
+  const { data, error } = await supabase
     .from('historial_clinico')
     .update(cambios)
     .eq('id', id)
+    .select('id')
 
   if (error) throw new Error(`Error al actualizar historial: ${error.message}`)
+  if (!data || data.length === 0) {
+    throw new Error('No se pudo guardar: la consulta ya fue cerrada o no tienes permiso')
+  }
 }
 
 export async function registrarVacuna(
@@ -159,7 +178,9 @@ export async function registrarVacuna(
       paciente_id: historial.paciente_id,
       historial_id: historialId,
       nombre_vacuna: nombreVacuna.trim(),
-      fecha_aplicacion: new Date().toISOString().slice(0, 10),
+      // Día de la clínica, no UTC: pasadas las 20:00 en La Paz `toISOString()`
+      // ya es mañana y la dosis quedaba fechada al día siguiente.
+      fecha_aplicacion: clinicDayIso(),
       fecha_refuerzo: fechaRefuerzo || null,
     })
     .select()
@@ -185,7 +206,9 @@ export async function registrarDesparasitacion(
       historial_id: historialId,
       producto: producto.trim(),
       via,
-      fecha_aplicacion: new Date().toISOString().slice(0, 10),
+      // Día de la clínica, no UTC: pasadas las 20:00 en La Paz `toISOString()`
+      // ya es mañana y la dosis quedaba fechada al día siguiente.
+      fecha_aplicacion: clinicDayIso(),
       fecha_proxima: fechaProxima || null,
     })
     .select()
@@ -219,12 +242,16 @@ export async function finalizarHistorial(id: string): Promise<void> {
     throw new Error('Completa diagnóstico y tratamiento antes de cerrar el historial')
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('historial_clinico')
     .update({ editable: false })
     .eq('id', id)
+    .select('id')
 
   if (error) throw new Error(`Error al finalizar historial: ${error.message}`)
+  if (!data || data.length === 0) {
+    throw new Error('No se pudo cerrar la consulta: ya fue cerrada o no tienes permiso')
+  }
 }
 
 export interface RecetaItemInput {

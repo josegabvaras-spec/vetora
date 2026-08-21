@@ -5,6 +5,10 @@ import { FieldGroup, Input, Select } from '../../components/ui/Field'
 import { Seccion } from '../../components/ui/Seccion'
 import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
+// Son columnas `date`: `desdeFechaSola` las ancla al mediodía para que no se
+// desplacen un día al formatearlas, y `formatClinicDate` las deja en dd/MM/yyyy
+// en vez del ISO crudo que se imprimía en la ficha clínica.
+import { desdeFechaSola, formatClinicDate } from '../../lib/datetime'
 import { SeccionRecetario, type RecetaItemPendiente } from './SeccionRecetario'
 import type { DesparasitacionAplicada, VacunaAplicada, ViaDesparasitacion } from '../../types/database'
 import type { ProductoUsado } from '../../types/views'
@@ -85,7 +89,7 @@ export function SeccionVacunas({
             <li key={v.id} className="flex justify-between gap-2">
               <span className="font-medium">{v.nombre_vacuna}</span>
               <span className="text-slate-500">
-                {v.fecha_refuerzo ? `Refuerzo: ${v.fecha_refuerzo}` : 'Sin refuerzo programado'}
+                {v.fecha_refuerzo ? `Refuerzo: ${formatClinicDate(desdeFechaSola(v.fecha_refuerzo))}` : 'Sin refuerzo programado'}
               </span>
             </li>
           ))}
@@ -93,7 +97,7 @@ export function SeccionVacunas({
             <li key={`pendiente-${i}`} className="flex justify-between gap-2">
               <span className="font-medium">{v.nombre_vacuna}</span>
               <span className="text-slate-500">
-                {v.fecha_refuerzo ? `Refuerzo: ${v.fecha_refuerzo}` : 'Sin refuerzo programado'}
+                {v.fecha_refuerzo ? `Refuerzo: ${formatClinicDate(desdeFechaSola(v.fecha_refuerzo))}` : 'Sin refuerzo programado'}
               </span>
             </li>
           ))}
@@ -172,7 +176,7 @@ export function SeccionDesparasitaciones({
                 {d.producto} <span className="text-slate-400">· {VIA_LABEL[d.via]}</span>
               </span>
               <span className="text-slate-500">
-                {d.fecha_proxima ? `Próxima: ${d.fecha_proxima}` : 'Sin próxima dosis'}
+                {d.fecha_proxima ? `Próxima: ${formatClinicDate(desdeFechaSola(d.fecha_proxima))}` : 'Sin próxima dosis'}
               </span>
             </li>
           ))}
@@ -182,7 +186,7 @@ export function SeccionDesparasitaciones({
                 {d.producto} <span className="text-slate-400">· {VIA_LABEL[d.via]}</span>
               </span>
               <span className="text-slate-500">
-                {d.fecha_proxima ? `Próxima: ${d.fecha_proxima}` : 'Sin próxima dosis'}
+                {d.fecha_proxima ? `Próxima: ${formatClinicDate(desdeFechaSola(d.fecha_proxima))}` : 'Sin próxima dosis'}
               </span>
             </li>
           ))}
@@ -240,7 +244,9 @@ export function SeccionProductos({
   /** La internación reutiliza esta sección con su propio encabezado. */
   titulo?: string
 }) {
-  const productos = useTable('productos')
+  // `useTable` trae la tabla entera sin filtrar; los dados de baja no se pueden
+  // consumir, aunque sigan visibles en el kardex y en los recibos antiguos.
+  const productos = useTable('productos').filter((p) => p.activo)
   const [productoId, setProductoId] = useState('')
   const [cantidad, setCantidad] = useState('1')
   const [error, setError] = useState<string | null>(null)

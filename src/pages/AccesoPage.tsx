@@ -7,6 +7,7 @@ import { FieldGroup, Input } from '../components/ui/Field'
 import { useAuth } from '../context/AuthContext'
 import { establecerPasswordConInvitacion, validarInvitacion } from '../services/invitaciones'
 import type { AccesoResuelto } from '../services/invitaciones'
+import { PASSWORD_MINIMO } from '../services/cuentas'
 
 /**
  * Entrada por enlace de acceso (`/acceso/:token`): lo que recibe por WhatsApp
@@ -37,6 +38,10 @@ export function AccesoPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!token) return
+    if (password.length < PASSWORD_MINIMO) {
+      setError(`La contraseña debe tener al menos ${PASSWORD_MINIMO} caracteres`)
+      return
+    }
     if (password !== confirmacion) {
       setError('Las dos contraseñas no coinciden')
       return
@@ -106,7 +111,8 @@ export function AccesoPage() {
                   setPassword(e.target.value)
                   setError(null)
                 }}
-                placeholder="Al menos 8 caracteres"
+                placeholder={`Al menos ${PASSWORD_MINIMO} caracteres`}
+                minLength={PASSWORD_MINIMO}
                 required
               />
             </FieldGroup>

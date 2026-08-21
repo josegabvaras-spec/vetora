@@ -79,7 +79,15 @@ export async function listInternaciones(
   sucursalId?: string,
   estado?: EstadoInternacion,
 ): Promise<InternacionConDetalle[]> {
-  let query = supabase.from('internaciones').select('*').order('fecha_ingreso', { ascending: false })
+  // Tope explícito: `internaciones` crece sin techo y la pantalla solo pinta un
+  // listado. Con el orden descendente, lo que se recorta es lo más antiguo, no
+  // lo que se está mirando. Sin él, el corte de 1000 filas de PostgREST habría
+  // hecho lo mismo pero en silencio y sin garantizar cuál se queda fuera.
+  let query = supabase
+    .from('internaciones')
+    .select('*')
+    .order('fecha_ingreso', { ascending: false })
+    .limit(500)
   if (sucursalId) query = query.eq('sucursal_id', sucursalId)
   if (estado) query = query.eq('estado', estado)
 

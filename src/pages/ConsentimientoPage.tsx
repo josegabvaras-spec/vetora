@@ -70,7 +70,7 @@ export function ConsentimientoPage() {
             Consentimiento informado para procedimiento quirúrgico
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            {clinica.nombre} {sucursal ? `— ${sucursal.nombre}` : ''}
+            {clinica?.nombre ?? ""} {sucursal ? `— ${sucursal.nombre}` : ''}
           </p>
           {sucursal && <p className="text-xs text-slate-400">{sucursal.direccion}</p>}
           {!consentimiento && (
@@ -128,7 +128,7 @@ export function ConsentimientoPage() {
           <p>
             Yo, <strong>{cita.paciente.cliente.nombre}</strong>, en calidad de propietario/a o tutor/a responsable del
             paciente <strong>{cita.paciente.nombre}</strong>, declaro haber sido informado/a de manera clara por el
-            equipo veterinario de {clinica.nombre} sobre la naturaleza del procedimiento{' '}
+            equipo veterinario de {clinica?.nombre ?? ""} sobre la naturaleza del procedimiento{' '}
             <strong>{procedimiento}</strong> a realizarse, sus riesgos inherentes (incluyendo pero no limitados a reacciones anestésicas, hemorragias o complicaciones
             postoperatorias), los beneficios esperados y las alternativas de tratamiento disponibles.
           </p>

@@ -187,7 +187,7 @@ export function HistorialImprimirPage() {
           <h1 className="text-base font-bold uppercase tracking-wide text-slate-800">
             Ficha clínica e historial veterinario
           </h1>
-          <p className="mt-0.5 text-xs text-slate-600">{clinica.nombre}</p>
+          <p className="mt-0.5 text-xs text-slate-600">{clinica?.nombre ?? ""}</p>
         </header>
 
         <TablaFicha

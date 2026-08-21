@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { clinicDayIso, fromClinicTime } from '../lib/datetime'
 import { detalleDeCobro } from './caja'
 import type { MovimientoUnificado, OrigenMovimiento } from '../types/views'
 
@@ -24,10 +25,39 @@ export interface ResumenMovimientos {
  * en ninguna pantalla.
  */
 export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<MovimientoUnificado[]> {
-  const { data: cobros } = await supabase.from('cobros').select('*')
-  const { data: movimientosInv } = await supabase.from('movimientos_inventario').select('*, producto:productos(*), usuario:usuarios(*)')
-  
-  const deCaja: MovimientoUnificado[] = await Promise.all((cobros || []).map(async (c) => {
+  // El filtro de fechas se empuja a la consulta en vez de aplicarse en memoria.
+  //
+  // `desde`/`hasta` son días de la clínica ('yyyy-MM-dd') y `created_at` es un
+  // TIMESTAMPTZ, así que los extremos se convierten a instantes con
+  // `fromClinicTime`: el día completo va de su medianoche a la del siguiente.
+  // Sin esto se traía la tabla entera de cobros y de movimientos —ambas crecen
+  // sin techo— para descartar casi todo, y por encima de 1000 filas el informe
+  // salía incompleto sin avisar.
+  function acotar<T extends { gte: any; lt: any }>(query: T): T {
+    let q = query
+    if (filtro.desde) q = q.gte('created_at', fromClinicTime(`${filtro.desde}T00:00:00`))
+    if (filtro.hasta) {
+      const siguiente = new Date(`${filtro.hasta}T00:00:00Z`)
+      siguiente.setUTCDate(siguiente.getUTCDate() + 1)
+      q = q.lt('created_at', fromClinicTime(`${siguiente.toISOString().slice(0, 10)}T00:00:00`))
+    }
+    return q
+  }
+
+  const { data: cobros, error: errorCobros } = await acotar(supabase.from('cobros').select('*') as any)
+  if (errorCobros) throw new Error(`No se pudo cargar la caja: ${errorCobros.message}`)
+
+  const { data: movimientosInv, error: errorInv } = await acotar(
+    supabase
+      .from('movimientos_inventario')
+      .select('*, producto:productos(*), usuario:usuarios(*)') as any,
+  )
+  // Sin comprobar el error, un embed roto dejaba `data` en null y la mitad de
+  // inventario de la bitácora salía vacía como si nunca hubiera habido stock.
+  if (errorInv) throw new Error(`No se pudo cargar el inventario: ${errorInv.message}`)
+
+
+  const deCaja: MovimientoUnificado[] = await Promise.all((cobros || []).map(async (c: any) => {
     const detalle = await detalleDeCobro(c as any)
     return {
       id: c.id,
@@ -57,8 +87,10 @@ export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<M
   const result = [...deCaja, ...deInventario]
     .filter((m) => !filtro.origen || m.origen === filtro.origen)
     .filter((m) => !filtro.sucursalId || m.sucursal_id === filtro.sucursalId)
-    .filter((m) => !filtro.desde || m.fecha.slice(0, 10) >= filtro.desde)
-    .filter((m) => !filtro.hasta || m.fecha.slice(0, 10) <= filtro.hasta)
+    // `m.fecha` es un TIMESTAMPTZ: cortarlo con slice daba el día UTC, así que
+    // toda la caja de 20:00 a medianoche caía en el informe del día siguiente.
+    .filter((m) => !filtro.desde || clinicDayIso(m.fecha) >= filtro.desde)
+    .filter((m) => !filtro.hasta || clinicDayIso(m.fecha) <= filtro.hasta)
     .sort((a, b) => b.fecha.localeCompare(a.fecha))
 
   return result

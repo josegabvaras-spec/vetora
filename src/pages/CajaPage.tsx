@@ -18,6 +18,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import clsx from 'clsx'
+import { AvisoError } from '../components/ui/AvisoError'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -25,7 +26,7 @@ import { Modal } from '../components/ui/Modal'
 import { Seccion } from '../components/ui/Seccion'
 import { FieldGroup, Input } from '../components/ui/Field'
 import { useAuth } from '../context/AuthContext'
-import { useTable } from '../mocks/useDb'
+import { useSuscripcionTabla, useTable } from '../mocks/useDb'
 import {
   abrirTurno,
   cerrarTurno,
@@ -70,9 +71,15 @@ function Cifra({ etiqueta, valor, destacado }: { etiqueta: string; valor: string
 export function CajaPage() {
   const { usuario, sucursalActivaId } = useAuth()
   const sucursales = useTable('sucursales')
-  useTable('cobros')
-  useTable('turnos_caja')
-  useTable('productos')
+  // Suscripción sin descarga: estas tres tablas no se leen aquí, solo hacen
+  // falta para saber cuándo recargar. Con `useTable` se bajaban enteras y,
+  // además, el cambio no llegaba a disparar `recargar` (el efecto solo dependía
+  // de la sucursal), así que un cobro hecho en otra pestaña no aparecía.
+  const revisionCaja = [
+    useSuscripcionTabla('cobros'),
+    useSuscripcionTabla('turnos_caja'),
+    useSuscripcionTabla('productos'),
+  ].join('-')
 
   const sucursalId = sucursalActivaId || usuario?.sucursal_id || sucursales[0]?.id || ''
 
@@ -88,6 +95,7 @@ export function CajaPage() {
   const [cerrando, setCerrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const recargar = useCallback(async () => {
     if (!sucursalId) return
     const abierto = await getTurnoAbierto(sucursalId)
@@ -98,8 +106,11 @@ export function CajaPage() {
   }, [sucursalId])
 
   useEffect(() => {
-    recargar()
-  }, [recargar])
+    setErrorCarga(null)
+    recargar().catch((err) =>
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar la caja'),
+    )
+  }, [recargar, revisionCaja])
 
   async function handleAbrir() {
     setError(null)
@@ -118,16 +129,21 @@ export function CajaPage() {
 
   return (
     <div className="space-y-5">
+      <AvisoError mensaje={errorCarga} />
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Caja</h1>
           <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{sucursalNombre}</p>
         </div>
-        {!turno ? (
-          <Button onClick={() => setAbriendo(true)} className="w-full sm:w-auto">
-            <Wallet size={16} /> Abrir Turno
-          </Button>
-        ) : (
+        {/* Sin turno abierto no va ningún botón aquí: el formulario de apertura
+            ya ocupa la pantalla justo debajo. El que había llamaba a
+            `setAbriendo(true)`, que es el flag de "enviando" del propio
+            formulario, así que pulsarlo dejaba el botón "Abrir caja"
+            deshabilitado en "Abriendo…" para siempre — solo `handleAbrir` lo
+            devuelve a false, y estaba deshabilitado. La caja no se podía abrir
+            sin recargar la página, y sin caja no se cobra. */}
+        {!turno ? null : (
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <Button
               onClick={() => setVendiendoMedicamentos(true)}
@@ -726,7 +742,8 @@ function VentaMedicamentosModal({
   onVentaCompletada: () => void
 }) {
   const { usuario } = useAuth()
-  const productosSucursal = useTable('productos').filter((p) => p.sucursal_id === sucursalId)
+  // Un producto dado de baja no se vende, aunque siga en los recibos antiguos.
+  const productosSucursal = useTable('productos').filter((p) => p.sucursal_id === sucursalId && p.activo)
   const [clienteNombre, setClienteNombre] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo')

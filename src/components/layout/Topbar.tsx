@@ -10,6 +10,7 @@ import { getCuotaWhatsapp } from '../../services/whatsapp'
 import { useMultiSucursal, usePlanActivo } from '../../hooks/usePlanActivo'
 import { PerfilModal } from '../../features/auth/PerfilModal'
 import { clsx } from 'clsx'
+import { formatClinicDateTime } from '../../lib/datetime'
 
 const ROL_LABEL: Record<string, string> = {
   admin: 'Administrador',
@@ -71,8 +72,8 @@ function SelectorSucursal({ className }: { className?: string }) {
     <Select
       className={clsx('h-10 py-1.5 font-semibold', className)}
       aria-label="Sucursal activa"
-      value={sucursalActivaId ?? 'todas'}
-      onChange={(e) => setSucursalActivaId(e.target.value === 'todas' ? '' : e.target.value)}
+      value={sucursalActivaId || 'todas'}
+      onChange={(e) => setSucursalActivaId(e.target.value === 'todas' ? null : e.target.value)}
     >
       <option value="todas">Todas las sucursales</option>
       {sucursales.map((s) => (
@@ -109,8 +110,9 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
 
   if (!usuario) return null
 
-  // Saludo dinámico basado en la hora local
-  const hora = new Date().getHours()
+  // La hora es la de la clínica, no la del equipo: con getHours() un portátil
+  // con el huso mal puesto saludaba "buenas noches" a mediodía.
+  const hora = Number(formatClinicDateTime(new Date().toISOString(), 'HH'))
   let saludo = '¡Hola'
   if (hora >= 6 && hora < 12) saludo = 'Buenos días'
   else if (hora >= 12 && hora < 19) saludo = 'Buenas tardes'

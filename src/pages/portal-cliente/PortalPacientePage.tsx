@@ -4,9 +4,10 @@ import { useAuth } from '../../context/AuthContext'
 import { getHistorialPacientePortal, getVacunasPacientePortal, getPacientesPortal } from '../../services/portalCliente'
 import type { HistorialClinico, Paciente, VacunaAplicada } from '../../types/database'
 import { ArrowLeft, Syringe, FileText, AlertTriangle, Calendar } from 'lucide-react'
-import { format, isPast, isToday } from 'date-fns'
+import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
+import { clinicDayIso, desdeFechaSola } from '../../lib/datetime'
 
 export function PortalPacientePage() {
   const { pacienteId } = useParams()
@@ -127,8 +128,12 @@ export function PortalPacientePage() {
                   let necesitaRefuerzo = false
                   
                   if (vacuna.fecha_refuerzo) {
-                    const fecha = new Date(vacuna.fecha_refuerzo)
-                    estaAtrasada = isPast(fecha) && !isToday(fecha)
+                    // Comparación de días de la clínica como cadena.
+                    // `new Date("2026-08-20")` es medianoche UTC = el 19 a las
+                    // 20:00 en La Paz, así que el dueño veía "atrasada" en rojo
+                    // desde la víspera y el mismo día que le tocaba. Fallaba
+                    // siempre en Bolivia, no solo con el reloj mal puesto.
+                    estaAtrasada = vacuna.fecha_refuerzo.slice(0, 10) < clinicDayIso()
                     necesitaRefuerzo = true
                   }
 
@@ -137,7 +142,7 @@ export function PortalPacientePage() {
                       <div className="font-medium text-slate-900 mb-1">{vacuna.nombre_vacuna}</div>
                       <div className="text-xs text-slate-500 flex items-center gap-1.5 mb-2">
                         <Calendar className="h-3.5 w-3.5" />
-                        Aplicada: {format(new Date(vacuna.fecha_aplicacion), "d 'de' MMMM, yyyy", { locale: es })}
+                        Aplicada: {format(new Date(desdeFechaSola(vacuna.fecha_aplicacion)), "d 'de' MMMM, yyyy", { locale: es })}
                       </div>
                       
                       {necesitaRefuerzo && (
@@ -148,7 +153,7 @@ export function PortalPacientePage() {
                             : "bg-blue-50 text-blue-700 border-blue-100"
                         )}>
                           {estaAtrasada ? <AlertTriangle className="h-3.5 w-3.5" /> : <Calendar className="h-3.5 w-3.5" />}
-                          Refuerzo: {format(new Date(vacuna.fecha_refuerzo!), "d 'de' MMMM, yyyy", { locale: es })}
+                          Refuerzo: {format(new Date(desdeFechaSola(vacuna.fecha_refuerzo!)), "d 'de' MMMM, yyyy", { locale: es })}
                         </div>
                       )}
                     </div>

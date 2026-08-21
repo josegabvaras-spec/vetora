@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, Copy, MessageCircle } from 'lucide-react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
@@ -30,6 +30,11 @@ export function EnviarAccesoModal({
   const [copiado, setCopiado] = useState(false)
   const [enviado, setEnviado] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const temporizadorCopiado = useRef<number | null>(null)
+
+  useEffect(() => () => {
+    if (temporizadorCopiado.current !== null) window.clearTimeout(temporizadorCopiado.current)
+  }, [])
 
   useEffect(() => {
     crearInvitacion(usuario.id)
@@ -45,9 +50,21 @@ export function EnviarAccesoModal({
 
   async function abrirWhatsapp() {
     if (!enlace || !invitacionId) return
+    // La ventana se abre primero, dentro del gesto del clic (este orden ya era
+    // el correcto). Lo que faltaba era capturar el fallo del marcado: si no, la
+    // promesa quedaba rechazada sin manejar y el enlace figuraba como no
+    // enviado sin que nadie lo supiera.
     window.open(enlaceWhatsapp(usuario.whatsapp, mensaje), '_blank', 'noopener,noreferrer')
-    await marcarInvitacionEnviada(invitacionId)
-    setEnviado(true)
+    try {
+      await marcarInvitacionEnviada(invitacionId)
+      setEnviado(true)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `El mensaje se abrió, pero no se pudo marcar como enviado: ${err.message}`
+          : 'El mensaje se abrió, pero no se pudo marcar como enviado.',
+      )
+    }
   }
 
   async function copiar() {
@@ -55,7 +72,9 @@ export function EnviarAccesoModal({
     try {
       await navigator.clipboard.writeText(enlace)
       setCopiado(true)
-      setTimeout(() => setCopiado(false), 2000)
+      // Se guarda para poder cancelarlo al desmontar: cerrar el modal antes de
+      // los 2 s dejaba un `setState` sobre un componente que ya no existe.
+      temporizadorCopiado.current = window.setTimeout(() => setCopiado(false), 2000)
     } catch {
       setError('No se pudo copiar. Selecciona el enlace y cópialo a mano.')
     }

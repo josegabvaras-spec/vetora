@@ -76,10 +76,17 @@ export function RecetarioModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // Bloquear scroll del body
+  // Bloquear scroll del body.
+  //
+  // Se restaura el valor PREVIO, no cadena vacía: el recetario se abre desde la
+  // ficha de consulta, que ya vive dentro de un `Modal` con el scroll
+  // bloqueado. Al cerrar el recetario, vaciar el estilo devolvía el scroll a la
+  // página de detrás con el modal padre todavía encima. Es el mismo patrón que
+  // usa components/ui/Modal.
   useEffect(() => {
+    const overflowPrevio = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
+    return () => { document.body.style.overflow = overflowPrevio }
   }, [])
 
   function set<K extends keyof typeof FORM_VACIO>(key: K, value: (typeof FORM_VACIO)[K]) {

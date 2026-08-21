@@ -10,7 +10,7 @@ import { Seccion } from '../components/ui/Seccion'
 import { TablaResponsive, type Columna } from '../components/ui/Tabla'
 import { obtenerResumenMetricas, type MetricasResumen } from '../services/metricas'
 import { formatBs } from '../lib/currency'
-import { useTable } from '../mocks/useDb'
+import { useSuscripcionTabla } from '../mocks/useDb'
 import type { Producto } from '../types/database'
 
 import { 
@@ -179,13 +179,18 @@ export function MetricasPage() {
   const [chartActivo, setChartActivo] = useState<'ingresos' | 'pacientes' | 'turnos' | 'inventario' | null>(null)
   
   // Escuchar cambios en estas tablas para actualizar métricas en vivo
-  const cobros = useTable('cobros')
-  const pacientes = useTable('pacientes')
-  const productos = useTable('productos')
+  // Estas tres solo servían de dependencia del efecto —el comentario de arriba
+  // lo dice—, pero `useTable` se traía las tablas completas para no leer ni una
+  // fila. La revisión cumple el mismo papel sin descargar nada.
+  const revisionMetricas = [
+    useSuscripcionTabla('cobros'),
+    useSuscripcionTabla('pacientes'),
+    useSuscripcionTabla('productos'),
+  ].join('-')
 
   useEffect(() => {
     obtenerResumenMetricas().then(setMetricas)
-  }, [cobros, pacientes, productos])
+  }, [revisionMetricas])
 
   if (!metricas) {
     return (

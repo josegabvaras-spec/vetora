@@ -27,11 +27,24 @@ async function validarProducto(datos: DatosProducto, sucursalId: string, ignorar
     throw new Error('El contenido de presentación debe ser mayor a 0')
   }
 
-  let query = supabase.from('productos').select('id').eq('sucursal_id', sucursalId).ilike('sku', datos.sku.trim())
+  // Incluye los dados de baja a propósito: el unique (sucursal_id, sku) sigue
+  // ocupado por ellos, así que sin esto el insert moriría con un 23505 crudo.
+  let query = supabase
+    .from('productos')
+    .select('id, activo')
+    .eq('sucursal_id', sucursalId)
+    .ilike('sku', datos.sku.trim())
   if (ignorarId) query = query.neq('id', ignorarId)
-  
-  const { data } = await query
-  if (data && data.length > 0) throw new Error('Ya existe un producto con ese SKU en esta sucursal')
+
+  const { data, error } = await query
+  if (error) throw new Error(`No se pudo validar el SKU: ${error.message}`)
+  if (data && data.length > 0) {
+    throw new Error(
+      data.some((p) => p.activo === false)
+        ? 'Ese SKU pertenece a un producto dado de baja en esta sucursal'
+        : 'Ya existe un producto con ese SKU en esta sucursal',
+    )
+  }
 }
 
 export async function crearProducto(
@@ -55,7 +68,10 @@ export async function crearProducto(
       unidad_medida: datos.unidad_medida.trim(),
       contenido_presentacion: datos.contenido_presentacion,
       precio_bs: datos.precio_bs,
-      stock_actual: stockInicial,
+      // `stock_actual` NO se envía: la columna arranca en 0 y el movimiento de
+      // abajo lo sube vía trg_aplicar_movimiento_inventario. Ponerlo aquí lo
+      // contaba dos veces (un alta de 50 quedaba en 100), que es el mismo error
+      // de doble contabilización que ya se corrigió en registrarMovimiento.
       stock_minimo: datos.stock_minimo,
     } as any)
     .select()
@@ -74,10 +90,13 @@ export async function crearProducto(
 export async function actualizarProducto(id: string, datos: DatosProducto): Promise<void> {
   const { data: producto } = await supabase.from('productos').select('*').eq('id', id).single()
   if (!producto) throw new Error('Producto no encontrado')
-  
+
   await validarProducto(datos, producto.sucursal_id, id)
 
-  const { error } = await supabase
+  // `.select()` no es decorativo: cuando la RLS filtra la fila PostgREST
+  // devuelve 204 con error null, así que sin esto un veterinario editando el
+  // producto de otra sucursal veía "guardado" sin haberse guardado nada.
+  const { data: actualizado, error } = await supabase
     .from('productos')
     .update({
       sku: datos.sku.trim(),
@@ -90,23 +109,58 @@ export async function actualizarProducto(id: string, datos: DatosProducto): Prom
       stock_minimo: datos.stock_minimo,
     } as any)
     .eq('id', id)
+    .select('id')
 
   if (error) throw new Error(`Error al actualizar producto: ${error.message}`)
+  if (!actualizado || actualizado.length === 0) {
+    throw new Error('No tienes permiso para modificar este producto')
+  }
 }
 
+/**
+ * Baja lógica, no borrado.
+ *
+ * Un DELETE real se llevaba por delante el kardex entero del producto
+ * (`movimientos_inventario.producto_id` es `on delete cascade`), y encima
+ * fallaba con un 23503 crudo en cuanto el producto se hubiera vendido alguna
+ * vez, porque `cobro_lineas` lo referencia. Es el mismo motivo por el que el
+ * catálogo de servicios se desactiva en vez de borrarse.
+ */
 export async function eliminarProducto(id: string): Promise<void> {
-  const { error } = await supabase.from('productos').delete().eq('id', id)
-  if (error) throw new Error(`Error al eliminar producto: ${error.message}`)
+  const { data, error } = await supabase
+    .from('productos')
+    .update({ activo: false } as any)
+    .eq('id', id)
+    .select('id')
+
+  if (error) throw new Error(`Error al dar de baja el producto: ${error.message}`)
+  if (!data || data.length === 0) {
+    throw new Error('No tienes permiso para dar de baja este producto')
+  }
 }
 
 export async function listProductos(sucursalId?: string): Promise<ProductoConMovimientos[]> {
-  let query = supabase.from('productos').select('*').order('nombre')
+  // Los dados de baja no salen del catálogo, pero siguen resolviéndose por id
+  // en el kardex y en los recibos antiguos.
+  let query = supabase.from('productos').select('*').eq('activo', true).order('nombre')
   if (sucursalId) query = query.eq('sucursal_id', sucursalId)
 
   const { data: productos } = await query
   if (!productos) return []
 
-  const { data: movimientos } = await supabase.from('movimientos_inventario').select('*').order('created_at', { ascending: false })
+  // Acotado a los productos que se van a pintar. Antes se traía
+  // `movimientos_inventario` entera —la tabla que más crece de todas, una fila
+  // por cada entrada y salida de stock— para quedarse con los movimientos de
+  // este catálogo. Por encima de 1000 filas el kardex reciente desaparecía sin
+  // ningún aviso.
+  const productoIds = productos.map((p: Producto) => p.id)
+  const { data: movimientos } = productoIds.length
+    ? await supabase
+        .from('movimientos_inventario')
+        .select('*')
+        .in('producto_id', productoIds)
+        .order('created_at', { ascending: false })
+    : { data: [] as any[] }
 
   return productos.map((p: Producto) => ({
     ...p,

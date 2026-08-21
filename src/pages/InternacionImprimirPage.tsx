@@ -71,7 +71,7 @@ export function InternacionImprimirPage() {
         <header className="mb-5 border-b-2 border-slate-700 pb-3 text-center">
           <h1 className="text-base font-bold uppercase tracking-wide text-slate-800">Hoja de internación</h1>
           <p className="mt-0.5 text-xs text-slate-600">
-            {clinica.nombre} {sucursal ? `— ${sucursal.nombre}` : ''}
+            {clinica?.nombre ?? ""} {sucursal ? `— ${sucursal.nombre}` : ''}
           </p>
         </header>
 

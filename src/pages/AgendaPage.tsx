@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, MessageCircle, Plus } from 'lucide-react'
+import { AvisoError } from '../components/ui/AvisoError'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -8,7 +9,7 @@ import { useTable } from '../mocks/useDb'
 import { useMultiSucursal } from '../hooks/usePlanActivo'
 import { NuevaCitaModal } from '../features/agenda/NuevaCitaModal'
 import { CitaDetalleModal } from '../features/agenda/CitaDetalleModal'
-import { formatClinicDate, formatClinicTime, TIMEZONE } from '../lib/datetime'
+import { clinicMonth, formatClinicDate, formatClinicTime, TIMEZONE } from '../lib/datetime'
 import { ESTADO_LABEL, ESTADO_TONE, TIPO_LABEL, TIPO_TONE } from '../lib/citas'
 import { listCitas } from '../services/citas'
 import { CONSULTA_MD } from '../hooks/useMediaQuery'
@@ -31,6 +32,19 @@ function sameDay(iso: string, date: Date): boolean {
   return citaDateStr === targetStr
 }
 
+/**
+ * Rótulo de un día en la zona de la clínica.
+ *
+ * Los `dias` son `Date` a medianoche LOCAL, pero `sameDay` los resuelve en
+ * `America/La_Paz`. Con `toLocaleDateString` sin zona, la etiqueta se calculaba
+ * en la del navegador: en un equipo con otro huso, la celda rotulada "19"
+ * mostraba las citas del 18. Toda la pantalla quedaba coherente consigo misma
+ * salvo por un día de desfase, que es la forma más difícil de detectar.
+ */
+function etiquetaDia(date: Date, opciones: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat('es-BO', { ...opciones, timeZone: TIMEZONE }).format(date)
+}
+
 export function AgendaPage() {
   const { usuario, sucursalActivaId } = useAuth()
   useTable('citas') // fuerza re-render cuando cambian las citas del mock store
@@ -48,18 +62,18 @@ export function AgendaPage() {
   const sucursalId = sucursalActivaId || sucursales[0]?.id
   const multiSucursal = useMultiSucursal()
 
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   async function recargar() {
-    const data = await listCitas(sucursalActivaId || undefined)
+    // Solo se piden las citas de los días que se están pintando. Antes se traía
+    // la tabla entera, que PostgREST corta en 1000 filas: en una clínica con
+    // historial, los días recientes podían quedar fuera del lote y la agenda
+    // aparecía vacía sin ningún error.
+    const data = await listCitas(sucursalActivaId || undefined, rangoVisible)
     setCitas(data)
     if (citaSeleccionada) {
       setCitaSeleccionada(data.find((c) => c.id === citaSeleccionada.id) ?? null)
     }
   }
-
-  useEffect(() => {
-    recargar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sucursalActivaId])
 
   const dias = useMemo(() => {
     if (vista === 'dia') return [fechaRef]
@@ -81,6 +95,34 @@ export function AgendaPage() {
     })
   }, [vista, fechaRef])
 
+  /**
+   * Ventana que se pide a la base: desde el arranque del primer día visible
+   * hasta el final del último.
+   *
+   * Se memoiza por sus extremos (no por la identidad de los `Date`) para que el
+   * efecto de recarga no se dispare en cada render.
+   */
+  const rangoVisible = useMemo(() => {
+    const primero = new Date(dias[0])
+    primero.setHours(0, 0, 0, 0)
+    const ultimo = new Date(dias[dias.length - 1])
+    ultimo.setHours(23, 59, 59, 999)
+    return { desde: primero.toISOString(), hasta: ultimo.toISOString() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dias[0]?.getTime(), dias[dias.length - 1]?.getTime()])
+
+  // Va aquí abajo y no junto al resto de estado porque depende de
+  // `rangoVisible`, y el array de dependencias se evalúa durante el render.
+  useEffect(() => {
+    setErrorCarga(null)
+    recargar().catch((err) =>
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar la agenda'),
+    )
+    // Al cambiar de día, semana o mes hay que volver a pedir: la consulta va
+    // acotada a lo que se pinta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sucursalActivaId, rangoVisible])
+
   function irA(delta: number) {
     const d = new Date(fechaRef)
     if (vista === 'dia') {
@@ -95,16 +137,18 @@ export function AgendaPage() {
 
   // Mes y año como referencia principal; el detalle del período va como subtítulo.
   const referenceDate = vista === 'mes' ? fechaRef : dias[0]
-  const tituloPeriodo = referenceDate.toLocaleDateString('es-BO', { month: 'long', year: 'numeric' })
+  const tituloPeriodo = etiquetaDia(referenceDate, { month: 'long', year: 'numeric' })
   const subtituloPeriodo =
     vista === 'dia'
-      ? dias[0].toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long' })
+      ? etiquetaDia(dias[0], { weekday: 'long', day: 'numeric', month: 'long' })
       : vista === 'semana'
         ? `${formatClinicDate(dias[0].toISOString())} — ${formatClinicDate(dias[6].toISOString())}`
         : 'Vista mensual'
 
   return (
     <div className="space-y-5">
+      <AvisoError mensaje={errorCarga} />
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Agenda</h1>
@@ -193,11 +237,12 @@ export function AgendaPage() {
           {dias.map((dia) => {
             const citasDelDia = citas.filter((c) => sameDay(c.fecha_hora, dia))
             const esHoy = sameDay(new Date().toISOString(), dia)
-            const esMesActual = vista === 'mes' ? dia.getMonth() === fechaRef.getMonth() : true
-            const esFinDeSemana = dia.getDay() === 0 || dia.getDay() === 6
-            const dayNumber = dia.toLocaleDateString('es-BO', { day: 'numeric' })
-            const diaLargo = dia.toLocaleDateString('es-BO', { weekday: 'long' })
-            const diaCorto = dia.toLocaleDateString('es-BO', { weekday: 'short' }).replace('.', '').substring(0, 3)
+            const esMesActual = vista === 'mes' ? clinicMonth(dia.toISOString()) === clinicMonth(fechaRef.toISOString()) : true
+            const diaSemana = new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE, weekday: 'short' }).format(dia)
+            const esFinDeSemana = diaSemana === 'Sat' || diaSemana === 'Sun'
+            const dayNumber = etiquetaDia(dia, { day: 'numeric' })
+            const diaLargo = etiquetaDia(dia, { weekday: 'long' })
+            const diaCorto = etiquetaDia(dia, { weekday: 'short' }).replace('.', '').substring(0, 3)
 
             const esVistaDia = vista === 'dia'
 

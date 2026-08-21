@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Pencil, Plus } from 'lucide-react'
+import { AvisoError } from '../components/ui/AvisoError'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -22,17 +23,25 @@ export function ServiciosPage() {
   const [servicios, setServicios] = useState<Servicio[]>([])
   const [editando, setEditando] = useState<Servicio | null>(null)
   const [creando, setCreando] = useState(false)
+  /** Id del servicio cuyo activar/desactivar está en vuelo, para no repetirlo. */
+  const [alternando, setAlternando] = useState<string | null>(null)
 
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const recargar = useCallback(async () => {
     setServicios(await listServicios())
   }, [])
 
   useEffect(() => {
-    recargar()
+    setErrorCarga(null)
+    recargar().catch((err) =>
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar el catálogo de servicios'),
+    )
   }, [recargar])
 
   return (
     <div className="space-y-5">
+      <AvisoError mensaje={errorCarga} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-xl font-bold text-slate-900">Servicios</h1>
@@ -73,9 +82,21 @@ export function ServiciosPage() {
                     <Button
                       variant={s.activo ? 'secondary' : 'success'}
                       className="px-3 py-1.5 text-xs"
+                      // Sin deshabilitar ni capturar, un doble clic alternaba dos
+                      // veces (volviendo al valor original) y un rechazo de la
+                      // RLS pasaba desapercibido.
+                      disabled={alternando === s.id}
                       onClick={async () => {
-                        await alternarActivo(s.id)
-                        await recargar()
+                        setAlternando(s.id)
+                        setErrorCarga(null)
+                        try {
+                          await alternarActivo(s.id)
+                          await recargar()
+                        } catch (err) {
+                          setErrorCarga(err instanceof Error ? err.message : 'No se pudo cambiar el estado')
+                        } finally {
+                          setAlternando(null)
+                        }
                       }}
                     >
                       {s.activo ? 'Desactivar' : 'Activar'}

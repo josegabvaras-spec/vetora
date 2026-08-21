@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { motivoDeBloqueo } from '../services/sesion'
 import { verificarCredenciales } from '../services/cuentas'
 import { supabase } from '../lib/supabase'
+import { limpiarTablasCacheadas } from '../mocks/useDb'
 import type { Usuario } from '../types/database'
 
 interface AuthContextValue {
@@ -68,6 +69,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         setUsuario(null)
+        // El caché de `useTable` vive a nivel de módulo y sobrevive al cierre de
+        // sesión: sin esto, entrar con otra cuenta en la misma pestaña enseñaba
+        // por un frame las filas de la clínica anterior.
+        limpiarTablasCacheadas()
       }
     })
 
@@ -107,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut()
       setUsuario(null)
     },
-    setSucursalActivaId: (id: string) => setSucursalOverride(id),
+    setSucursalActivaId: (id: string | null) => setSucursalOverride(id),
   }
 
   if (cargando) return null // O un spinner si prefieres

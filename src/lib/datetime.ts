@@ -37,6 +37,33 @@ export function formatClinicTime(dateIso: string): string {
 }
 
 /**
+ * Día de negocio (`'yyyy-MM-dd'`) de un instante, en la zona de la clínica.
+ *
+ * Es lo que hay que escribir en una columna `date` y lo que hay que comparar
+ * contra un `<input type="date">`. `new Date().toISOString().slice(0, 10)` da el
+ * día **UTC**: a partir de las 20:00 en La Paz ya es el día siguiente, así que
+ * una vacuna puesta por la tarde quedaba fechada mañana y la caja de la noche
+ * caía en el informe del día equivocado.
+ */
+export function clinicDayIso(dateIso: string = new Date().toISOString()): string {
+  return formatInTimeZone(dateIso, TIMEZONE, 'yyyy-MM-dd')
+}
+
+/**
+ * Desplaza un mes `'yyyy-MM'` sin pasar por `Date`.
+ *
+ * `d.setMonth(d.getMonth() - 1)` sobre un día 31 desborda: el 31 de marzo da
+ * "31 de febrero", que JS normaliza al 3 de marzo. Comparar meses así hacía que
+ * el "mes anterior" saliera igual al actual a fin de marzo, mayo, julio,
+ * octubre y diciembre, con sus totales a cero y un +100 % inventado encima.
+ */
+export function sumarMeses(mes: string, delta: number): string {
+  const [anio, m] = mes.split('-').map(Number)
+  const total = anio * 12 + (m - 1) + delta
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`
+}
+
+/**
  * Convierte una columna `date` de PostgreSQL ("2026-08-01") en un instante que
  * cae en ese mismo día aquí.
  *

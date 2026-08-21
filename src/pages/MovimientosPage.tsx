@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AvisoError } from '../components/ui/AvisoError'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { FieldGroup, Input, Select } from '../components/ui/Field'
 import { TablaResponsive, type Columna } from '../components/ui/Tabla'
-import { useTable } from '../mocks/useDb'
+import { useSuscripcionTabla, useTable } from '../mocks/useDb'
 import { useMultiSucursal } from '../hooks/usePlanActivo'
 import { listMovimientos, resumirMovimientos, type ResumenMovimientos } from '../services/movimientos'
 import { formatBs } from '../lib/currency'
@@ -22,8 +23,11 @@ function Cifra({ etiqueta, valor }: { etiqueta: string; valor: string }) {
 
 export function MovimientosPage() {
   const sucursales = useTable('sucursales')
-  useTable('cobros')
-  useTable('movimientos_inventario')
+  // Solo suscripción: la bitácora se recarga con su propia consulta acotada.
+  const revisionBitacora = [
+    useSuscripcionTabla('cobros'),
+    useSuscripcionTabla('movimientos_inventario'),
+  ].join('-')
 
   const hoy = formatInTimeZone(new Date(), TIMEZONE, 'yyyy-MM-dd')
   const [desde, setDesde] = useState('')
@@ -53,6 +57,7 @@ export function MovimientosPage() {
     })
   }, [isMultiSede, sucursales, movimientos])
 
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const recargar = useCallback(async () => {
     const datos = await listMovimientos({
       desde: desde || undefined,
@@ -65,8 +70,11 @@ export function MovimientosPage() {
   }, [desde, hasta, sucursalId, origen])
 
   useEffect(() => {
-    recargar()
-  }, [recargar])
+    setErrorCarga(null)
+    recargar().catch((err) =>
+      setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar la bitácora'),
+    )
+  }, [recargar, revisionBitacora])
 
   const columnas = useMemo<Columna<MovimientoUnificado>[]>(
     () => [
@@ -123,6 +131,8 @@ export function MovimientosPage() {
 
   return (
     <div className="space-y-5">
+      <AvisoError mensaje={errorCarga} />
+
       <div>
         <h1 className="font-display text-xl font-bold text-slate-900">Movimientos</h1>
         <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">

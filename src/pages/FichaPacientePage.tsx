@@ -33,7 +33,7 @@ import { EditarPacienteModal } from '../features/pacientes/EditarPacienteModal'
 import { useAuth } from '../context/AuthContext'
 import { useTable } from '../mocks/useDb'
 import { calcularEdad } from '../lib/paciente'
-import { formatClinicDate, formatClinicDateTime, formatClinicTime } from '../lib/datetime'
+import { clinicDayIso, desdeFechaSola, formatClinicDate, formatClinicDateTime, formatClinicTime } from '../lib/datetime'
 import { etiquetaDias, ESTADO_INTERNACION_LABEL, ESTADO_INTERNACION_TONE } from '../lib/internacion'
 import type { CitaConDetalle, FichaPaciente } from '../types/views'
 import { avisoDeCita } from '../services/programados'
@@ -68,7 +68,8 @@ export function FichaPacientePage() {
   const navigate = useNavigate()
   const { usuario, sucursalActivaId } = useAuth()
   const sucursales = useTable('sucursales')
-  const [ficha, setFicha] = useState<FichaPaciente | null>(null)
+  const [ficha, setFicha] = useState<FichaPaciente | null | undefined>(undefined)
+  const [errorFicha, setErrorFicha] = useState<string | null>(null)
   const [motivoNuevaConsulta, setMotivoNuevaConsulta] = useState('')
   const [creando, setCreando] = useState(false)
   const [nuevoHistorialId, setNuevoHistorialId] = useState<string | null>(null)
@@ -128,7 +129,15 @@ export function FichaPacientePage() {
 
   async function recargar() {
     if (!id) return
-    setFicha(await getFichaPaciente(id))
+    try {
+      setErrorFicha(null)
+      setFicha(await getFichaPaciente(id))
+    } catch (err) {
+      // Sin este catch la promesa quedaba rechazada sin manejar y la pantalla
+      // se quedaba en "Cargando ficha del paciente…" para siempre.
+      setErrorFicha(err instanceof Error ? err.message : 'No se pudo cargar la ficha')
+      setFicha(null)
+    }
   }
 
   useEffect(() => {
@@ -181,8 +190,18 @@ export function FichaPacientePage() {
     if (cita) setAvisoCita({ cita, destino })
   }
 
-  if (!ficha) {
+  if (errorFicha) {
+    return <p className="text-sm font-semibold text-rose-700">{errorFicha}</p>
+  }
+
+  if (ficha === undefined) {
     return <p className="text-sm text-slate-500">Cargando ficha del paciente…</p>
+  }
+
+  // `getFichaPaciente` devuelve null cuando el paciente no existe. Tratar ese
+  // null como "cargando" dejaba la pantalla colgada al entrar con un id borrado.
+  if (ficha === null) {
+    return <p className="text-sm text-slate-500">No se encontró este paciente.</p>
   }
 
   const { paciente, historiales, internaciones, citas } = ficha
@@ -724,16 +743,23 @@ export function FichaPacientePage() {
                       {ficha.vacunas.map((v) => (
                         <tr key={v.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 font-medium text-slate-900">{v.nombre_vacuna}</td>
-                          <td className="px-4 py-3 text-slate-600">{formatClinicDate(v.fecha_aplicacion)}</td>
+                          {/* `desdeFechaSola` porque son columnas `date`: sin
+                              ancla horaria, formatClinicDate las resolvía en la
+                              zona del navegador y podían salir un día antes. */}
+                          <td className="px-4 py-3 text-slate-600">{formatClinicDate(desdeFechaSola(v.fecha_aplicacion))}</td>
                           <td className="px-4 py-3">
                             {v.fecha_refuerzo ? (
                               <span className={clsx(
                                 "inline-flex items-center rounded-md px-2 py-1 text-xs font-medium",
-                                new Date(v.fecha_refuerzo) < new Date() 
-                                  ? "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20" 
+                                // Comparar los días de la clínica como cadena.
+                                // `new Date("2026-08-20")` es medianoche UTC, o
+                                // sea el 19 a las 20:00 aquí: el refuerzo se
+                                // pintaba vencido desde la víspera.
+                                v.fecha_refuerzo.slice(0, 10) < clinicDayIso()
+                                  ? "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20"
                                   : "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20"
                               )}>
-                                {formatClinicDate(v.fecha_refuerzo)}
+                                {formatClinicDate(desdeFechaSola(v.fecha_refuerzo))}
                               </span>
                             ) : (
                               <span className="text-slate-400 text-xs">—</span>

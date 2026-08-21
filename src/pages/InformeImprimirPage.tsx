@@ -9,6 +9,22 @@ import { formatClinicDate, formatClinicDateTime } from '../lib/datetime'
 import type { FichaPaciente } from '../types/views'
 import { TablaFicha, TablaListado, anamnesisFilas, examenFilas } from './HistorialImprimirPage'
 
+/**
+ * Marca de campo sin dato en un informe impreso.
+ *
+ * Estas tres plantillas (laboratorio, imagenología, cirugía) traían valores
+ * clínicos fijos escritos a mano en el código: hematocrito 42.5 %, creatinina
+ * 1.1, "vesícula biliar anecoica sin litos", "inducción con propofol"… los
+ * mismos para todo paciente, impresos bajo el membrete de la clínica y sobre
+ * dos líneas de firma. No existe tabla de exámenes de laboratorio, así que no
+ * había ningún dato real detrás: era un documento con aspecto de informe médico
+ * firmado con resultados que nadie midió.
+ *
+ * Ahora solo se imprime lo que consta de verdad en la consulta; el resto sale
+ * en blanco para que el veterinario lo rellene a mano sobre el papel.
+ */
+const PARA_COMPLETAR = '__________________'
+
 const ESPECIE_LABEL: Record<string, string> = {
   canino: 'Canino',
   felino: 'Felino',
@@ -73,7 +89,7 @@ export function InformeImprimirPage() {
         {/* Encabezado de la clínica */}
         <header className="mb-6 border-b-2 border-teal-700 pb-4 text-center">
           <h1 className="text-lg font-black uppercase tracking-wider text-slate-900">{tituloInforme}</h1>
-          <p className="mt-1 text-xs font-bold text-teal-700">{clinica.nombre}</p>
+          <p className="mt-1 text-xs font-bold text-teal-700">{clinica?.nombre ?? ""}</p>
           <p className="text-[11px] text-slate-500">Bolivia · Emisión: {formatClinicDate(new Date().toISOString())}</p>
         </header>
 
@@ -97,10 +113,10 @@ export function InformeImprimirPage() {
             <TablaFicha
               titulo="Detalle del Análisis Solicitado"
               filas={[
-                ['Tipo de Examen', cita?.servicio_nombre || 'Perfil Bioquímico & Hemograma Completo'],
-                ['Solicitante', consulta ? `Dr(a). ${consulta.veterinario_nombre}` : 'Médico Veterinario de Turno'],
-                ['Fecha de Toma de Muestra', formatClinicDateTime(consulta?.created_at || new Date().toISOString())],
-                ['Estado de Muestra', 'Óptima / Muestra Hemolizada: NO'],
+                ['Tipo de Examen', cita?.servicio_nombre || PARA_COMPLETAR],
+                ['Solicitante', consulta ? `Dr(a). ${consulta.veterinario_nombre}` : PARA_COMPLETAR],
+                ['Fecha de Toma de Muestra', consulta ? formatClinicDateTime(consulta.created_at) : PARA_COMPLETAR],
+                ['Estado de Muestra', PARA_COMPLETAR],
               ]}
             />
 
@@ -108,11 +124,11 @@ export function InformeImprimirPage() {
               titulo="Hemograma Completo & Serie Blanca"
               cabeceras={['Parámetro', 'Resultado', 'Unidades', 'Valores de Referencia']}
               filas={[
-                ['Hematocrito (HTO)', '42.5', '%', '37.0 - 55.0 %'],
-                ['Hemoglobina (HB)', '14.2', 'g/dL', '12.0 - 18.0 g/dL'],
-                ['Eritrocitos (RBC)', '6.8', 'x10^6/uL', '5.5 - 8.5 x10^6/uL'],
-                ['Leucocitos Totales (WBC)', '11.4', 'x10^3/uL', '6.0 - 17.0 x10^3/uL'],
-                ['Plaquetas', '280.0', 'x10^3/uL', '200.0 - 500.0 x10^3/uL'],
+                ['Hematocrito (HTO)', PARA_COMPLETAR, '%', PARA_COMPLETAR],
+                ['Hemoglobina (HB)', PARA_COMPLETAR, 'g/dL', PARA_COMPLETAR],
+                ['Eritrocitos (RBC)', PARA_COMPLETAR, 'x10^6/uL', PARA_COMPLETAR],
+                ['Leucocitos Totales (WBC)', PARA_COMPLETAR, 'x10^3/uL', PARA_COMPLETAR],
+                ['Plaquetas', PARA_COMPLETAR, 'x10^3/uL', PARA_COMPLETAR],
               ]}
             />
 
@@ -120,10 +136,10 @@ export function InformeImprimirPage() {
               titulo="Perfil Bioquímico Renal y Hepático"
               cabeceras={['Parámetro', 'Resultado', 'Unidades', 'Valores de Referencia']}
               filas={[
-                ['Urea', '35.0', 'mg/dL', '20.0 - 50.0 mg/dL'],
-                ['Creatinina', '1.1', 'mg/dL', '0.5 - 1.5 mg/dL'],
-                ['ALT (GPT)', '48.0', 'U/L', '10.0 - 80.0 U/L'],
-                ['Fosfatasa Alcalina (ALP)', '62.0', 'U/L', '20.0 - 150.0 U/L'],
+                ['Urea', PARA_COMPLETAR, 'mg/dL', PARA_COMPLETAR],
+                ['Creatinina', PARA_COMPLETAR, 'mg/dL', PARA_COMPLETAR],
+                ['ALT (GPT)', PARA_COMPLETAR, 'U/L', PARA_COMPLETAR],
+                ['Fosfatasa Alcalina (ALP)', PARA_COMPLETAR, 'U/L', PARA_COMPLETAR],
               ]}
             />
 
@@ -131,8 +147,8 @@ export function InformeImprimirPage() {
               titulo="Interpretación y Conclusión de Laboratorio"
               columnas={1}
               filas={[
-                ['Observaciones Microscópicas', 'Frotis sanguíneo normal. Serie roja normocítica normocrómica.'],
-                ['Diagnóstico de laboratorio', consulta?.diagnostico || 'Parámetros dentro de los rangos fisiológicos de la especie.'],
+                ['Observaciones Microscópicas', PARA_COMPLETAR],
+                ['Diagnóstico de laboratorio', consulta?.diagnostico || PARA_COMPLETAR],
               ]}
             />
           </article>
@@ -143,10 +159,10 @@ export function InformeImprimirPage() {
             <TablaFicha
               titulo="Protocolo del Estudio de Imagen"
               filas={[
-                ['Estudio Realizado', cita?.servicio_nombre || 'Ecografía Abdominal Multiórgano / Rayos X'],
-                ['Médico Ecografista/Radiólogo', consulta ? `Dr(a). ${consulta.veterinario_nombre}` : 'Médico Veterinario'],
-                ['Fecha del Estudio', formatClinicDateTime(consulta?.created_at || new Date().toISOString())],
-                ['Sedación / Anestesia', 'No requerida / Paciente cooperador'],
+                ['Estudio Realizado', cita?.servicio_nombre || PARA_COMPLETAR],
+                ['Médico Ecografista/Radiólogo', consulta ? `Dr(a). ${consulta.veterinario_nombre}` : PARA_COMPLETAR],
+                ['Fecha del Estudio', consulta ? formatClinicDateTime(consulta.created_at) : PARA_COMPLETAR],
+                ['Sedación / Anestesia', PARA_COMPLETAR],
               ]}
             />
 
@@ -154,10 +170,10 @@ export function InformeImprimirPage() {
               titulo="Hallazgos Ecográficos y Radiológicos"
               columnas={1}
               filas={[
-                ['Hígado y Vesícula Biliar', 'Parénquima hepático con ecogenicidad conservada. Bordes regulares. Vesícula biliar anecoica sin presencia de lito o sedimentos.'],
-                ['Bazo y Riñones', 'Bazo de tamaño y arquitectura normal. Riñones bilaterales simétricos con adecuada diferenciación cortico-medular.'],
-                ['Tracto Gastrointestinal', 'Paredes estomacales e intestinales con grosor y motilidad dentro de límites fisiológicos. Sin signos de cuerpo extraño ni intusucepción.'],
-                ['Vejiga y Tracto Urogenital', 'Vejiga normorepleta con paredes delgadas y contenido anecoico.'],
+                ['Hígado y Vesícula Biliar', PARA_COMPLETAR],
+                ['Bazo y Riñones', PARA_COMPLETAR],
+                ['Tracto Gastrointestinal', PARA_COMPLETAR],
+                ['Vejiga y Tracto Urogenital', PARA_COMPLETAR],
               ]}
             />
 
@@ -165,8 +181,8 @@ export function InformeImprimirPage() {
               titulo="Conclusión Diagnóstica de Imagen"
               columnas={1}
               filas={[
-                ['Impresión Diagnóstica', consulta?.diagnostico || 'Estudio de imagenología sin alteraciones morfofuncionales evidentes.'],
-                ['Recomendaciones', 'Correlacionar con sintomatología clínica y evolución.'],
+                ['Impresión Diagnóstica', consulta?.diagnostico || PARA_COMPLETAR],
+                ['Recomendaciones', PARA_COMPLETAR],
               ]}
             />
           </article>
@@ -177,10 +193,10 @@ export function InformeImprimirPage() {
             <TablaFicha
               titulo="Protocolo Quirúrgico y Pre-Operatorio"
               filas={[
-                ['Procedimiento Quirúrgico', cita?.servicio_nombre || consulta?.procedimiento || 'Cirugía General / Esterilización / Limpieza Dental'],
-                ['Cirujano/a Principal', consulta ? `Dr(a). ${consulta.veterinario_nombre}` : 'Cirujano Veterinario'],
-                ['Fecha de Intervención', formatClinicDateTime(consulta?.created_at || new Date().toISOString())],
-                ['Riesgo Anestésico ASA', 'ASA I (Paciente sano sin alteración metabólica)'],
+                ['Procedimiento Quirúrgico', cita?.servicio_nombre || consulta?.procedimiento || PARA_COMPLETAR],
+                ['Cirujano/a Principal', consulta ? `Dr(a). ${consulta.veterinario_nombre}` : PARA_COMPLETAR],
+                ['Fecha de Intervención', consulta ? formatClinicDateTime(consulta.created_at) : PARA_COMPLETAR],
+                ['Riesgo Anestésico ASA', PARA_COMPLETAR],
               ]}
             />
 
@@ -188,9 +204,9 @@ export function InformeImprimirPage() {
               titulo="Resumen de la Técnica e Intervención"
               columnas={1}
               filas={[
-                ['Pre-medicación & Anestesia', 'Protocolo de inducción con propofol/isoflurano y analgesia multimodal preventiva.'],
-                ['Hallazgos Intraoperatorios', 'Transcurso quirúrgico sin complicaciones hemodinámicas ni sangrado relevante.'],
-                ['Técnica de Sutura y Cierre', 'Sutura continua intradérmica reabsorbible.'],
+                ['Pre-medicación & Anestesia', PARA_COMPLETAR],
+                ['Hallazgos Intraoperatorios', PARA_COMPLETAR],
+                ['Técnica de Sutura y Cierre', PARA_COMPLETAR],
               ]}
             />
 
@@ -198,8 +214,8 @@ export function InformeImprimirPage() {
               titulo="Indicaciones Post-Quirúrgicas"
               columnas={1}
               filas={[
-                ['Indicaciones y Cuidados', consulta?.tratamiento || 'Uso obligatorio de collar isabelino. Reposo relativo por 7-10 días. Limpieza de herida con antiséptico cada 12 horas.'],
-                ['Control y Retiro de Puntos', 'Control programado en 7 días.'],
+                ['Indicaciones y Cuidados', consulta?.tratamiento || PARA_COMPLETAR],
+                ['Control y Retiro de Puntos', PARA_COMPLETAR],
               ]}
             />
           </article>
@@ -258,7 +274,7 @@ export function InformeImprimirPage() {
         </div>
 
         <footer className="mt-10 border-t border-slate-300 pt-3 text-center text-[9px] text-slate-500">
-          Documento emitido por Vetora para {clinica.nombre} · Válido para trámite y archivo médico.
+          Documento emitido por Vetora para {clinica?.nombre ?? ""} · Válido para trámite y archivo médico.
         </footer>
       </div>
     </div>

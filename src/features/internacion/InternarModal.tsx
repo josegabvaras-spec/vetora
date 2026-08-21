@@ -47,12 +47,28 @@ export function InternarModal({
       }
     })
     return () => { montado = false }
+    // `servicioDiaId` se omite a propósito de las dependencias, y el linter lo
+    // avisa: el `!servicioDiaId` de arriba solo quiere fijar la primera tarifa
+    // como valor inicial. Incluirlo haría que el efecto se repitiera en cuanto
+    // el usuario eligiera otra, y la comprobación —ya falsa— dejaría de
+    // protegerlo: cada recarga del catálogo le pisaría su elección.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [servicios])
 
-  const [pacienteId, setPacienteId] = useState(pacienteIdInicial ?? pacientes[0]?.id ?? '')
-  const [veterinarioId, setVeterinarioId] = useState(
-    usuario?.rol === 'veterinario' ? usuario.id : veterinarios[0]?.id ?? '',
-  )
+  // Derivados, no inicializados: `useTable` está vacío en el primer render y un
+  // `useState` con valor inicial se queda con ese vacío. Los `<Select>` salían
+  // en blanco pero el formulario se daba por válido, así que "Internar"
+  // mandaba un id vacío y Postgres devolvía un error crudo de uuid.
+  const [pacienteElegido, setPacienteElegido] = useState<string | null>(null)
+  const [veterinarioElegido, setVeterinarioElegido] = useState<string | null>(null)
+
+  const pacienteId = pacienteIdInicial ?? pacienteElegido ?? pacientes[0]?.id ?? ''
+  const veterinarioId =
+    veterinarioElegido ??
+    (usuario?.rol === 'veterinario' ? usuario.id : veterinarios[0]?.id ?? '')
+
+  const setPacienteId = setPacienteElegido
+  const setVeterinarioId = setVeterinarioElegido
   const [motivo, setMotivo] = useState('')
   const [jaula, setJaula] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -62,6 +78,12 @@ export function InternarModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    // Los `<Select>` no llevan `required` y un value vacío no casa con ninguna
+    // opción, así que sin esto el formulario se enviaba "válido" con ids vacíos.
+    if (!pacienteId || !veterinarioId) {
+      setError('Selecciona el paciente y el veterinario responsable')
+      return
+    }
     setGuardando(true)
     setError(null)
     try {

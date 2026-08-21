@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import type { Cita, EstadoCita, TipoCita } from '../types/database'
 import type { CitaConDetalle, ConsultaOrigen } from '../types/views'
-import { citaQueOcupa } from '../lib/agenda'
+import { citaQueOcupa, SLOT_MINUTOS } from '../lib/agenda'
 import { requiereConsultaOrigen, requiereProcedimiento, TIPO_LABEL } from '../lib/citas'
 
 /**
@@ -20,38 +20,110 @@ export async function consultaOrigenDe(cita: Cita): Promise<ConsultaOrigen | nul
   }
 }
 
-export async function listCitas(sucursalId?: string): Promise<CitaConDetalle[]> {
-  let query = supabase.from('citas').select('*')
-  if (sucursalId) query = query.eq('sucursal_id', sucursalId)
-  
-  const { data: citas } = await query
-  if (!citas || citas.length === 0) return []
+/** Ventana de tiempo, en ISO. Ambos extremos inclusive. */
+export interface RangoFechas {
+  desde: string
+  hasta: string
+}
 
-  // Traer todo de una para no hacer N+1 queries al resolver detalles
-  const { data: pacientes } = await supabase.from('pacientes').select('*')
-  const { data: clientes } = await supabase.from('clientes').select('*')
-  const { data: usuarios } = await supabase.from('usuarios').select('*')
-  const { data: servicios } = await supabase.from('servicios').select('*')
-  const { data: consentimientos } = await supabase.from('consentimientos_cirugia').select('*')
-  const { data: historiales } = await supabase.from('historial_clinico').select('*')
-  const { data: internaciones } = await supabase.from('internaciones').select('*')
+/** Ids únicos y no nulos de un campo, listos para un `.in(...)`. */
+function idsDe<T>(filas: T[], campo: (fila: T) => string | null | undefined): string[] {
+  return [...new Set(filas.map(campo).filter((v): v is string => !!v))]
+}
 
-  const result = await Promise.all(citas.map(async (c: any) => {
-    const paciente = pacientes?.find((p) => p.id === c.paciente_id)!
-    const cliente = clientes?.find((cl) => cl.id === paciente?.cliente_id)!
-    return {
-      ...c,
-      paciente: { ...paciente, cliente },
-      veterinario_nombre: usuarios?.find((u) => u.id === c.veterinario_id)?.nombre ?? 'Veterinario',
-      consentimiento: consentimientos?.find((con) => con.cita_id === c.id) ?? null,
-      historial_id: historiales?.find((h) => h.cita_id === c.id)?.id ?? null,
-      servicio_nombre: servicios?.find((s) => s.id === c.servicio_id)?.nombre ?? null,
-      origen: await consultaOrigenDe(c),
-      internacion_id: internaciones?.find((i) => i.cita_id === c.id)?.id ?? null,
-    } as CitaConDetalle
-  }))
+/**
+ * Compone el detalle de un lote de citas con una consulta por tabla
+ * relacionada, **acotada a los ids que ese lote referencia**.
+ *
+ * Antes cada tabla se traía entera con `select('*')`. Eso evitaba el N+1, sí,
+ * pero PostgREST corta en 1000 filas: en una clínica con muchos pacientes, los
+ * que no entraban en el lote salían como "Paciente no disponible" sin que nada
+ * fallara. Con `.in('id', ...)` se pide exactamente lo que hace falta.
+ */
+async function componerDetalleDeCitas(citas: any[]): Promise<CitaConDetalle[]> {
+  if (citas.length === 0) return []
+
+  const citaIds = idsDe(citas, (c) => c.id)
+  const pacienteIds = idsDe(citas, (c) => c.paciente_id)
+  const veterinarioIds = idsDe(citas, (c) => c.veterinario_id)
+  const servicioIds = idsDe(citas, (c) => c.servicio_id)
+
+  const [
+    { data: pacientes },
+    { data: usuarios },
+    { data: servicios },
+    { data: consentimientos },
+    { data: historiales },
+    { data: internaciones },
+  ] = await Promise.all([
+    supabase.from('pacientes').select('*').in('id', pacienteIds),
+    supabase.from('usuarios').select('id, nombre').in('id', veterinarioIds),
+    servicioIds.length
+      ? supabase.from('servicios').select('id, nombre').in('id', servicioIds)
+      : Promise.resolve({ data: [] as any[] }),
+    supabase.from('consentimientos_cirugia').select('*').in('cita_id', citaIds),
+    supabase.from('historial_clinico').select('id, cita_id').in('cita_id', citaIds),
+    supabase.from('internaciones').select('id, cita_id').in('cita_id', citaIds),
+  ])
+
+  // Los dueños se resuelven a partir de los pacientes ya traídos.
+  const clienteIds = idsDe(pacientes ?? [], (p: any) => p.cliente_id)
+  const { data: clientes } = clienteIds.length
+    ? await supabase.from('clientes').select('*').in('id', clienteIds)
+    : { data: [] as any[] }
+
+  const porId = <T extends { id: string }>(filas: T[] | null) =>
+    new Map((filas ?? []).map((f) => [f.id, f]))
+  const porCita = <T extends { cita_id: string | null }>(filas: T[] | null) =>
+    new Map((filas ?? []).filter((f) => f.cita_id).map((f) => [f.cita_id as string, f]))
+
+  const mapaPacientes = porId(pacientes as any[])
+  const mapaClientes = porId(clientes as any[])
+  const mapaUsuarios = porId(usuarios as any[])
+  const mapaServicios = porId(servicios as any[])
+  const mapaConsentimientos = porCita(consentimientos as any[])
+  const mapaHistoriales = porCita(historiales as any[])
+  const mapaInternaciones = porCita(internaciones as any[])
+
+  const result = await Promise.all(
+    citas.map(async (c: any) => {
+      const paciente = mapaPacientes.get(c.paciente_id) ?? null
+      const cliente = paciente ? mapaClientes.get((paciente as any).cliente_id) ?? null : null
+      return {
+        ...c,
+        paciente: paciente
+          ? { ...paciente, cliente }
+          : { id: c.paciente_id, nombre: 'Paciente no disponible', cliente },
+        veterinario_nombre: (mapaUsuarios.get(c.veterinario_id) as any)?.nombre ?? 'Veterinario',
+        consentimiento: mapaConsentimientos.get(c.id) ?? null,
+        historial_id: (mapaHistoriales.get(c.id) as any)?.id ?? null,
+        servicio_nombre: (mapaServicios.get(c.servicio_id) as any)?.nombre ?? null,
+        origen: await consultaOrigenDe(c),
+        internacion_id: (mapaInternaciones.get(c.id) as any)?.id ?? null,
+      } as CitaConDetalle
+    }),
+  )
 
   return result.sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora))
+}
+
+/**
+ * Citas de una sucursal, opcionalmente acotadas a una ventana de fechas.
+ *
+ * El `rango` no es opcional por comodidad: `citas` crece sin techo y sin él la
+ * consulta se trunca a 1000 filas en silencio. La agenda sabe exactamente qué
+ * días pinta, así que pasa esa ventana.
+ */
+export async function listCitas(sucursalId?: string, rango?: RangoFechas): Promise<CitaConDetalle[]> {
+  let query = supabase.from('citas').select('*')
+  if (sucursalId) query = query.eq('sucursal_id', sucursalId)
+  if (rango) query = query.gte('fecha_hora', rango.desde).lte('fecha_hora', rango.hasta)
+
+  const { data: citas, error } = await query
+  if (error) throw new Error(`No se pudo cargar la agenda: ${error.message}`)
+  if (!citas || citas.length === 0) return []
+
+  return componerDetalleDeCitas(citas)
 }
 
 /**
@@ -79,8 +151,16 @@ export async function consultasControlables(pacienteId: string): Promise<Consult
 }
 
 export async function getCita(citaId: string): Promise<CitaConDetalle | null> {
-  const citas = await listCitas()
-  return citas.find((c) => c.id === citaId) ?? null
+  // Antes esto llamaba a `listCitas()` y buscaba en el resultado: reconstruía la
+  // agenda entera —ocho consultas sobre tablas completas— para leer una fila. Y
+  // si la cita quedaba por encima del corte de 1000, devolvía null como si no
+  // existiera.
+  const { data: cita, error } = await supabase.from('citas').select('*').eq('id', citaId).maybeSingle()
+  if (error) throw new Error(`No se pudo cargar la cita: ${error.message}`)
+  if (!cita) return null
+
+  const [detalle] = await componerDetalleDeCitas([cita])
+  return detalle ?? null
 }
 
 export interface NuevaCitaInput {
@@ -101,7 +181,22 @@ export interface NuevaCitaInput {
  * importar la sucursal.
  */
 export async function hayConflictoDeHorario(veterinarioId: string, fechaHoraIso: string): Promise<Cita | undefined> {
-  const { data: citasDelVeterinario } = await supabase.from('citas').select('*').eq('veterinario_id', veterinarioId)
+  // Solo puede solapar una cita que empiece dentro de un bloque a cada lado:
+  // los bloques son de `SLOT_MINUTOS` y `citaQueOcupa` compara rangos de esa
+  // duración. Traer todas las citas de por vida del veterinario era además
+  // arriesgado: por encima de 1000 filas, PostgREST devolvía las primeras y el
+  // conflicto podía no venir en el lote. La barrera dura sigue siendo el
+  // EXCLUDE `citas_sin_solapamiento`; esto es el aviso temprano.
+  const centro = new Date(fechaHoraIso).getTime()
+  const margen = SLOT_MINUTOS * 60 * 1000
+
+  const { data: citasDelVeterinario } = await supabase
+    .from('citas')
+    .select('*')
+    .eq('veterinario_id', veterinarioId)
+    .gte('fecha_hora', new Date(centro - margen).toISOString())
+    .lte('fecha_hora', new Date(centro + margen).toISOString())
+
   return citaQueOcupa(fechaHoraIso, (citasDelVeterinario || []) as Cita[])
 }
 
@@ -148,6 +243,17 @@ export async function crearCita(input: NuevaCitaInput): Promise<Cita> {
 }
 
 export async function actualizarEstadoCita(citaId: string, estado: EstadoCita): Promise<void> {
-  const { error } = await supabase.from('citas').update({ estado }).eq('id', citaId)
+  // `citas_personal` exige admin o la sucursal propia. Sin `.select()`, marcar
+  // como completada una cita de otra sucursal se pintaba en la interfaz sin
+  // haber cambiado nada en la base.
+  const { data, error } = await supabase
+    .from('citas')
+    .update({ estado })
+    .eq('id', citaId)
+    .select('id')
+
   if (error) throw new Error(`Error al actualizar estado de la cita: ${error.message}`)
+  if (!data || data.length === 0) {
+    throw new Error('No tienes permiso para modificar esta cita')
+  }
 }

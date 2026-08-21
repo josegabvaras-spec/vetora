@@ -17,12 +17,11 @@ import {
   type DatosClinica,
 } from '../../services/plataforma'
 import { listPlanes } from '../../services/planes'
-import { ultimaInvitacionDe } from '../../services/invitaciones'
-import { tienePassword } from '../../services/cuentas'
+import { ultimasInvitacionesDe } from '../../services/invitaciones'
 import { EnviarAccesoModal } from './EnviarAccesoModal'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate, formatClinicDateTime } from '../../lib/datetime'
-import type { Plan, Rol, Usuario } from '../../types/database'
+import type { Invitacion, Plan, Rol, Usuario } from '../../types/database'
 import type { ClinicaConDetalle } from '../../types/views'
 
 const ROL_LABEL: Record<string, string> = {
@@ -31,29 +30,33 @@ const ROL_LABEL: Record<string, string> = {
   recepcion: 'Recepción',
 }
 
-/** En qué anda la cuenta de un usuario, para verlo de un vistazo. */
-function estadoDeLaCuenta(usuarioId: string): { texto: string; activa: boolean } {
-  // Tener contraseña es lo que decide si la cuenta ya sirve; el enlace solo
-  // cuenta cómo va el camino hasta ahí.
-  if (tienePassword(usuarioId)) {
-    const invitacion = ultimaInvitacionDe(usuarioId) as any
+/**
+ * En qué anda la cuenta de un usuario, a partir de su última invitación.
+ *
+ * Lo que decide si la cuenta ya sirve es que la persona haya **canjeado su
+ * enlace** (`usado_at`): ahí es cuando fija su propia contraseña. Antes esto se
+ * apoyaba en `tienePassword()`, un stub que devolvía `true` siempre, así que
+ * todo el mundo salía como "Cuenta activa" en verde.
+ *
+ * La invitación se recibe ya resuelta: es asíncrona, y resolverla dentro de
+ * esta función obligaría a una consulta por usuario en cada render.
+ */
+function estadoDeLaCuenta(invitacion: Invitacion | undefined): { texto: string; activa: boolean } {
+  if (invitacion?.usado_at) {
     return {
-      texto: invitacion?.usado_at
-        ? `Cuenta activa desde el ${formatClinicDateTime(invitacion.usado_at)}`
-        : 'Cuenta activa',
+      texto: `Cuenta activa desde el ${formatClinicDateTime(invitacion.usado_at)}`,
       activa: true,
     }
   }
 
-  const invitacion = ultimaInvitacionDe(usuarioId) as any
-  if (!invitacion) return { texto: 'Sin contraseña · acceso sin enviar', activa: false }
+  if (!invitacion) return { texto: 'Sin acceso · enlace sin generar', activa: false }
   if (new Date(invitacion.expira_at).getTime() <= Date.now()) {
-    return { texto: 'Sin contraseña · su enlace caducó', activa: false }
+    return { texto: 'Sin acceso · su enlace caducó', activa: false }
   }
   if (invitacion.enviado_at) {
-    return { texto: `Sin contraseña · enviado el ${formatClinicDateTime(invitacion.enviado_at)}`, activa: false }
+    return { texto: `Sin acceso · enviado el ${formatClinicDateTime(invitacion.enviado_at)}`, activa: false }
   }
-  return { texto: 'Sin contraseña · acceso generado, sin enviar', activa: false }
+  return { texto: 'Sin acceso · enlace generado, sin enviar', activa: false }
 }
 
 /** Un mes después de la fecha dada, en formato yyyy-MM-dd. */
@@ -74,9 +77,13 @@ export function ClinicaDetalleModal({
 }) {
   const sucursales = useTable('sucursales').filter((s) => s.clinica_id === clinica.id)
   // Suscripción para que el estado del acceso se refresque al generarlo o enviarlo.
-  useTable('invitaciones')
+  const invitacionesTabla = useTable('invitaciones')
   const [planes, setPlanes] = useState<Plan[]>([])
   const [error, setError] = useState<string | null>(null)
+  /** Hay una acción en vuelo: evita dobles altas por doble clic. */
+  const [ocupado, setOcupado] = useState(false)
+  /** Última invitación por usuario, resuelta de una vez para todo el listado. */
+  const [invitaciones, setInvitaciones] = useState<Map<string, Invitacion>>(new Map())
 
   // Datos de la cuenta
   const [nombre, setNombre] = useState(clinica.nombre)
@@ -103,13 +110,36 @@ export function ClinicaDetalleModal({
     listPlanes().then(setPlanes)
   }, [])
 
+  // Una sola consulta para todo el listado, y se rehace cuando la tabla de
+  // invitaciones cambia (al generar o enviar un acceso).
+  useEffect(() => {
+    let montado = true
+    ultimasInvitacionesDe(clinica.usuarios.map((u) => u.id))
+      .then((mapa) => { if (montado) setInvitaciones(mapa) })
+      .catch((err) => { if (montado) setError(err instanceof Error ? err.message : 'No se pudieron leer los accesos') })
+    return () => { montado = false }
+  }, [clinica.usuarios, invitacionesTabla])
+
+  /**
+   * Puerta única de todas las acciones del modal.
+   *
+   * El guard de `ocupado` no es cosmético: ninguno de los botones que pasan por
+   * aquí se deshabilitaba mientras la llamada estaba en vuelo, así que un doble
+   * clic en "Agregar sucursal" o "Agregar usuario" creaba dos, y en el caso del
+   * usuario la segunda alta moría con "User already registered" dejando una
+   * cuenta de Auth suelta.
+   */
   async function ejecutar(accion: () => Promise<unknown>) {
+    if (ocupado) return
+    setOcupado(true)
     setError(null)
     try {
       await accion()
       onChanged()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo completar la acción')
+    } finally {
+      setOcupado(false)
     }
   }
 
@@ -279,7 +309,7 @@ export function ClinicaDetalleModal({
             </div>
             <Button
               variant="secondary"
-              disabled={!sucursalNombre.trim()}
+              disabled={ocupado || !sucursalNombre.trim()}
               onClick={async () => {
                 await ejecutar(() => crearSucursal(clinica.id, sucursalNombre, sucursalDireccion))
                 setSucursalNombre('')
@@ -314,12 +344,12 @@ export function ClinicaDetalleModal({
                   </p>
                   <p
                     className={
-                      estadoDeLaCuenta(u.id).activa
+                      estadoDeLaCuenta(invitaciones.get(u.id)).activa
                         ? 'mt-0.5 text-[11px] font-semibold text-emerald-600'
                         : 'mt-0.5 text-[11px] font-semibold text-amber-600'
                     }
                   >
-                    {estadoDeLaCuenta(u.id).texto}
+                    {estadoDeLaCuenta(invitaciones.get(u.id)).texto}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -401,8 +431,12 @@ export function ClinicaDetalleModal({
             </div>
             <Button
               variant="secondary"
-              disabled={!usuarioNombre.trim() || !usuarioWhatsapp.trim() || !usuarioEmail.trim()}
+              // `ocupado`: este botón no pasa por `ejecutar` (necesita el usuario
+              // devuelto para abrir el envío de acceso), así que el guard va aquí.
+              disabled={ocupado || !usuarioNombre.trim() || !usuarioWhatsapp.trim() || !usuarioEmail.trim()}
               onClick={async () => {
+                if (ocupado) return
+                setOcupado(true)
                 setError(null)
                 try {
                   // Se crea y se ofrece el envío del acceso en el mismo gesto.
@@ -420,6 +454,8 @@ export function ClinicaDetalleModal({
                   setEnviandoAcceso(nuevo)
                 } catch (err) {
                   setError(err instanceof Error ? err.message : 'No se pudo crear el usuario')
+                } finally {
+                  setOcupado(false)
                 }
               }}
             >

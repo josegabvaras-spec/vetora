@@ -12,7 +12,25 @@ import { useTable } from '../../mocks/useDb'
 import { crearClinica, listClinicas, type AltaClinicaInput } from '../../services/plataforma'
 import { listPlanes } from '../../services/planes'
 import { formatBs } from '../../lib/currency'
-import { formatClinicDate } from '../../lib/datetime'
+import { clinicDayIso, formatClinicDate, sumarMeses } from '../../lib/datetime'
+
+/**
+ * Un mes después del día de la clínica, en 'yyyy-MM-dd'.
+ *
+ * Antes se calculaba con `new Date()` local y se serializaba con
+ * `toISOString()`: a partir de las 20:00 en Bolivia el próximo cobro se fechaba
+ * un día tarde. Y `setMonth(+1)` sobre un día 31 desborda al mes siguiente
+ * (31 de enero pasaba a 3 de marzo), así que el mes se desplaza sobre la cadena
+ * y el día se ancla al último real del mes destino.
+ */
+function unMesDespuesDeHoy(): string {
+  const [anio, mes, dia] = clinicDayIso().split('-')
+  const destino = sumarMeses(`${anio}-${mes}`, 1)
+  const ultimoDia = new Date(
+    Date.UTC(Number(destino.slice(0, 4)), Number(destino.slice(5, 7)), 0),
+  ).getUTCDate()
+  return `${destino}-${String(Math.min(Number(dia), ultimoDia)).padStart(2, '0')}`
+}
 import type { Plan, Usuario } from '../../types/database'
 import type { ClinicaConDetalle, UsoLimite } from '../../types/views'
 
@@ -165,9 +183,7 @@ function NuevaClinicaModal({
   const [planId, setPlanId] = useState('')
   const [precio, setPrecio] = useState('')
   const [proximoCobro, setProximoCobro] = useState(() => {
-    const d = new Date()
-    d.setMonth(d.getMonth() + 1)
-    return d.toISOString().slice(0, 10)
+    return unMesDespuesDeHoy()
   })
   const [sucursalNombre, setSucursalNombre] = useState('')
   const [sucursalDireccion, setSucursalDireccion] = useState('')

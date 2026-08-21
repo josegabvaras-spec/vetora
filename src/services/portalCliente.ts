@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import type { Paciente, HistorialClinico, VacunaAplicada } from '../types/database'
-import { isPast, isToday, addDays } from 'date-fns'
+import { addDays } from 'date-fns'
+import { clinicDayIso } from '../lib/datetime'
 
 export interface NotificacionPortal {
   id: string;
@@ -141,6 +142,7 @@ export async function getNotificacionesPortal(clinicaId: string, usuarioId: stri
 
   const pacienteIds = pacientes.map(p => p.id)
   const notificaciones: NotificacionPortal[] = []
+  const hoy = clinicDayIso()
 
   // 1. Citas pendientes
   const { data: citas } = await supabase
@@ -153,9 +155,12 @@ export async function getNotificacionesPortal(clinicaId: string, usuarioId: stri
   if (citas) {
     citas.forEach(cita => {
       const p = pacientes.find(x => x.id === cita.paciente_id)
-      const fecha = new Date(cita.fecha_hora)
-      
-      if (isPast(fecha) && !isToday(fecha)) return
+      // Se compara el día de la clínica, no el del dispositivo del cliente:
+      // `isPast`/`isToday` resolvían en la zona de su teléfono, que puede estar
+      // en cualquier parte.
+      const diaCita = clinicDayIso(cita.fecha_hora)
+
+      if (diaCita < hoy) return
 
       notificaciones.push({
         id: `cita-${cita.id}`,
@@ -164,7 +169,7 @@ export async function getNotificacionesPortal(clinicaId: string, usuarioId: stri
         descripcion: `Tienes una cita programada.`,
         fecha: cita.fecha_hora,
         pacienteNombre: p?.nombre || 'Tu mascota',
-        estado: isToday(fecha) ? 'hoy' : 'pendiente'
+        estado: diaCita === hoy ? 'hoy' : 'pendiente'
       })
     })
   }
@@ -180,13 +185,17 @@ export async function getNotificacionesPortal(clinicaId: string, usuarioId: stri
   if (vacunas) {
     vacunas.forEach(vacuna => {
       const p = pacientes.find(x => x.id === vacuna.paciente_id)
-      const fechaRefuerzo = new Date(vacuna.fecha_refuerzo!)
-      const treintaDias = addDays(new Date(), 30)
+      // `fecha_refuerzo` es una columna `date`. `new Date("2026-08-20")` es
+      // medianoche UTC, o sea el día 19 a las 20:00 en La Paz: el refuerzo se
+      // marcaba "atrasado" desde la víspera y el carné mostraba un día menos.
+      // Comparar cadenas 'yyyy-MM-dd' del día de la clínica es exacto.
+      const diaRefuerzo = vacuna.fecha_refuerzo!.slice(0, 10)
+      const limite = clinicDayIso(addDays(new Date(), 30).toISOString())
 
-      if (fechaRefuerzo <= treintaDias) {
+      if (diaRefuerzo <= limite) {
         let estado: 'pendiente' | 'atrasada' | 'hoy' = 'pendiente'
-        if (isToday(fechaRefuerzo)) estado = 'hoy'
-        else if (isPast(fechaRefuerzo)) estado = 'atrasada'
+        if (diaRefuerzo === hoy) estado = 'hoy'
+        else if (diaRefuerzo < hoy) estado = 'atrasada'
 
         notificaciones.push({
           id: `vac-${vacuna.id}`,

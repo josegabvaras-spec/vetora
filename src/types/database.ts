@@ -166,7 +166,7 @@ export interface Cliente {
   usuario_id?: string | null
   nombre: string
   whatsapp: string
-  ci: string
+  ci: string | null
   created_at: string
 }
 
@@ -174,10 +174,15 @@ export interface Paciente {
   id: string
   clinica_id: string
   cliente_id: string
-  codigo: string
+  /**
+   * Lo asigna el trigger `trg_codigo_paciente` en cada alta, pero las filas
+   * anteriores a la migración 0006 no lo tienen — por eso su índice único es
+   * parcial. Es nullable de verdad: no lo des por hecho antes de un `.slice()`.
+   */
+  codigo: string | null
   nombre: string
   especie: Especie
-  raza: string
+  raza: string | null
   sexo: Sexo
   foto?: string | null
   fecha_nacimiento?: string | null
@@ -279,6 +284,22 @@ export interface DesparasitacionAplicada {
   created_at: string
 }
 
+/**
+ * ⚠️ NO TIENE TABLA DETRÁS. No la uses todavía.
+ *
+ * `examenes_laboratorio` no existe en ninguna de las once migraciones ni en el
+ * tipo generado desde la base real: esta interfaz es el resto de una función a
+ * medio cablear. El aviso `examen_listo` tiene etiqueta, ventana y plantilla en
+ * `lib/asistente.ts` y color en `AsistentePage`, pero `services/programados.ts`
+ * no lo emite nunca, así que no llega a fallar.
+ *
+ * Se conserva como documentación de la intención, no como contrato. Si alguien
+ * "termina" la función apuntando a esa tabla, obtendrá
+ * `PGRST205: Could not find the table 'public.examenes_laboratorio'` — el mismo
+ * fallo que la migración 0008 tuvo que arreglar para `recetas`. Primero la
+ * migración con su tabla y sus policies (personal + portal, como en 0008), y
+ * después el código.
+ */
 export interface ExamenLaboratorio {
   id: string
   clinica_id: string

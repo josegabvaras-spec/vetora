@@ -41,19 +41,31 @@ export async function exigirEmailLibre(email: string, ignorarUsuarioId?: string)
   return normalizado
 }
 
-/** Un usuario recién creado todavía no tiene contraseña: la fija con su enlace. */
-export function tienePassword(_usuarioId: string): boolean {
-  // En Supabase Auth, si el usuario existe y se loguea o usa un token, ya gestiona su acceso.
-  // Para verificar si tiene password real, no se puede hacer desde el cliente por seguridad.
-  // Por ahora devolvemos true asumiendo que el flujo de invitaciones forzará el setup.
-  return true
-}
+// Aquí vivía `tienePassword()`, que devolvía `true` para todo el mundo. El
+// panel de plataforma lo usaba para decidir si una cuenta estaba activa, así
+// que enseñaba "Cuenta activa" en verde para todos —incluidos quienes nunca
+// canjearon su enlace—, y el superadmin no tenía forma de saber a quién le
+// faltaba el acceso.
+//
+// No se puede arreglar tal cual: desde el navegador no hay manera de consultar
+// si una cuenta de Supabase Auth tiene contraseña propia. Y `crearUsuario` da
+// de alta con una contraseña aleatoria, así que "tener contraseña" tampoco
+// distinguiría nada. Lo que sí es observable, y es lo que de verdad importa, es
+// si la persona canjeó su invitación: `invitaciones.usado_at`. Ese estado lo
+// deriva ahora `estadoDeLaCuenta` en ClinicaDetalleModal.
 
-const MINIMO = 8
+/**
+ * Longitud mínima de contraseña. Se exporta para que los formularios validen
+ * con el mismo número que el servicio: los de acceso y registro del portal
+ * prometían "al menos 8 caracteres" en el placeholder sin comprobarlo, así que
+ * la persona se enteraba del requisito con un error tras el viaje al servidor
+ * (y en el registro del portal, a veces en inglés desde Supabase Auth).
+ */
+export const PASSWORD_MINIMO = 8
 
 function validarPassword(password: string, email: string) {
-  if (password.length < MINIMO) {
-    throw new Error(`La contraseña debe tener al menos ${MINIMO} caracteres`)
+  if (password.length < PASSWORD_MINIMO) {
+    throw new Error(`La contraseña debe tener al menos ${PASSWORD_MINIMO} caracteres`)
   }
   if (normalizarEmail(password) === normalizarEmail(email)) {
     throw new Error('La contraseña no puede ser tu propio correo')

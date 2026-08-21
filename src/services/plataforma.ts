@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { clinicDayIso, clinicMonth, desdeFechaSola, sumarMeses } from '../lib/datetime'
 import type { Clinica, EstadoClinica, Rol, Sucursal, Usuario } from '../types/database'
 import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma } from '../types/views'
 import { getPlan } from './planes'
@@ -8,6 +9,64 @@ import { enviadosEsteMes } from './whatsapp'
 // Servicios del dueño de la plataforma: dar de alta clínicas que contratan,
 // asignarles plan, controlar cobros y suspensiones, y gestionar sus usuarios.
 // Nunca abre datos clínicos de un inquilino: solo su cuenta y su consumo.
+
+/**
+ * Lanza si el UPDATE no tocó ninguna fila.
+ *
+ * PostgREST **no da error** cuando la RLS filtra la fila: devuelve 204 con
+ * `error: null`. Todas las policies de este archivo exigen superadmin
+ * (`clinicas_plataforma`, `usuarios_plataforma`), así que sin esta comprobación
+ * suspender una clínica o marcar un cobro al día informaba "hecho" sin haber
+ * cambiado nada en la base.
+ */
+function exigirFilaAfectada(filas: unknown[] | null, accion: string): void {
+  if (!filas || filas.length === 0) {
+    throw new Error(`No se pudo ${accion}: no tienes permiso o el registro ya no existe`)
+  }
+}
+
+/**
+ * Crea una cuenta en Supabase Auth **sin perder la sesión de quien la crea**.
+ *
+ * `supabase.auth.signUp` no es una llamada administrativa: cuando el proyecto
+ * no exige confirmación por correo, devuelve una sesión del usuario recién
+ * creado y `supabase-js` la persiste, sustituyendo la del superadmin. A partir
+ * de ahí todo corre con la identidad nueva —que todavía no tiene fila en
+ * `usuarios`, así que `auth_es_plataforma()` es null y la RLS rechaza los
+ * inserts siguientes—, y el rollback también, de modo que borraba **cero filas
+ * sin dar error** y dejaba la clínica y la sucursal huérfanas. El operador,
+ * además, quedaba expulsado de su propia sesión.
+ *
+ * Se guardan los tokens antes y se restauran después, pase lo que pase.
+ *
+ * Lo ideal sería no llamar a `signUp` desde el navegador sino crear la cuenta
+ * con `service_role` desde una Edge Function, como ya hace `registro-portal`
+ * con su `deshacer()`. Eso exige desplegar una función; esta versión arregla el
+ * fallo sin tocar el despliegue.
+ */
+async function crearCuentaAuthConservandoSesion(
+  email: string,
+  nombre: string,
+): Promise<{ userId: string | null; error: string | null }> {
+  const { data: { session: sesionPrevia } } = await supabase.auth.getSession()
+
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password: crypto.randomUUID(), // Temporal: la persona la fija con su enlace.
+      options: { data: { nombre } },
+    })
+    if (error || !data.user) return { userId: null, error: error?.message ?? 'desconocido' }
+    return { userId: data.user.id, error: null }
+  } finally {
+    if (sesionPrevia) {
+      await supabase.auth.setSession({
+        access_token: sesionPrevia.access_token,
+        refresh_token: sesionPrevia.refresh_token,
+      })
+    }
+  }
+}
 
 async function exigirClinica(clinicaId: string): Promise<Clinica> {
   const { data, error } = await supabase
@@ -34,10 +93,15 @@ export async function limitesDe(clinicaId: string): Promise<LimitesClinica> {
     .select('*', { count: 'exact', head: true })
     .eq('clinica_id', clinicaId)
 
+  // Las cuentas del portal (`rol = 'cliente'`) viven en `usuarios` con la
+  // clinica_id de su veterinaria, pero NO son personal y no ocupan plaza del
+  // plan. Sin excluirlas, dos dueños registrándose en el portal impedían dar de
+  // alta al siguiente empleado y bloqueaban el cambio de plan.
   const { count: usuariosCount } = await supabase
     .from('usuarios')
     .select('*', { count: 'exact', head: true })
     .eq('clinica_id', clinicaId)
+    .neq('rol', 'cliente')
 
   return {
     plan,
@@ -118,20 +182,39 @@ export async function resumenPlataforma(): Promise<ResumenPlataforma> {
 
   const ingresoMensual = Number(activas.reduce((n, c) => n + c.precio_acordado_bs, 0).toFixed(2))
 
-  // Generar un historial basado en el ingreso actual (crecimiento constante ficticio)
-  const meses = ['Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago']
-  let baseMrr = ingresoMensual * 0.6
-  const historial_mrr = meses.map((mes) => {
-    baseMrr += ingresoMensual * 0.08 + (Math.random() * 200 - 100)
-    return { mes, mrr: Math.round(baseMrr) }
-  })
-  if (historial_mrr.length > 0) {
-    historial_mrr[historial_mrr.length - 1].mrr = ingresoMensual
-  }
+  // MRR histórico reconstruido desde `clinicas.fecha_alta`: para cada mes se
+  // suma el precio acordado de las clínicas que ya estaban dadas de alta.
+  //
+  // Antes esto se fabricaba con `Math.random()` sobre el ingreso actual, así que
+  // el panel enseñaba una curva distinta en cada recarga y el porcentaje de
+  // crecimiento se calculaba dividiendo por ese ruido. Un dato de negocio
+  // inventado es peor que no tener el dato.
+  //
+  // Limitación honesta: no hay tabla de cobros de suscripción, así que esto
+  // aproxima con el precio y el estado de HOY (no sabe de cambios de plan ni de
+  // suspensiones pasadas). Es una reconstrucción, pero cada punto sale de una
+  // fila real y es estable entre recargas.
+  const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+  const mesActual = clinicMonth(new Date().toISOString())
 
-  const crecimiento = historial_mrr.length >= 2
-    ? ((ingresoMensual - historial_mrr[historial_mrr.length - 2].mrr) / historial_mrr[historial_mrr.length - 2].mrr) * 100
-    : 0
+  const historial_mrr = Array.from({ length: 6 }, (_, i) => {
+    const mes = sumarMeses(mesActual, i - 5)
+    const mrr = todasClinicas
+      .filter((c) => c.estado === 'activa' && clinicMonth(desdeFechaSola(c.fecha_alta)) <= mes)
+      .reduce((n, c) => n + c.precio_acordado_bs, 0)
+
+    const [anio, numeroMes] = mes.split('-').map(Number)
+    return {
+      mes: `${nombresMeses[numeroMes - 1]} ${String(anio).slice(2)}`,
+      mrr: Number(mrr.toFixed(2)),
+    }
+  })
+
+  const mrrMesAnterior = historial_mrr[historial_mrr.length - 2]?.mrr ?? 0
+  // Sin este guard, una plataforma nueva (o con todo suspendido) dividía entre
+  // cero y el panel imprimía "Infinity%".
+  const crecimiento =
+    mrrMesAnterior > 0 ? ((ingresoMensual - mrrMesAnterior) / mrrMesAnterior) * 100 : 0
 
   const limitesPromises = todasClinicas.map(async (c) => {
     const p = await getPlan(c.plan_id)
@@ -248,7 +331,9 @@ export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinica
   exigirWhatsapp(input.adminWhatsapp, 'del administrador')
   const adminEmail = await exigirEmailLibre(input.adminEmail)
 
-  const hoy = new Date().toISOString().slice(0, 10)
+  // Día de la clínica: con `toISOString()` una alta hecha después de las 20:00
+  // en Bolivia quedaba fechada mañana, y con ella el próximo cobro.
+  const hoy = clinicDayIso()
 
   // 1. Crear la clínica
   const { data: clinicaData, error: clinicaError } = await supabase
@@ -291,26 +376,23 @@ export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinica
   }
 
   // 3. Crear cuenta en Supabase Auth para el administrador
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email: adminEmail,
-    password: crypto.randomUUID(), // Contraseña temporal; el admin la cambia con su enlace
-    options: {
-      data: { nombre: input.adminNombre.trim() },
-    },
-  })
+  const { userId, error: authError } = await crearCuentaAuthConservandoSesion(
+    adminEmail,
+    input.adminNombre.trim(),
+  )
 
-  if (authError || !authData.user) {
-    // Rollback
+  if (authError || !userId) {
+    // Rollback: ahora sí corre con la sesión del superadmin, así que borra de verdad.
     await supabase.from('sucursales').delete().eq('clinica_id', clinica.id)
     await supabase.from('clinicas').delete().eq('id', clinica.id)
-    throw new Error(`Error al crear la cuenta del administrador: ${authError?.message ?? 'desconocido'}`)
+    throw new Error(`Error al crear la cuenta del administrador: ${authError ?? 'desconocido'}`)
   }
 
   // 4. Crear perfil en tabla usuarios
   const { data: adminData, error: adminError } = await supabase
     .from('usuarios')
     .insert({
-      id: authData.user.id,
+      id: userId,
       clinica_id: clinica.id,
       sucursal_id: null,
       nombre: input.adminNombre.trim(),
@@ -352,7 +434,7 @@ export async function actualizarClinica(clinicaId: string, datos: DatosClinica):
     )
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('clinicas')
     .update({
       nombre: datos.nombre.trim(),
@@ -365,37 +447,45 @@ export async function actualizarClinica(clinicaId: string, datos: DatosClinica):
       proximo_cobro: datos.proximo_cobro,
     })
     .eq('id', clinicaId)
+    .select('id')
 
   if (error) throw new Error(`Error al actualizar la clínica: ${error.message}`)
+  exigirFilaAfectada(data, 'actualizar la clínica')
 }
 
 /** Suspender corta el acceso de todos sus usuarios sin borrar nada. */
 export async function cambiarEstadoClinica(clinicaId: string, estado: EstadoClinica): Promise<void> {
   await exigirClinica(clinicaId)
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('clinicas')
     .update({ estado })
     .eq('id', clinicaId)
+    .select('id')
   if (error) throw new Error(`Error al cambiar estado: ${error.message}`)
+  exigirFilaAfectada(data, 'cambiar el estado de la clínica')
 }
 
 /** Registra el cobro del mes: pone la cuenta al día y corre el próximo cobro. */
 export async function marcarCobroAlDia(clinicaId: string, proximoCobro: string): Promise<void> {
   await exigirClinica(clinicaId)
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('clinicas')
     .update({ estado_pago: 'al_dia', proximo_cobro: proximoCobro })
     .eq('id', clinicaId)
+    .select('id')
   if (error) throw new Error(`Error al marcar cobro: ${error.message}`)
+  exigirFilaAfectada(data, 'registrar el cobro')
 }
 
 export async function marcarEnMora(clinicaId: string): Promise<void> {
   await exigirClinica(clinicaId)
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('clinicas')
     .update({ estado_pago: 'en_mora' })
     .eq('id', clinicaId)
+    .select('id')
   if (error) throw new Error(`Error al marcar en mora: ${error.message}`)
+  exigirFilaAfectada(data, 'marcar en mora')
 }
 
 /** Alta de sucursal, sujeta al tope del plan contratado. */
@@ -445,23 +535,20 @@ export async function crearUsuario(clinicaId: string, datos: DatosUsuario): Prom
     )
   }
 
-  // Crear cuenta en Supabase Auth
-  const { data: authData, error: authError } = await supabase.auth.signUp({
+  // Crear cuenta en Supabase Auth sin perder la sesión del superadmin.
+  const { userId, error: authError } = await crearCuentaAuthConservandoSesion(
     email,
-    password: crypto.randomUUID(),
-    options: {
-      data: { nombre: datos.nombre.trim() },
-    },
-  })
+    datos.nombre.trim(),
+  )
 
-  if (authError || !authData.user) {
-    throw new Error(`Error al crear cuenta: ${authError?.message ?? 'desconocido'}`)
+  if (authError || !userId) {
+    throw new Error(`Error al crear cuenta: ${authError ?? 'desconocido'}`)
   }
 
   const { data, error } = await supabase
     .from('usuarios')
     .insert({
-      id: authData.user.id,
+      id: userId,
       clinica_id: clinicaId,
       sucursal_id: datos.sucursal_id,
       nombre: datos.nombre.trim(),
@@ -473,7 +560,17 @@ export async function crearUsuario(clinicaId: string, datos: DatosUsuario): Prom
     .select()
     .single()
 
-  if (error || !data) throw new Error(`Error al crear usuario: ${error?.message ?? 'desconocido'}`)
+  if (error || !data) {
+    // La cuenta de Auth ya existe pero se quedó sin perfil. No se puede borrar
+    // desde el navegador (`auth.admin` exige `service_role`), así que el aviso
+    // tiene que decir qué pasó: sin esto, `exigirEmailLibre` —que solo mira la
+    // tabla `usuarios`— seguiría diciendo que el correo está libre y cada
+    // reintento moriría con "User already registered", sin explicar por qué.
+    throw new Error(
+      `Se creó la cuenta de acceso de ${email} pero no su perfil: ${error?.message ?? 'desconocido'}. ` +
+        'Ese correo ya no se puede reutilizar para un alta nueva; usa otro o borra la cuenta desde el panel de Supabase (Authentication → Users).',
+    )
+  }
   return data as Usuario
 }
 
@@ -489,7 +586,7 @@ export async function actualizarUsuario(usuarioId: string, datos: DatosUsuario):
   const email = await exigirEmailLibre(datos.email, usuarioId)
   if (datos.rol === 'superadmin') throw new Error('El rol de plataforma no se asigna a una clínica')
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('usuarios')
     .update({
       nombre: datos.nombre.trim(),
@@ -499,8 +596,10 @@ export async function actualizarUsuario(usuarioId: string, datos: DatosUsuario):
       sucursal_id: datos.sucursal_id,
     })
     .eq('id', usuarioId)
+    .select('id')
 
   if (error) throw new Error(`Error al actualizar usuario: ${error.message}`)
+  exigirFilaAfectada(data, 'actualizar el usuario')
 }
 
 /**
@@ -531,10 +630,12 @@ export async function alternarActivoUsuario(usuarioId: string): Promise<void> {
     }
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('usuarios')
     .update({ activo: !usuario.activo })
     .eq('id', usuarioId)
+    .select('id')
 
   if (error) throw new Error(`Error al cambiar estado del usuario: ${error.message}`)
+  exigirFilaAfectada(data, 'cambiar el estado del usuario')
 }

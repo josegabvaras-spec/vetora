@@ -88,7 +88,10 @@ export async function crearServicio(datos: DatosServicio): Promise<Servicio> {
 
 export async function actualizarServicio(id: string, datos: DatosServicio): Promise<void> {
   await validar(datos, id)
-  const { error } = await supabase
+  // `servicios_admin` exige rol admin. Sin `.select()`, un veterinario que
+  // cambiara un precio veía "guardado" y el catálogo quedaba intacto: la RLS
+  // filtra la fila y PostgREST devuelve 204 con error null.
+  const { data, error } = await supabase
     .from('servicios')
     .update({
       nombre: datos.nombre.trim(),
@@ -96,8 +99,12 @@ export async function actualizarServicio(id: string, datos: DatosServicio): Prom
       precio_bs: datos.precio_bs,
     })
     .eq('id', id)
-    
+    .select('id')
+
   if (error) throw new Error(`Error al actualizar servicio: ${error.message}`)
+  if (!data || data.length === 0) {
+    throw new Error('No tienes permiso para modificar el catálogo de servicios')
+  }
 }
 
 /** Activa o desactiva el servicio; nunca se borra, para no romper cobros pasados. */
@@ -105,10 +112,14 @@ export async function alternarActivo(id: string): Promise<void> {
   const { data: servicio } = await supabase.from('servicios').select('activo').eq('id', id).single()
   if (!servicio) throw new Error('Servicio no encontrado')
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('servicios')
     .update({ activo: !servicio.activo })
     .eq('id', id)
+    .select('id')
 
   if (error) throw new Error(`Error al cambiar estado: ${error.message}`)
+  if (!data || data.length === 0) {
+    throw new Error('No tienes permiso para modificar el catálogo de servicios')
+  }
 }

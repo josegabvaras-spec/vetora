@@ -5,6 +5,7 @@ import { getPacientesPortal, getNotificacionesPortal, type NotificacionPortal } 
 import type { Paciente } from '../../types/database'
 import { Activity, Bone, FileText, Bell, Calendar, AlertTriangle } from 'lucide-react'
 import { format } from 'date-fns'
+import { desdeFechaSola, toClinicTime } from '../../lib/datetime'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
 
@@ -148,7 +149,7 @@ export function PortalDashboardPage() {
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-sm text-slate-500 border-t border-black/5 pt-3">
                   <Calendar className="h-4 w-4" />
-                  <span>{format(new Date(notif.fecha), "d 'de' MMMM, yyyy", { locale: es })}</span>
+                  <span>{format(toClinicTime(notif.fecha.length <= 10 ? desdeFechaSola(notif.fecha) : notif.fecha), "d 'de' MMMM, yyyy", { locale: es })}</span>
                 </div>
               </div>
             ))}

@@ -143,6 +143,11 @@ export async function cerrarTurno(turnoId: string, saldoDeclarado: number): Prom
 
   const { esperado_en_caja_bs } = await resumenTurno(turnoId)
   
+  // `.eq('estado', 'abierto')` es la parte que cierra la carrera: la comprobación
+  // de arriba y este update son dos viajes, así que dos pestañas podían cerrar
+  // el mismo turno y la segunda sobrescribía `saldo_declarado_bs` y
+  // `diferencia_bs` de un arqueo ya firmado. `turnos_caja_all` no tiene
+  // predicado de estado, así que la condición tiene que ir aquí.
   const { data: cerrado, error } = await supabase
     .from('turnos_caja')
     .update({
@@ -152,10 +157,17 @@ export async function cerrarTurno(turnoId: string, saldoDeclarado: number): Prom
       diferencia_bs: Number((saldoDeclarado - esperado_en_caja_bs).toFixed(2)),
     } as any)
     .eq('id', turnoId)
+    .eq('estado', 'abierto')
     .select()
     .single()
 
-  if (error || !cerrado) throw new Error(`Error al cerrar caja: ${error?.message || 'desconocido'}`)
+  if (error || !cerrado) {
+    // PGRST116 = 0 filas: otra pestaña ganó la carrera y ya lo cerró.
+    if ((error as { code?: string } | null)?.code === 'PGRST116') {
+      throw new Error('Esta caja acaba de ser cerrada desde otra sesión. Recarga para ver el arqueo.')
+    }
+    throw new Error(`Error al cerrar caja: ${error?.message || 'desconocido'}`)
+  }
   return cerrado as TurnoCaja
 }
 
@@ -337,12 +349,6 @@ export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<C
 
   const clienteEtiqueta = datos.clienteNombre?.trim() || 'Venta directa'
 
-  for (const item of datos.items) {
-    await registrarMovimiento(item.productoId, 'egreso', item.cantidad, `Venta en caja (${clienteEtiqueta})`, {
-      usuarioId: datos.usuarioId,
-    })
-  }
-
   const { data: cobro, error } = await supabase
     .from('cobros')
     .insert({
@@ -369,6 +375,24 @@ export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<C
 
   const { error: errLineas } = await supabase.from('cobro_lineas').insert(persistidas as any)
   if (errLineas) throw new Error(`Error al guardar líneas: ${errLineas.message}`)
+
+  // El stock se descuenta AL FINAL, no antes del cobro.
+  //
+  // Al revés, si el insert del cobro fallaba (turno cerrado desde otra pestaña,
+  // RLS, red) la mercadería ya había salido del inventario sin ninguna venta
+  // que la respaldase: desaparecía sin rastro. Con este orden, el caso malo
+  // deja un cobro registrado y visible, que es recuperable a mano.
+  //
+  // El stock de todos los ítems se validó arriba, así que aquí solo puede
+  // fallar por una venta simultánea del mismo producto; la barrera dura sigue
+  // siendo `check (stock_actual >= 0)`. No es atomicidad real: para eso haría
+  // falta una función `security definer` que hiciera cobro y egresos en una
+  // sola transacción.
+  for (const item of datos.items) {
+    await registrarMovimiento(item.productoId, 'egreso', item.cantidad, `Venta en caja (${clienteEtiqueta})`, {
+      usuarioId: datos.usuarioId,
+    })
+  }
 
   return cobro as Cobro
 }
