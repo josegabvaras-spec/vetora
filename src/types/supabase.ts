@@ -435,7 +435,7 @@ export type Database = {
           created_at: string
           fecha_aplicacion: string
           fecha_proxima: string | null
-          historial_id: string
+          historial_id: string | null
           id: string
           paciente_id: string
           producto: string
@@ -446,7 +446,7 @@ export type Database = {
           created_at?: string
           fecha_aplicacion?: string
           fecha_proxima?: string | null
-          historial_id: string
+          historial_id?: string | null
           id?: string
           paciente_id: string
           producto: string
@@ -457,7 +457,7 @@ export type Database = {
           created_at?: string
           fecha_aplicacion?: string
           fecha_proxima?: string | null
-          historial_id?: string
+          historial_id?: string | null
           id?: string
           paciente_id?: string
           producto?: string
@@ -1310,7 +1310,7 @@ export type Database = {
           created_at: string
           fecha_aplicacion: string
           fecha_refuerzo: string | null
-          historial_id: string
+          historial_id: string | null
           id: string
           nombre_vacuna: string
           paciente_id: string
@@ -1320,7 +1320,7 @@ export type Database = {
           created_at?: string
           fecha_aplicacion?: string
           fecha_refuerzo?: string | null
-          historial_id: string
+          historial_id?: string | null
           id?: string
           nombre_vacuna: string
           paciente_id: string
@@ -1330,7 +1330,7 @@ export type Database = {
           created_at?: string
           fecha_aplicacion?: string
           fecha_refuerzo?: string | null
-          historial_id?: string
+          historial_id?: string | null
           id?: string
           nombre_vacuna?: string
           paciente_id?: string

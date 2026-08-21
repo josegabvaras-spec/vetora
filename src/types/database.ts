@@ -256,7 +256,12 @@ export interface VacunaAplicada {
   id: string
   clinica_id: string
   paciente_id: string
-  historial_id: string
+  /**
+   * Consulta en la que se aplicó, si vino de una (0014 la hizo opcional).
+   * Las que se registran desde el esquema sanitario van sin ella: el carné no
+   * depende de que ese día se abriera un historial.
+   */
+  historial_id?: string | null
   nombre_vacuna: string
   fecha_aplicacion: string
   /** Fecha del próximo refuerzo; alimenta las alertas de vacunas (PRD Épica 4). */
@@ -275,7 +280,8 @@ export interface DesparasitacionAplicada {
   id: string
   clinica_id: string
   paciente_id: string
-  historial_id: string
+  /** Opcional desde 0014, igual que en `VacunaAplicada`. */
+  historial_id?: string | null
   producto: string
   via: ViaDesparasitacion
   fecha_aplicacion: string

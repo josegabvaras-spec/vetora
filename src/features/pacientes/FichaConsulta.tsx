@@ -7,10 +7,8 @@ import {
   actualizarBorradorHistorial,
   eliminarRecetaItem,
   finalizarHistorial,
-  registrarDesparasitacion,
   registrarProductoUsado,
   registrarRecetaItem,
-  registrarVacuna,
 } from '../../services/historial'
 import { formatClinicDateTime } from '../../lib/datetime'
 import { FormularioClinico, aCamposHistorial, datosClinicosDesde } from './FormularioClinico'
@@ -123,18 +121,6 @@ export function FichaConsulta({
       <FormularioClinico datos={datos} onChange={setDatos} disabled={cerrado} />
 
       <SeccionesConsulta
-        vacunas={historial.vacunas ?? []}
-        vacunasPendientes={[]}
-        onAgregarVacuna={async (v) => {
-          await registrarVacuna(historial.id, v.nombre_vacuna, v.fecha_refuerzo)
-          onChanged()
-        }}
-        desparasitaciones={historial.desparasitaciones ?? []}
-        desparasitacionesPendientes={[]}
-        onAgregarDesparasitacion={async (d) => {
-          await registrarDesparasitacion(historial.id, d.producto, d.via, d.fecha_proxima)
-          onChanged()
-        }}
         productos={historial.productosUsados ?? []}
         productosPendientes={[]}
         onAgregarProducto={async (p) => {

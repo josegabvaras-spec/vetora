@@ -208,6 +208,11 @@ export async function getFichaPaciente(pacienteId: string): Promise<FichaPacient
     internaciones,
     citas: patientCitas,
     vacunas: (vacunas || []).sort((a, b) => b.fecha_aplicacion.localeCompare(a.fecha_aplicacion)),
+    // Ordenadas por cadena `yyyy-mm-dd`: ordena igual que por fecha y no pasa
+    // por `new Date()`, que sobre una fecha sola desplaza el día en La Paz.
+    desparasitaciones: (desparasitaciones || []).sort((a, b) =>
+      b.fecha_aplicacion.localeCompare(a.fecha_aplicacion),
+    ),
   } as any
 }
 

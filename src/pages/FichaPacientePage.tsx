@@ -15,7 +15,6 @@ import {
   FlaskConical,
   Activity,
   Scissors,
-  Syringe,
   ChevronDown,
   Edit2,
   Trash2,
@@ -30,10 +29,11 @@ import { getFichaPaciente, eliminarPaciente } from '../services/clientesPaciente
 import { iniciarConsultaLibre, iniciarHistorialDesdeCita } from '../services/historial'
 import { FichaConsulta } from '../features/pacientes/FichaConsulta'
 import { EditarPacienteModal } from '../features/pacientes/EditarPacienteModal'
+import { EsquemaSanitario } from '../features/pacientes/EsquemaSanitario'
 import { useAuth } from '../context/AuthContext'
 import { useTable } from '../mocks/useDb'
 import { calcularEdad } from '../lib/paciente'
-import { clinicDayIso, desdeFechaSola, formatClinicDate, formatClinicDateTime, formatClinicTime } from '../lib/datetime'
+import { formatClinicDate, formatClinicDateTime, formatClinicTime } from '../lib/datetime'
 import { etiquetaDias, ESTADO_INTERNACION_LABEL, ESTADO_INTERNACION_TONE } from '../lib/internacion'
 import type { CitaConDetalle, FichaPaciente } from '../types/views'
 import { avisoDeCita } from '../services/programados'
@@ -81,7 +81,7 @@ export function FichaPacientePage() {
   const [modalInternacion, setModalInternacion] = useState<any | null>(null)
   const [modalEvolucion, setModalEvolucion] = useState<{ internacionId: string; pacienteNombre: string } | null>(null)
   const [errorConsulta, setErrorConsulta] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'historial' | 'vacunas' | 'internaciones'>('historial')
+  const [activeTab, setActiveTab] = useState<'historial' | 'esquema' | 'internaciones'>('historial')
   const tarjetaAbiertaRef = useRef<HTMLDivElement | null>(null)
   
   const [menuImpresionAbierto, setMenuImpresionAbierto] = useState(false)
@@ -507,15 +507,15 @@ export function FichaPacientePage() {
                 Historial Clínico
               </button>
               <button
-                onClick={() => setActiveTab('vacunas')}
+                onClick={() => setActiveTab('esquema')}
                 className={clsx(
-                  activeTab === 'vacunas'
+                  activeTab === 'esquema'
                     ? 'border-teal-500 text-teal-600'
                     : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
                   'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
                 )}
               >
-                Esquema de Vacunación
+                Esquema Sanitario
               </button>
               <button
                 onClick={() => setActiveTab('internaciones')}
@@ -721,70 +721,7 @@ export function FichaPacientePage() {
             </>
           )}
 
-          {activeTab === 'vacunas' && (
-            <div>
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <Syringe size={16} className="text-teal-600" /> Esquema de Vacunación
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-1">Registro de vacunas aplicadas y refuerzos programados.</p>
-                </div>
-                <Button onClick={() => alert('Para registrar una vacuna, abre una nueva Consulta Médica.')} size="sm" variant="secondary">
-                  + Nueva Vacuna
-                </Button>
-              </div>
-
-              {ficha.vacunas && ficha.vacunas.length > 0 ? (
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Vacuna</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Aplicación</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Próx. Refuerzo</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 bg-white">
-                      {ficha.vacunas.map((v) => (
-                        <tr key={v.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-medium text-slate-900">{v.nombre_vacuna}</td>
-                          {/* `desdeFechaSola` porque son columnas `date`: sin
-                              ancla horaria, formatClinicDate las resolvía en la
-                              zona del navegador y podían salir un día antes. */}
-                          <td className="px-4 py-3 text-slate-600">{formatClinicDate(desdeFechaSola(v.fecha_aplicacion))}</td>
-                          <td className="px-4 py-3">
-                            {v.fecha_refuerzo ? (
-                              <span className={clsx(
-                                "inline-flex items-center rounded-md px-2 py-1 text-xs font-medium",
-                                // Comparar los días de la clínica como cadena.
-                                // `new Date("2026-08-20")` es medianoche UTC, o
-                                // sea el 19 a las 20:00 aquí: el refuerzo se
-                                // pintaba vencido desde la víspera.
-                                v.fecha_refuerzo.slice(0, 10) < clinicDayIso()
-                                  ? "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20"
-                                  : "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20"
-                              )}>
-                                {formatClinicDate(desdeFechaSola(v.fecha_refuerzo))}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 text-xs">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <Card className="border border-dashed border-slate-200 py-10 text-center">
-                  <Syringe size={32} className="mx-auto mb-3 text-slate-300" />
-                  <p className="text-sm font-medium text-slate-700">Sin historial de vacunación</p>
-                  <p className="mt-1 text-xs text-slate-500">Abre una consulta médica para registrar la primera vacuna.</p>
-                </Card>
-              )}
-            </div>
-          )}
+          {activeTab === 'esquema' && <EsquemaSanitario pacienteId={paciente.id} />}
 
           {activeTab === 'internaciones' && (
             <div>

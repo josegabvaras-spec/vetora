@@ -151,6 +151,12 @@ export interface FichaPaciente {
   citas: CitaConDetalle[]
   /** Todas las vacunas aplicadas al paciente. */
   vacunas: VacunaAplicada[]
+  /**
+   * Todas las desparasitaciones del paciente. Antes solo viajaban anidadas por
+   * historial, y el esquema sanitario las necesita al mismo nivel que las
+   * vacunas: desde 0014 una dosis puede no tener consulta detrás.
+   */
+  desparasitaciones: DesparasitacionAplicada[]
 }
 
 export interface ProductoConMovimientos extends Producto {

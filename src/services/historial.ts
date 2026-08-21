@@ -1,14 +1,10 @@
 import { supabase } from '../lib/supabase'
-import { clinicDayIso } from '../lib/datetime'
 import type {
   Cita,
-  DesparasitacionAplicada,
   HistorialClinico,
   RecetaItem,
   TipoCita,
-  VacunaAplicada,
   ViaAdministracion,
-  ViaDesparasitacion,
 } from '../types/database'
 import { consultaOrigenDe } from './citas'
 import { registrarMovimiento } from './inventario'
@@ -162,60 +158,6 @@ export async function actualizarBorradorHistorial(
   if (!data || data.length === 0) {
     throw new Error('No se pudo guardar: la consulta ya fue cerrada o no tienes permiso')
   }
-}
-
-export async function registrarVacuna(
-  historialId: string,
-  nombreVacuna: string,
-  fechaRefuerzo: string | null,
-): Promise<VacunaAplicada> {
-  const historial = await exigirBorrador(historialId)
-  if (!nombreVacuna.trim()) throw new Error('Indica el nombre de la vacuna')
-
-  const { data, error } = await supabase
-    .from('vacunas_aplicadas')
-    .insert({
-      paciente_id: historial.paciente_id,
-      historial_id: historialId,
-      nombre_vacuna: nombreVacuna.trim(),
-      // Día de la clínica, no UTC: pasadas las 20:00 en La Paz `toISOString()`
-      // ya es mañana y la dosis quedaba fechada al día siguiente.
-      fecha_aplicacion: clinicDayIso(),
-      fecha_refuerzo: fechaRefuerzo || null,
-    })
-    .select()
-    .single()
-
-  if (error || !data) throw new Error(`Error al registrar vacuna: ${error?.message || 'desconocido'}`)
-  return data as VacunaAplicada
-}
-
-export async function registrarDesparasitacion(
-  historialId: string,
-  producto: string,
-  via: ViaDesparasitacion,
-  fechaProxima: string | null,
-): Promise<DesparasitacionAplicada> {
-  const historial = await exigirBorrador(historialId)
-  if (!producto.trim()) throw new Error('Indica el producto antiparasitario')
-
-  const { data, error } = await supabase
-    .from('desparasitaciones_aplicadas')
-    .insert({
-      paciente_id: historial.paciente_id,
-      historial_id: historialId,
-      producto: producto.trim(),
-      via,
-      // Día de la clínica, no UTC: pasadas las 20:00 en La Paz `toISOString()`
-      // ya es mañana y la dosis quedaba fechada al día siguiente.
-      fecha_aplicacion: clinicDayIso(),
-      fecha_proxima: fechaProxima || null,
-    })
-    .select()
-    .single()
-
-  if (error || !data) throw new Error(`Error al registrar desparasitación: ${error?.message || 'desconocido'}`)
-  return data as DesparasitacionAplicada
 }
 
 export async function registrarProductoUsado(

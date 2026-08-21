@@ -4,22 +4,13 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Seccion } from '../../components/ui/Seccion'
 import { registrarClienteYPaciente } from '../../services/clientesPacientes'
-import {
-  registrarDesparasitacion,
-  registrarProductoUsado,
-  registrarVacuna,
-} from '../../services/historial'
+import { registrarProductoUsado } from '../../services/historial'
 import { useAuth } from '../../context/AuthContext'
 import { useTable } from '../../mocks/useDb'
 import { supabase } from '../../lib/supabase'
 import { FormularioPaciente, datosPacienteVacios } from './FormularioPaciente'
 import { FormularioClinico, aCamposHistorial, datosClinicosVacios } from './FormularioClinico'
-import {
-  SeccionesConsulta,
-  type DesparasitacionPendiente,
-  type ProductoPendiente,
-  type VacunaPendiente,
-} from './SeccionesConsulta'
+import { SeccionesConsulta, type ProductoPendiente } from './SeccionesConsulta'
 import type { AltaPacienteResultado } from '../../services/clientesPacientes'
 
 export function NuevoPacienteModal({
@@ -36,11 +27,13 @@ export function NuevoPacienteModal({
 
   // Ficha clínica de la primera consulta. Siempre se llena: todo paciente
   // entra al sistema con su historial abierto. El historial aún no existe al
-  // llenar el formulario, así que vacunas y productos se acumulan y se
-  // registran justo después de crearlo.
+  // llenar el formulario, así que los productos se acumulan y se registran
+  // justo después de crearlo.
+  //
+  // Las vacunas y desparasitaciones que la mascota ya trae puestas se cargan
+  // después, desde el esquema sanitario de su ficha: allí la fecha de
+  // aplicación es un campo, que es lo que un historial previo necesita.
   const [datosClinicos, setDatosClinicos] = useState(datosClinicosVacios)
-  const [vacunasPendientes, setVacunasPendientes] = useState<VacunaPendiente[]>([])
-  const [desparasitacionesPendientes, setDesparasitacionesPendientes] = useState<DesparasitacionPendiente[]>([])
   const [productosPendientes, setProductosPendientes] = useState<ProductoPendiente[]>([])
 
   const [enviando, setEnviando] = useState(false)
@@ -102,20 +95,6 @@ export function NuevoPacienteModal({
       // El historial ya existe: se registran las líneas acumuladas.
       const fallidas: string[] = []
       if (resultado.historialId) {
-        for (const v of vacunasPendientes) {
-          try {
-            await registrarVacuna(resultado.historialId, v.nombre_vacuna, v.fecha_refuerzo)
-          } catch {
-            fallidas.push(`vacuna ${v.nombre_vacuna}`)
-          }
-        }
-        for (const d of desparasitacionesPendientes) {
-          try {
-            await registrarDesparasitacion(resultado.historialId, d.producto, d.via, d.fecha_proxima)
-          } catch {
-            fallidas.push(`desparasitación ${d.producto}`)
-          }
-        }
         for (const p of productosPendientes) {
           try {
             await registrarProductoUsado(resultado.historialId, p.producto_id, p.cantidad)
@@ -157,12 +136,6 @@ export function NuevoPacienteModal({
           <FormularioClinico datos={datosClinicos} onChange={setDatosClinicos} />
 
           <SeccionesConsulta
-            vacunas={[]}
-            vacunasPendientes={vacunasPendientes}
-            onAgregarVacuna={async (v) => setVacunasPendientes((prev) => [...prev, v])}
-            desparasitaciones={[]}
-            desparasitacionesPendientes={desparasitacionesPendientes}
-            onAgregarDesparasitacion={async (d) => setDesparasitacionesPendientes((prev) => [...prev, d])}
             productos={[]}
             productosPendientes={productosPendientes}
             onAgregarProducto={agregarProductoPendiente}

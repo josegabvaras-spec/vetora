@@ -61,7 +61,7 @@ supabase/functions/asistente/                           Deno + claude-opus-5
 - `services/asistente.ts` devuelve `{ texto, origen: 'ia' | 'plantilla' }` y **la interfaz enseña ese origen**: mientras la función no esté desplegada el texto sale de plantilla, y no se puede presentar como escrito por la IA.
 - **Lo que sale hacia Anthropic** está acotado en un solo sitio, `contextoDeAviso()` de [lib/asistente.ts](src/lib/asistente.ts): paciente, especie, nombre de pila del dueño, fecha y procedimiento. No salen el teléfono, el CI, el diagnóstico ni el historial. Si añades un aviso, no amplíes ese contexto por comodidad.
 - **La IA no escribe en la base.** `services/programados.ts` deriva los avisos de las citas, las vacunas y las desparasitaciones ya registradas; enviar pasa por `enviarAviso()`, y crear una cita sigue siendo `crearCita()` con sus invariantes.
-- Los refuerzos de vacuna y desparasitación **no guardan «ya avisado»**: sus tablas son solo INSERT. Un refuerzo pendiente deja de aparecer cuando se registra la dosis nueva o se agenda la cita, no cuando alguien manda el mensaje.
+- Los refuerzos de vacuna y desparasitación **no guardan «ya avisado»**. Un refuerzo pendiente deja de aparecer cuando se registra la dosis nueva o se agenda la cita, no cuando alguien manda el mensaje.
 
 ## Aislamiento multi-inquilino
 
@@ -132,6 +132,7 @@ Cada una tiene su barrera en el SQL y su réplica en un servicio; si escribes c�
 | Historial cerrado es inmutable (HU-02) | policy `historial_update` + `trg_historial_inmutable` | `exigirBorrador()` en [services/historial.ts](src/services/historial.ts) |
 | Stock nunca negativo (HU-03) | `check (stock_actual >= 0)` **y** `trg_aplicar_movimiento_inventario` (`security definer` desde 0002), que ajusta el stock al insertar el movimiento | `registrarMovimiento` lanza `'Stock insuficiente'` como aviso temprano; la barrera real es el trigger — no reintroduzcas un ajuste manual de `stock_actual` ahí, ya se hizo y descontaba doble |
 | Consentimientos, cobros y notas de internación: solo INSERT | policies sin UPDATE/DELETE | servicios que solo insertan |
+| El esquema sanitario **no** está en ese grupo: se corrige | `vacunas_update/delete` y sus gemelas de desparasitación (0014), con `auth_es_personal()` en las cuatro cláusulas | [services/esquemaSanitario.ts](src/services/esquemaSanitario.ts) |
 | Internación congelada tras el alta | `trg_internacion_inmutable` | [services/internacion.ts](src/services/internacion.ts) |
 | Un veterinario sin citas solapadas (bloques de 30 min) | `exclude using gist` | [lib/agenda.ts](src/lib/agenda.ts) (`SLOT_MINUTOS`, franjas mañana/tarde) |
 | Tope **mensual** de WhatsApp por plan | `consumir_cuota_whatsapp()` comprueba y consume en una sola sentencia | `enviarMensajeWhatsapp` la invoca; **todo aviso a un cliente** pasa por ahí |
@@ -139,6 +140,7 @@ Cada una tiene su barrera en el SQL y su réplica en un servicio; si escribes c�
 
 Además:
 
+- **El esquema sanitario vive fuera de la consulta** (migración 0014). `vacunas_aplicadas` y `desparasitaciones_aplicadas` tienen `historial_id` **nullable**: se registran desde la pestaña «Esquema Sanitario» de la ficha del paciente ([features/pacientes/EsquemaSanitario.tsx](src/features/pacientes/EsquemaSanitario.tsx)), con la fecha de aplicación como campo — casi todo lo que se carga por primera vez es historial previo, con fecha pasada. Las filas anteriores conservan su `historial_id`, así que el historial impreso de una consulta antigua sigue mostrando lo que se aplicó ese día. No las reintroduzcas en `SeccionesConsulta`: tenerlas en dos sitios obliga a elegir uno como el bueno.
 - **Moneda:** siempre `formatBs()` de [lib/currency.ts](src/lib/currency.ts) (`Bs. 0.00`).
 - **Tiempo:** siempre los helpers de [lib/datetime.ts](src/lib/datetime.ts) (`America/La_Paz`). Nunca `toLocaleString` ni `new Date().getHours()` sobre una fecha de negocio: el navegador puede estar en otra zona.
 - **Límites del plan:** se consultan por sus **números** (`max_sucursales`, `max_usuarios`, `whatsapp_limite`), nunca por el nombre del plan — el dueño de la plataforma crea planes desde el panel. `limitesDe()` en [services/plataforma.ts](src/services/plataforma.ts) es la fuente única para validar y para mostrar.
