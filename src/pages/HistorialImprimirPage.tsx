@@ -1,8 +1,12 @@
 import { Fragment, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Printer } from 'lucide-react'
-import { Button } from '../components/ui/Button'
+import { ArrowLeft } from 'lucide-react'
 import { useTable } from '../mocks/useDb'
+import {
+  AccionesFirmaInforme,
+  FirmasInformeImpresas,
+  useFirmaInforme,
+} from '../features/pacientes/FirmaInforme'
 import { getFichaPaciente } from '../services/clientesPacientes'
 import { calcularEdad } from '../lib/paciente'
 import { formatClinicDate, formatClinicDateTime } from '../lib/datetime'
@@ -145,6 +149,8 @@ export function HistorialImprimirPage() {
   const { id } = useParams<{ id: string }>()
   const [ficha, setFicha] = useState<FichaPaciente | null | undefined>(undefined)
   const clinica = useTable('clinicas')[0]
+  // El historial completo no habla de una consulta concreta: va sin `item_id`.
+  const { firma, setFirma } = useFirmaInforme(id, 'historial', null)
 
   useEffect(() => {
     if (!id) return
@@ -177,9 +183,15 @@ export function HistorialImprimirPage() {
         >
           <ArrowLeft size={16} /> Volver a la ficha
         </Link>
-        <Button onClick={() => window.print()}>
-          <Printer size={16} /> Imprimir / Guardar PDF
-        </Button>
+        <AccionesFirmaInforme
+          pacienteId={paciente.id}
+          tipo="historial"
+          itemId={null}
+          tituloDocumento="Ficha clínica e historial veterinario"
+          nombreTutor={paciente.cliente.nombre}
+          firma={firma}
+          onFirmado={setFirma}
+        />
       </div>
 
       <div className="mx-auto max-w-4xl bg-white p-10 shadow-sm print:p-0 print:shadow-none">
@@ -317,6 +329,8 @@ export function HistorialImprimirPage() {
             />
           </article>
         ))}
+
+        <FirmasInformeImpresas firma={firma} />
 
         <footer className="mt-8 border-t border-slate-300 pt-3 text-center text-[9px] text-slate-500">
           Documento generado electrónicamente por Vetora el {formatClinicDate(new Date().toISOString())} · Los

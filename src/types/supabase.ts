@@ -612,6 +612,48 @@ export type Database = {
           },
         ]
       }
+      informes_firmados: {
+        Row: {
+          clinica_id: string
+          created_at: string
+          firma_tutor: string
+          firma_veterinario: string
+          id: string
+          item_id: string | null
+          nombre_tutor: string
+          nombre_veterinario: string
+          paciente_id: string
+          tipo: string
+          veterinario_id: string | null
+        }
+        Insert: {
+          clinica_id?: string
+          created_at?: string
+          firma_tutor: string
+          firma_veterinario: string
+          id?: string
+          item_id?: string | null
+          nombre_tutor: string
+          nombre_veterinario: string
+          paciente_id: string
+          tipo: string
+          veterinario_id?: string | null
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string
+          firma_tutor?: string
+          firma_veterinario?: string
+          id?: string
+          item_id?: string | null
+          nombre_tutor?: string
+          nombre_veterinario?: string
+          paciente_id?: string
+          tipo?: string
+          veterinario_id?: string | null
+        }
+        Relationships: []
+      }
       internaciones: {
         Row: {
           cita_id: string | null

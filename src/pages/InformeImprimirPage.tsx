@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Printer } from 'lucide-react'
-import { Button } from '../components/ui/Button'
+import { ArrowLeft } from 'lucide-react'
 import { useTable } from '../mocks/useDb'
+import {
+  AccionesFirmaInforme,
+  FirmasInformeImpresas,
+  useFirmaInforme,
+} from '../features/pacientes/FirmaInforme'
+import type { TipoInforme } from '../services/informes'
 import { getFichaPaciente } from '../services/clientesPacientes'
 import { calcularEdad } from '../lib/paciente'
 import { formatClinicDate, formatClinicDateTime } from '../lib/datetime'
@@ -33,10 +38,23 @@ const ESPECIE_LABEL: Record<string, string> = {
   otro: 'Otro',
 }
 
+/**
+ * La ruta trae el tipo como texto libre. Se acota al conjunto que admite
+ * `informes_firmados.tipo`, con 'consulta' de reserva — el mismo criterio que
+ * ya usa `tituloInforme` más abajo.
+ */
+const TIPOS_INFORME: TipoInforme[] = ['consulta', 'laboratorio', 'imagenologia', 'cirugia']
+
 export function InformeImprimirPage() {
   const { pacienteId, tipo, itemId } = useParams<{ pacienteId: string; tipo: string; itemId?: string }>()
   const [ficha, setFicha] = useState<FichaPaciente | null | undefined>(undefined)
   const clinica = useTable('clinicas')[0]
+
+  const tipoInforme: TipoInforme = TIPOS_INFORME.includes(tipo as TipoInforme)
+    ? (tipo as TipoInforme)
+    : 'consulta'
+  // Antes de los `return` tempranos: un hook no puede quedar detrás de ellos.
+  const { firma, setFirma } = useFirmaInforme(pacienteId, tipoInforme, itemId ?? null)
 
   useEffect(() => {
     if (!pacienteId) return
@@ -80,9 +98,15 @@ export function InformeImprimirPage() {
         >
           <ArrowLeft size={16} /> Volver a la ficha del paciente
         </Link>
-        <Button onClick={() => window.print()}>
-          <Printer size={16} /> Imprimir / Descargar PDF
-        </Button>
+        <AccionesFirmaInforme
+          pacienteId={paciente.id}
+          tipo={tipoInforme}
+          itemId={itemId ?? null}
+          tituloDocumento={tituloInforme}
+          nombreTutor={paciente.cliente.nombre}
+          firma={firma}
+          onFirmado={setFirma}
+        />
       </div>
 
       <div className="mx-auto max-w-4xl bg-white p-10 shadow-sm print:p-0 print:shadow-none">
@@ -261,17 +285,7 @@ export function InformeImprimirPage() {
           </article>
         )}
 
-        {/* Firma y Cierre */}
-        <div className="mt-12 flex justify-around text-center print:mt-16">
-          <div className="w-56 border-t border-slate-400 pt-2">
-            <p className="text-[11px] font-bold text-slate-800">Firma Médico Veterinario</p>
-            <p className="text-[9px] text-slate-500">Reg. Profesional MVZ</p>
-          </div>
-          <div className="w-56 border-t border-slate-400 pt-2">
-            <p className="text-[11px] font-bold text-slate-800">Firma del Propietario/a</p>
-            <p className="text-[9px] text-slate-500">Conformidad de Atención</p>
-          </div>
-        </div>
+        <FirmasInformeImpresas firma={firma} />
 
         <footer className="mt-10 border-t border-slate-300 pt-3 text-center text-[9px] text-slate-500">
           Documento emitido por Vetora para {clinica?.nombre ?? ""} · Válido para trámite y archivo médico.
