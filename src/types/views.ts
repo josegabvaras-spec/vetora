@@ -119,6 +119,12 @@ export interface ProductoUsado {
   producto_id: string
   nombre: string
   cantidad: number
+  /**
+   * Unidad en que está expresada `cantidad` (ml, g, unidad…). Sin ella un "5"
+   * no dice si se usaron 5 mililitros o 5 frascos, que en un frasco de 50 ml es
+   * la diferencia entre una dosis y todo el envase.
+   */
+  unidad_medida: string
   precio_bs: number
 }
 

@@ -165,6 +165,7 @@ export async function getFichaPaciente(pacienteId: string): Promise<FichaPacient
           producto_id: m.producto_id,
           nombre: producto?.nombre ?? 'Producto',
           cantidad: m.cantidad,
+          unidad_medida: producto?.unidad_medida ?? '',
           precio_bs: producto?.precio_bs ?? 0,
         }
       })

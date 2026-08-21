@@ -252,6 +252,13 @@ export function SeccionProductos({
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
+  // La cantidad se expresa en la unidad del producto, no en envases: de un
+  // frasco de 50 ml se consumen los 5 ml que se aplicaron, y el stock baja esos
+  // 5. Sin enseñar la unidad junto al campo, un "5" es ambiguo y se acaba
+  // descontando el envase entero.
+  const productoElegido = productos.find((p) => p.id === productoId)
+  const unidad = productoElegido?.unidad_medida ?? ''
+
   const vacio = registrados.length === 0 && pendientes.length === 0
 
   async function agregar() {
@@ -276,7 +283,7 @@ export function SeccionProductos({
           {registrados.map((p) => (
             <li key={p.movimiento_id} className="flex justify-between gap-2">
               <span className="font-medium">
-                {p.nombre} <span className="text-slate-400">{p.cantidad}</span>
+                {p.nombre} <span className="text-slate-400">{p.cantidad} {p.unidad_medida}</span>
               </span>
               <span className="text-slate-500">{formatBs(p.precio_bs * p.cantidad)}</span>
             </li>
@@ -307,10 +314,16 @@ export function SeccionProductos({
                   </option>
                 ))}
               </Select>
+              {productoElegido && (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Envase de {productoElegido.contenido_presentacion} {unidad} · quedan{' '}
+                  {productoElegido.stock_actual} {unidad}
+                </p>
+              )}
             </FieldGroup>
           </div>
-          <div className="sm:w-28">
-            <FieldGroup label="Cantidad">
+          <div className="sm:w-32">
+            <FieldGroup label={unidad ? `Cantidad (${unidad})` : 'Cantidad'}>
               <Input
                 type="number"
                 min="0.01"

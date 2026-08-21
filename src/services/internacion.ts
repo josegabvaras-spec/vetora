@@ -34,6 +34,7 @@ async function productosDeInternacion(internacionId: string): Promise<ProductoUs
     producto_id: m.producto_id,
     nombre: m.producto?.nombre ?? 'Producto',
     cantidad: m.cantidad,
+    unidad_medida: m.producto?.unidad_medida ?? '',
     precio_bs: m.producto?.precio_bs ?? 0,
   }))
 }
