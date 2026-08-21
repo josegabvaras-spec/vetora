@@ -53,8 +53,12 @@ export function ConsentimientoPage() {
   const consentimiento = cita.consentimiento
   const procedimiento = cita.servicio_nombre || 'Procedimiento quirúrgico'
 
+  // `print:min-h-0` no es cosmético: `min-h-screen` impone un alto mínimo de
+  // 100vh, que al imprimir equivale a una página entera. Con el documento
+  // ocupando casi ese alto, el mínimo lo empuja por encima del límite y Chrome
+  // saca una segunda hoja en blanco.
   return (
-    <div className="min-h-screen bg-slate-100 print:bg-white">
+    <div className="min-h-screen bg-slate-100 print:min-h-0 print:bg-white">
       <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4 print:hidden">
         <Link to="/agenda" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
           <ArrowLeft size={16} /> Volver a la agenda
@@ -153,9 +157,9 @@ export function ConsentimientoPage() {
         {/* Las firmas se dibujan encima de la raya, no la sustituyen: el
             documento impreso tiene que verse igual con trazo y sin él, y los
             consentimientos anteriores a la firma digital no tienen imagen. */}
-        <section className="grid grid-cols-2 gap-8 pt-10 text-sm">
+        <section className="grid grid-cols-2 gap-8 pt-10 text-sm print:pt-6">
           <div className="text-center">
-            <div className="flex h-20 items-end justify-center">
+            <div className="flex h-20 items-end justify-center print:h-16">
               {consentimiento?.firma_tutor && (
                 <img
                   src={consentimiento.firma_tutor}
@@ -170,7 +174,7 @@ export function ConsentimientoPage() {
             )}
           </div>
           <div className="text-center">
-            <div className="flex h-20 items-end justify-center">
+            <div className="flex h-20 items-end justify-center print:h-16">
               {consentimiento?.firma_veterinario && (
                 <img
                   src={consentimiento.firma_veterinario}
@@ -186,7 +190,7 @@ export function ConsentimientoPage() {
           </div>
         </section>
 
-        <footer className="mt-10 border-t border-slate-100 pt-4 text-center text-[10px] text-slate-400">
+        <footer className="mt-10 border-t border-slate-100 pt-4 text-center text-[10px] text-slate-400 print:mt-6">
           Documento generado electrónicamente por Vetora el{' '}
           {formatClinicDate(consentimiento?.created_at ?? new Date().toISOString())}
           {consentimiento && <> · Referencia {consentimiento.id}</>} · Este registro es inmutable una vez aceptado.
