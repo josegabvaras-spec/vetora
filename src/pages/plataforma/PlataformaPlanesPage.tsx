@@ -4,7 +4,7 @@ import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
-import { FieldGroup, Input } from '../../components/ui/Field'
+import { FieldGroup, Input, Textarea } from '../../components/ui/Field'
 import {
   updatePlan,
   setPlanActivo,
@@ -15,10 +15,13 @@ import {
 } from '../../services/planes'
 import {
   getConfiguracion,
+  leerComoDataUri,
+  setDatosDePago,
   setTipoCambio,
   TIPO_CAMBIO_POR_DEFECTO,
   type ConfiguracionPlataforma,
 } from '../../services/configuracion'
+import { getDatosDePago } from '../../services/facturacion'
 import { formatBs, formatUsd, usdABs } from '../../lib/currency'
 import { formatClinicDate } from '../../lib/datetime'
 import type { Database } from '../../types/supabase'
@@ -70,6 +73,10 @@ export function PlataformaPlanesPage() {
       {/* El tipo de cambio vive aquí, junto a los precios que convierte: es el
           único sitio donde mirarlo tiene sentido. */}
       <TipoCambioCard config={config} onGuardado={setConfig} />
+
+      {/* El QR vive junto al tipo de cambio: los dos son la configuración de
+          cobro, y los dos los mira el admin de la clínica en su Facturación. */}
+      <CobroCard />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {planes.map((p) => {
@@ -254,6 +261,112 @@ function TipoCambioCard({
         dólares y sus tarifas cambian. Las clínicas pagan el equivalente en bolivianos a este cambio, así que
         al tocarlo cambia lo que se le cobra a todas a la vez.
       </p>
+    </Card>
+  )
+}
+
+/**
+ * El QR de cobro y los datos de la cuenta, que la clínica ve en Facturación.
+ *
+ * No hay pasarela de pago: esto ES el método de cobro. Si aquí no hay nada, la
+ * pantalla de la clínica se lo dice y no puede pagar.
+ */
+function CobroCard() {
+  const [qr, setQr] = useState<string | null>(null)
+  const [datos, setDatos] = useState('')
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
+
+  useEffect(() => {
+    getDatosDePago()
+      .then((d) => {
+        setQr(d.qr_pago)
+        setDatos(d.datos_pago)
+      })
+      .catch(() => {
+        /* Sin configurar todavía: los campos se quedan vacíos, que es correcto. */
+      })
+  }, [])
+
+  async function elegirQr(e: React.ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0]
+    e.target.value = ''
+    if (!archivo) return
+    setError(null)
+    try {
+      setQr(await leerComoDataUri(archivo))
+      setAviso(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo leer la imagen')
+    }
+  }
+
+  async function guardar() {
+    setGuardando(true)
+    setError(null)
+    setAviso(null)
+    try {
+      await setDatosDePago(qr, datos)
+      setAviso('Datos de cobro guardados')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron guardar')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <Card className="border border-slate-200/60">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Cómo te pagan</p>
+
+      <div className="mt-3 grid gap-5 md:grid-cols-2">
+        <div className="space-y-3">
+          {qr ? (
+            <img
+              src={qr}
+              alt="QR de cobro"
+              className="mx-auto w-full max-w-[220px] rounded-xl border border-slate-200 bg-white p-3"
+            />
+          ) : (
+            <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+              Todavía no has subido el QR. Sin él, las clínicas no tienen cómo pagarte.
+            </p>
+          )}
+          <FieldGroup label="Imagen del QR">
+            <Input type="file" accept="image/*" onChange={elegirQr} />
+            {/* Sin recomprimir: un JPEG con pérdida sobre un código de barras es
+                pedir que un día no escanee. */}
+            <p className="mt-1 text-xs text-slate-500">
+              Se guarda tal cual, sin recomprimir, para que siga escaneándose. Recórtala al código.
+            </p>
+          </FieldGroup>
+          {qr && (
+            <Button variant="secondary" size="sm" onClick={() => setQr(null)}>
+              Quitar el QR
+            </Button>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <FieldGroup label="Datos de la cuenta">
+            <Textarea
+              value={datos}
+              onChange={(e) => setDatos(e.target.value)}
+              rows={6}
+              placeholder={'Banco Unión\nCuenta 10000123456\nTitular: …\nNIT: …'}
+            />
+          </FieldGroup>
+          <p className="text-xs text-slate-500">
+            Esto es lo que ve el administrador de cada clínica en su pantalla de Facturación, junto al QR.
+          </p>
+          {error && <p className="text-sm text-rose-600">{error}</p>}
+          {aviso && <p className="text-sm text-emerald-700">{aviso}</p>}
+          <Button onClick={guardar} disabled={guardando}>
+            <Check size={14} /> {guardando ? 'Guardando…' : 'Guardar datos de cobro'}
+          </Button>
+        </div>
+      </div>
     </Card>
   )
 }

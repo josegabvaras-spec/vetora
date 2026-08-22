@@ -1,10 +1,11 @@
 import { supabase } from '../lib/supabase'
-import { listClinicas } from './plataforma'
+import { listClinicas, listPagosPendientes } from './plataforma'
 import { getConfiguracion } from './configuracion'
 import { contarErrores24h } from './salud'
 import { ultimasInvitacionesDe } from './invitaciones'
 import { clinicDayIso, sumarDias } from '../lib/datetime'
 import { estadoDeLaCuenta } from '../lib/acceso'
+import { formatBs, formatUsd } from '../lib/currency'
 import {
   detalleDeCobro,
   DIAS_AVISO_COBRO,
@@ -87,6 +88,23 @@ export async function listTareasPlataforma(): Promise<TareaPlataforma[]> {
         vencido: false,
       })
     }
+  }
+
+  // Los comprobantes van fuera del bucle de clínicas: son filas propias, no
+  // algo que se deduzca del estado de la clínica. Y van los primeros de la
+  // lista por su `vencido: true` — hay dinero esperando a que alguien lo mire.
+  for (const p of await listPagosPendientes()) {
+    tareas.push({
+      id: `comprobante_pendiente-${p.id}`,
+      tipo: 'comprobante_pendiente',
+      clinica_id: p.clinica_id,
+      clinica_nombre: p.clinica_nombre,
+      responsable: p.responsable,
+      whatsapp: p.whatsapp,
+      detalle: `${formatUsd(p.monto_usd)} (${formatBs(p.monto_bs)}) por ${p.meses} ${p.meses === 1 ? 'mes' : 'meses'}`,
+      fecha: clinicDayIso(p.created_at),
+      vencido: true,
+    })
   }
 
   const { total } = await contarErrores24h()

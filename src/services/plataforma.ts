@@ -1,6 +1,6 @@
 import { motivoDelFallo, supabase } from '../lib/supabase'
-import { clinicDayIso, clinicMonth, desdeFechaSola, sumarMeses } from '../lib/datetime'
-import type { Clinica, EstadoClinica, Rol, Sucursal, Usuario } from '../types/database'
+import { clinicDayIso, clinicMonth, desdeFechaSola, sumarMeses, sumarMesesAFecha } from '../lib/datetime'
+import type { Clinica, EstadoClinica, PagoSuscripcion, Rol, Sucursal, Usuario } from '../types/database'
 import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma } from '../types/views'
 import { getPlan } from './planes'
 import { exigirEmailLibre } from './cuentas'
@@ -664,4 +664,112 @@ export async function alternarActivoUsuario(usuarioId: string): Promise<void> {
 
   if (error) throw new Error(`Error al cambiar estado del usuario: ${error.message}`)
   exigirFilaAfectada(data, 'cambiar el estado del usuario')
+}
+
+/* ============================================================
+ * Comprobantes de la suscripción (migración 0020)
+ * ============================================================
+ * La clínica los envía desde su pantalla de Facturación y solo puede INSERTAR:
+ * aprobar o rechazar vive aquí, bajo `pagos_plataforma` y `clinicas_plataforma`,
+ * que son policies de superadmin. Que la clínica no pueda tocar su propio
+ * estado es toda la razón de que estas dos funciones no estén en
+ * `services/facturacion.ts`.
+ */
+
+export interface PagoConClinica extends PagoSuscripcion {
+  clinica_nombre: string
+  responsable: string
+  whatsapp: string
+}
+
+/** Comprobantes esperando revisión, del más antiguo al más reciente. */
+export async function listPagosPendientes(): Promise<PagoConClinica[]> {
+  const { data: pagos, error } = await supabase
+    .from('pagos_suscripcion')
+    .select('*')
+    .eq('estado', 'pendiente')
+    .order('created_at', { ascending: true })
+
+  if (error) throw new Error(`No se pudieron cargar los comprobantes: ${error.message}`)
+  if (!pagos || pagos.length === 0) return []
+
+  const { data: clinicas } = await supabase
+    .from('clinicas')
+    .select('id, nombre, responsable, whatsapp')
+    .in('id', [...new Set(pagos.map((p) => p.clinica_id))])
+
+  const porId = new Map((clinicas ?? []).map((c) => [c.id, c]))
+
+  return pagos.map((p) => {
+    const clinica = porId.get(p.clinica_id)
+    return {
+      ...(p as PagoSuscripcion),
+      clinica_nombre: clinica?.nombre ?? 'Clínica',
+      responsable: clinica?.responsable ?? '',
+      whatsapp: clinica?.whatsapp ?? '',
+    }
+  })
+}
+
+/**
+ * Aprueba el comprobante y avanza el cobro.
+ *
+ * Las dos cosas, en este orden: si marcar el pago falla —porque otra pestaña ya
+ * lo revisó—, la fecha de cobro no se toca. Al revés se le habría regalado un
+ * mes a la clínica por un doble clic.
+ *
+ * `.eq('estado', 'pendiente')` es lo que hace idempotente la aprobación: el
+ * segundo intento no encuentra fila y `exigirFilaAfectada` lo dice, en vez de
+ * volver a correr la fecha.
+ *
+ * Si la clínica venía muy atrasada, un pago de un mes la deja al día pero con
+ * la fecha aún en el pasado, y el asistente la vuelve a listar. Es correcto:
+ * sigue debiendo.
+ */
+export async function aprobarPago(pago: PagoSuscripcion, revisorId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('pagos_suscripcion')
+    .update({ estado: 'aprobado', revisado_por: revisorId, revisado_at: new Date().toISOString() })
+    .eq('id', pago.id)
+    .eq('estado', 'pendiente')
+    .select('id')
+
+  if (error) throw new Error(`No se pudo aprobar el comprobante: ${error.message}`)
+  exigirFilaAfectada(data, 'aprobar el comprobante')
+
+  const { data: clinica } = await supabase
+    .from('clinicas')
+    .select('proximo_cobro')
+    .eq('id', pago.clinica_id)
+    .maybeSingle()
+
+  if (!clinica) throw new Error('El comprobante quedó aprobado, pero la clínica ya no existe')
+
+  await marcarCobroAlDia(pago.clinica_id, sumarMesesAFecha(clinica.proximo_cobro, pago.meses))
+}
+
+/**
+ * Rechaza el comprobante con un motivo.
+ *
+ * El motivo es obligatorio y **lo lee la clínica** en su historial: un rechazo
+ * mudo la deja sin saber si mandar la misma foto otra vez o hacer otra
+ * transferencia. El estado de pago no se toca — sigue debiendo.
+ */
+export async function rechazarPago(pagoId: string, motivo: string, revisorId: string): Promise<void> {
+  if (!motivo.trim()) throw new Error('Explica por qué se rechaza: la clínica va a leerlo')
+
+  const { data, error } = await supabase
+    .from('pagos_suscripcion')
+    .update({
+      estado: 'rechazado',
+      motivo_rechazo: motivo.trim(),
+      revisado_por: revisorId,
+      revisado_at: new Date().toISOString(),
+    })
+    .eq('id', pagoId)
+    .eq('estado', 'pendiente')
+    .select('id')
+
+  if (error) throw new Error(`No se pudo rechazar el comprobante: ${error.message}`)
+  exigirFilaAfectada(data, 'rechazar el comprobante')
 }

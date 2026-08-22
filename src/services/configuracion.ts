@@ -53,3 +53,43 @@ export async function setTipoCambio(tipoCambio: number): Promise<ConfiguracionPl
   if (error || !data) throw new Error(`No se pudo guardar el tipo de cambio: ${error?.message ?? ''}`)
   return { tipo_cambio_usd: Number(data.tipo_cambio_usd), actualizado_at: data.actualizado_at }
 }
+
+/**
+ * Guarda el QR de cobro y las instrucciones de pago.
+ *
+ * El QR **no se recomprime**. `redimensionarImagen` produce JPEG con pérdida, y
+ * sobre un código de barras eso es pedir que un día no escanee: se guarda el
+ * archivo tal cual, en base64, con un tope de tamaño. Es una imagen pequeña y
+ * la lee solo la pantalla de Facturación.
+ */
+export async function setDatosDePago(qrPago: string | null, datosPago: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('configuracion_plataforma')
+    .update({ qr_pago: qrPago, datos_pago: datosPago.trim(), actualizado_at: new Date().toISOString() })
+    .eq('id', true)
+    .select('id')
+
+  if (error) throw new Error(`No se pudieron guardar los datos de pago: ${error.message}`)
+  if (!data || data.length === 0) {
+    throw new Error('No se pudieron guardar los datos de pago: no tienes permiso')
+  }
+}
+
+/** Lo que ocupa un QR de banco. Más que esto es una foto, no un código. */
+export const MAX_BYTES_QR = 400 * 1024
+
+/** Lee la imagen tal cual, sin tocarla, como data URI. */
+export function leerComoDataUri(archivo: File): Promise<string> {
+  if (!archivo.type.startsWith('image/')) {
+    throw new Error('El QR debe ser una imagen')
+  }
+  if (archivo.size > MAX_BYTES_QR) {
+    throw new Error('La imagen del QR pesa demasiado. Recórtala al código y vuelve a intentarlo.')
+  }
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader()
+    lector.onload = () => resolve(String(lector.result))
+    lector.onerror = () => reject(new Error('No se pudo leer la imagen'))
+    lector.readAsDataURL(archivo)
+  })
+}

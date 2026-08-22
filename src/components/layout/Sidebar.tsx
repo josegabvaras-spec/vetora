@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, BellRing, X } from 'lucide-react'
+import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, BellRing, Receipt, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { PanelLateral } from './PanelLateral'
 import type { Rol } from '../../types/database'
@@ -39,6 +39,7 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
   { to: '/respaldo', label: 'Respaldo', icon: Download, roles: ['recepcion', 'admin'] },
   { to: '/servicios', label: 'Servicios', icon: Tags, roles: ['admin'] },
   { to: '/movimientos', label: 'Movimientos', icon: ArrowLeftRight, roles: ['admin'] },
+  { to: '/facturacion', label: 'Facturación', icon: Receipt, etiquetaCorta: 'Factura', roles: ['admin'] },
 ]
 
 /** Las pantallas que el rol tiene permitidas, en el orden del menú. */

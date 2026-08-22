@@ -77,6 +77,25 @@ export function sumarDias(dia: string, delta: number): string {
 }
 
 /**
+ * Desplaza un día clínico `'yyyy-MM-dd'` **por meses**, anclando el día al
+ * último real del mes destino.
+ *
+ * `d.setMonth(d.getMonth() + 1)` sobre un día 31 desborda —el 31 de enero da
+ * "31 de febrero", que JS normaliza al 3 de marzo—, así que el mes se mueve
+ * sobre la cadena con `sumarMeses` y el día se recorta después. Estaba escrito
+ * dos veces a mano, y una de las dos copias tenía justo ese fallo: renovar la
+ * suscripción de una clínica dada de alta un 31 le corría el cobro tres días.
+ */
+export function sumarMesesAFecha(fecha: string, delta: number): string {
+  const [anio, mes, dia] = fecha.slice(0, 10).split('-')
+  const destino = sumarMeses(`${anio}-${mes}`, delta)
+  const ultimoDia = new Date(
+    Date.UTC(Number(destino.slice(0, 4)), Number(destino.slice(5, 7)), 0),
+  ).getUTCDate()
+  return `${destino}-${String(Math.min(Number(dia), ultimoDia)).padStart(2, '0')}`
+}
+
+/**
  * Convierte una columna `date` de PostgreSQL ("2026-08-01") en un instante que
  * cae en ese mismo día aquí.
  *

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, KeyRound, MessageCircle, Sparkles, UserCheck, UserX } from 'lucide-react'
+import { AlertTriangle, KeyRound, MessageCircle, Receipt, Sparkles, UserCheck, UserX } from 'lucide-react'
 import { AvisoError } from '../../components/ui/AvisoError'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -9,13 +9,15 @@ import { Seccion } from '../../components/ui/Seccion'
 import { Textarea } from '../../components/ui/Field'
 import { TablaResponsive, type Columna } from '../../components/ui/Tabla'
 import { useTable } from '../../mocks/useDb'
-import { alternarActivoUsuario } from '../../services/plataforma'
+import { alternarActivoUsuario, listPagosPendientes, type PagoConClinica } from '../../services/plataforma'
 import {
   listTareasPlataforma,
   listUsuariosSinAcceso,
   type UsuarioSinAcceso,
 } from '../../services/plataformaAvisos'
 import { EnviarAccesoModal } from '../../features/plataforma/EnviarAccesoModal'
+import { ComprobanteModal } from '../../features/plataforma/ComprobanteModal'
+import { useAuth } from '../../context/AuthContext'
 import { enlaceWhatsapp } from '../../lib/whatsapp'
 import { formatClinicDate } from '../../lib/datetime'
 import {
@@ -30,12 +32,18 @@ import type { Usuario } from '../../types/database'
 const TONO: Record<TipoTareaPlataforma, 'rose' | 'amber' | 'teal'> = {
   cobro_vencido: 'rose',
   cobro_proximo: 'amber',
+  comprobante_pendiente: 'teal',
   limite_plan: 'amber',
   errores_sistema: 'rose',
 }
 
 export function PlataformaAsistentePage() {
+  const { usuario } = useAuth()
   const [tareas, setTareas] = useState<TareaPlataforma[]>([])
+  // Los comprobantes se guardan enteros y no solo como tarea: el modal necesita
+  // la ruta de la imagen y los importes, que en la tarea solo viajan como texto.
+  const [pagos, setPagos] = useState<PagoConClinica[]>([])
+  const [revisando, setRevisando] = useState<PagoConClinica | null>(null)
   const [usuarios, setUsuarios] = useState<UsuarioSinAcceso[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -52,9 +60,14 @@ export function PlataformaAsistentePage() {
   const recargar = useCallback(async () => {
     setError(null)
     try {
-      const [t, u] = await Promise.all([listTareasPlataforma(), listUsuariosSinAcceso()])
+      const [t, u, p] = await Promise.all([
+        listTareasPlataforma(),
+        listUsuariosSinAcceso(),
+        listPagosPendientes(),
+      ])
       setTareas(t)
       setUsuarios(u)
+      setPagos(p)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el asistente')
     } finally {
@@ -76,6 +89,11 @@ export function PlataformaAsistentePage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cambiar el estado del usuario')
     }
+  }
+
+  /** La tarea lleva el id del pago detrás del guion; ver `listTareasPlataforma`. */
+  function pagoDeTarea(t: TareaPlataforma): PagoConClinica | undefined {
+    return pagos.find((p) => `comprobante_pendiente-${p.id}` === t.id)
   }
 
   const columnasTareas: Columna<TareaPlataforma>[] = [
@@ -114,7 +132,15 @@ export function PlataformaAsistentePage() {
       cabecera: '',
       movil: 'acciones',
       celda: (t) =>
-        seAvisaPorWhatsapp(t) ? (
+        t.tipo === 'comprobante_pendiente' ? (
+          <Button
+            className="px-3 py-1.5 text-xs"
+            onClick={() => setRevisando(pagoDeTarea(t) ?? null)}
+            disabled={!pagoDeTarea(t)}
+          >
+            <Receipt size={14} /> Revisar
+          </Button>
+        ) : seAvisaPorWhatsapp(t) ? (
           <Button variant="secondary" className="px-3 py-1.5 text-xs" onClick={() => setRedactando(t)}>
             <MessageCircle size={14} /> Avisar
           </Button>
@@ -226,6 +252,18 @@ export function PlataformaAsistentePage() {
       )}
 
       {redactando && <RedactarAvisoModal tarea={redactando} onClose={() => setRedactando(null)} />}
+
+      {revisando && usuario && (
+        <ComprobanteModal
+          pago={revisando}
+          revisorId={usuario.id}
+          onClose={() => setRevisando(null)}
+          onRevisado={async () => {
+            setRevisando(null)
+            await recargar()
+          }}
+        />
+      )}
 
       {enviandoAcceso && (
         <EnviarAccesoModal

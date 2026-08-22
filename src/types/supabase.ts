@@ -217,18 +217,80 @@ export type Database = {
           id: boolean
           tipo_cambio_usd: number
           actualizado_at: string
+          qr_pago: string | null
+          datos_pago: string
         }
         Insert: {
           id?: boolean
           tipo_cambio_usd: number
           actualizado_at?: string
+          qr_pago?: string | null
+          datos_pago?: string
         }
         Update: {
           id?: boolean
           tipo_cambio_usd?: number
           actualizado_at?: string
+          qr_pago?: string | null
+          datos_pago?: string
         }
         Relationships: []
+      }
+      pagos_suscripcion: {
+        Row: {
+          id: string
+          clinica_id: string
+          meses: number
+          monto_usd: number
+          tipo_cambio_usd: number
+          monto_bs: number
+          ruta_comprobante: string
+          referencia: string
+          estado: string
+          motivo_rechazo: string | null
+          revisado_por: string | null
+          revisado_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          meses: number
+          monto_usd: number
+          tipo_cambio_usd: number
+          monto_bs: number
+          ruta_comprobante: string
+          referencia?: string
+          estado?: string
+          motivo_rechazo?: string | null
+          revisado_por?: string | null
+          revisado_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          meses?: number
+          monto_usd?: number
+          tipo_cambio_usd?: number
+          monto_bs?: number
+          ruta_comprobante?: string
+          referencia?: string
+          estado?: string
+          motivo_rechazo?: string | null
+          revisado_por?: string | null
+          revisado_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagos_suscripcion_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cobro_lineas: {
         Row: {

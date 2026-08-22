@@ -35,7 +35,7 @@ import { ultimasInvitacionesDe } from '../../services/invitaciones'
 import { EnviarAccesoModal } from './EnviarAccesoModal'
 import { getConfiguracion, TIPO_CAMBIO_POR_DEFECTO } from '../../services/configuracion'
 import { formatBs, formatUsd, usdABs } from '../../lib/currency'
-import { formatClinicDate } from '../../lib/datetime'
+import { formatClinicDate, sumarMesesAFecha } from '../../lib/datetime'
 import type { Invitacion, Plan, Rol, Usuario } from '../../types/database'
 import type { ClinicaConDetalle } from '../../types/views'
 
@@ -45,13 +45,6 @@ const ROL_LABEL: Record<string, string> = {
   recepcion: 'Recepción',
 }
 
-
-/** Un mes después de la fecha dada, en formato yyyy-MM-dd. */
-function unMesDespues(fecha: string): string {
-  const d = new Date(`${fecha}T12:00:00Z`)
-  d.setMonth(d.getMonth() + 1)
-  return d.toISOString().slice(0, 10)
-}
 
 export function ClinicaDetalleModal({
   clinica,
@@ -299,7 +292,7 @@ export function ClinicaDetalleModal({
               <Button
                 variant="success"
                 className="px-3 py-1.5 text-xs"
-                onClick={() => ejecutar(() => marcarCobroAlDia(clinica.id, unMesDespues(clinica.proximo_cobro)))}
+                onClick={() => ejecutar(() => marcarCobroAlDia(clinica.id, sumarMesesAFecha(clinica.proximo_cobro, 1)))}
               >
                 <CheckCircle2 size={14} /> Registrar cobro del mes
               </Button>

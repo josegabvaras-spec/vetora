@@ -14,11 +14,17 @@ import { formatClinicDate } from './datetime'
  * plantilla que con un modelo.
  */
 
-export type TipoTareaPlataforma = 'cobro_vencido' | 'cobro_proximo' | 'limite_plan' | 'errores_sistema'
+export type TipoTareaPlataforma =
+  | 'cobro_vencido'
+  | 'cobro_proximo'
+  | 'comprobante_pendiente'
+  | 'limite_plan'
+  | 'errores_sistema'
 
 export const TAREA_LABEL: Record<TipoTareaPlataforma, string> = {
   cobro_vencido: 'Cobro vencido',
   cobro_proximo: 'Cobro próximo',
+  comprobante_pendiente: 'Comprobante por revisar',
   limite_plan: 'Cerca del límite del plan',
   errores_sistema: 'Errores del sistema',
 }
@@ -76,15 +82,27 @@ export function plantillaTarea(tarea: TareaPlataforma, plataforma = 'Vetora'): s
         `Te aviso antes de que les limite el trabajo. Si quieres, revisamos juntos qué plan les conviene.`
       )
 
-    // No se le manda a nadie: es una tarea interna del propio dueño.
+    // Las dos de abajo no se le mandan a nadie: son trabajo interno del dueño.
+    case 'comprobante_pendiente':
+      return `Revisar el comprobante de ${tarea.clinica_nombre}: ${tarea.detalle}.`
+
     case 'errores_sistema':
       return `Revisar los errores registrados en las últimas 24 horas: ${tarea.detalle}.`
   }
 }
 
-/** Un aviso de errores no se le manda a la clínica: es trabajo interno. */
+/**
+ * Hay dos tareas que no se le escriben a la clínica porque son trabajo del
+ * propio dueño: los errores del sistema, y un comprobante que él mismo tiene
+ * que aprobar. Escribirle a la clínica «revisa que apruebe tu pago» sería
+ * pedirle a otro que haga lo que a uno le toca.
+ */
 export function seAvisaPorWhatsapp(tarea: TareaPlataforma): boolean {
-  return tarea.tipo !== 'errores_sistema' && Boolean(tarea.whatsapp.trim())
+  return (
+    tarea.tipo !== 'errores_sistema' &&
+    tarea.tipo !== 'comprobante_pendiente' &&
+    Boolean(tarea.whatsapp.trim())
+  )
 }
 
 /**

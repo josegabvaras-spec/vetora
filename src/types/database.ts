@@ -21,6 +21,41 @@ export type EstadoClinica = 'activa' | 'suspendida' | 'demo'
 
 export type EstadoPago = 'al_dia' | 'en_mora'
 
+/** Estado de un comprobante enviado por la clínica (migración 0020). */
+export type EstadoComprobante = 'pendiente' | 'aprobado' | 'rechazado'
+
+/**
+ * Comprobante de pago de la suscripción.
+ *
+ * No hay pasarela: la clínica paga escaneando el QR de la plataforma y sube la
+ * foto. El dueño de la plataforma la mira y aprueba, y aprobar avanza
+ * `clinicas.proximo_cobro` tantos meses como cubra.
+ */
+export interface PagoSuscripcion {
+  id: string
+  clinica_id: string
+  /** Meses de suscripción que cubre. */
+  meses: number
+  /**
+   * Congelados al pagar, igual que los precios de `cobro_lineas`: si mañana
+   * sube la tarifa o se mueve el cambio, el comprobante sigue diciendo lo que
+   * se pagó y a cuánto.
+   */
+  monto_usd: number
+  tipo_cambio_usd: number
+  monto_bs: number
+  /** Ruta en el bucket privado `comprobantes`: `{clinica_id}/{uuid}.jpg`. */
+  ruta_comprobante: string
+  /** Número de operación, tal como lo teclea quien paga. */
+  referencia: string
+  estado: EstadoComprobante
+  /** Lo lee la clínica en su historial: no es una nota interna. */
+  motivo_rechazo: string | null
+  revisado_por: string | null
+  revisado_at: string | null
+  created_at: string
+}
+
 export type TipoCita = 'consulta' | 'reconsulta' | 'vacuna' | 'cirugia' | 'desparasitacion' | 'peluqueria'
 
 export type EstadoCita = 'pendiente' | 'confirmada' | 'completada' | 'cancelada'

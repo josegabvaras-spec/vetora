@@ -13,24 +13,17 @@ import { crearClinica, listClinicas, type AltaClinicaInput } from '../../service
 import { listPlanes } from '../../services/planes'
 import { getConfiguracion, TIPO_CAMBIO_POR_DEFECTO } from '../../services/configuracion'
 import { formatBs, formatUsd, usdABs } from '../../lib/currency'
-import { clinicDayIso, formatClinicDate, sumarMeses } from '../../lib/datetime'
+import { clinicDayIso, formatClinicDate, sumarMesesAFecha } from '../../lib/datetime'
 
 /**
  * Un mes después del día de la clínica, en 'yyyy-MM-dd'.
  *
  * Antes se calculaba con `new Date()` local y se serializaba con
  * `toISOString()`: a partir de las 20:00 en Bolivia el próximo cobro se fechaba
- * un día tarde. Y `setMonth(+1)` sobre un día 31 desborda al mes siguiente
- * (31 de enero pasaba a 3 de marzo), así que el mes se desplaza sobre la cadena
- * y el día se ancla al último real del mes destino.
+ * un día tarde. `sumarMesesAFecha` resuelve además el desborde del día 31.
  */
 function unMesDespuesDeHoy(): string {
-  const [anio, mes, dia] = clinicDayIso().split('-')
-  const destino = sumarMeses(`${anio}-${mes}`, 1)
-  const ultimoDia = new Date(
-    Date.UTC(Number(destino.slice(0, 4)), Number(destino.slice(5, 7)), 0),
-  ).getUTCDate()
-  return `${destino}-${String(Math.min(Number(dia), ultimoDia)).padStart(2, '0')}`
+  return sumarMesesAFecha(clinicDayIso(), 1)
 }
 import type { Plan, Usuario } from '../../types/database'
 import type { ClinicaConDetalle, UsoLimite } from '../../types/views'

@@ -25,7 +25,7 @@ No hay runner de tests configurado. La verificación real es `npm run build` (ty
 
 **No queda modo mock.** `src/mocks/db.ts` y `seed.ts` fueron eliminados en la migración; hoy son ficheros vacíos que solo existen por un motivo de build (ver más abajo). `isMockMode` sigue exportándose en [src/lib/supabase.ts](src/lib/supabase.ts) pero es `const false`: cualquier `if (isMockMode)` es código muerto.
 
-- [supabase/migrations/](supabase/migrations/) es el esquema de verdad y **es normativo** — pero eso es las **diez** migraciones, no solo la primera. `0001_init.sql` es la base (20 tablas, RLS habilitada en las 20, 35 policies, 3 triggers, 4 funciones `SECURITY DEFINER`); `0002` a `0010` son correcciones de seguridad reales y features que ya están aplicadas encima (RLS de `historial_update`/`internaciones_update`, índices, cuota de WhatsApp, portal del cliente, `pacientes.codigo`/`foto`, venta directa, recetario, tipo de cita `peluqueria`, inventario fraccionado). Leer solo `0001` da una foto vieja del esquema — antes de decir "esta tabla/columna no existe" o "esta policy no tiene `with check`", revisa si una migración posterior ya lo tocó.
+- [supabase/migrations/](supabase/migrations/) es el esquema de verdad y **es normativo** — pero eso es las **veinte** migraciones, no solo la primera. `0001_init.sql` es la base (20 tablas, RLS habilitada en las 20, 35 policies, 3 triggers, 4 funciones `SECURITY DEFINER`); `0002` a `0010` son correcciones de seguridad reales y features que ya están aplicadas encima (RLS de `historial_update`/`internaciones_update`, índices, cuota de WhatsApp, portal del cliente, `pacientes.codigo`/`foto`, venta directa, recetario, tipo de cita `peluqueria`, inventario fraccionado). Leer solo `0001` da una foto vieja del esquema — antes de decir "esta tabla/columna no existe" o "esta policy no tiene `with check`", revisa si una migración posterior ya lo tocó.
 - [src/types/database.ts](src/types/database.ts) pretende reflejar fila por fila las tablas del SQL, y [src/types/supabase.ts](src/types/supabase.ts) es el tipo generado desde la base real. Cuando discrepen, **gana el SQL**.
 
 **Regla estructural: solo `src/services/*.ts` habla con Supabase.** Las páginas y los `features` nunca llaman a `supabase` directamente; consumen servicios, que devuelven los tipos de `types/views.ts`. La única excepción legítima es `useTable` (abajo), que es infraestructura de reactividad, no de negocio.
@@ -167,6 +167,16 @@ Además:
   **La suscripción a la plataforma es la única excepción y va en dólares** (`planes.precio_mensual_usd`, `clinicas.precio_acordado_usd`, migración 0019), porque lo que sostiene el servicio —dominio, Supabase, Vercel— se paga en dólares y sus tarifas se mueven. Se enseña con `formatUsd()` y se convierte con `usdABs()` al cambio de `configuracion_plataforma.tipo_cambio_usd`, tabla de **una sola fila** por construcción (`id boolean primary key check (id)`) que edita el superadmin en Plataforma → Planes. Las cuatro pantallas de plataforma enseñan **el dólar como precio y el boliviano debajo**: es lo que la clínica transfiere, pero la cifra que manda es la de arriba.
 
   `formatBs` y `formatUsd` son dos funciones a propósito. Una sola con un parámetro de moneda es exactamente cómo se acaba imprimiendo `Bs.` sobre un importe en dólares el día que alguien olvida pasarlo.
+
+  **Cómo se cobra esa suscripción (migración 0020): sin pasarela.** El admin de la clínica entra en `/facturacion` ([FacturacionPage](src/pages/FacturacionPage.tsx)), elige 1, 3, 6 o 12 meses, escanea el QR del dueño de la plataforma —que vive en `configuracion_plataforma.qr_pago`, junto al tipo de cambio, y se sube en Plataforma → Planes— y sube la **foto del comprobante**. Eso inserta un `pagos_suscripcion`, que aparece en el asistente del superadmin como tarea `comprobante_pendiente`; él lo mira en [ComprobanteModal](src/features/plataforma/ComprobanteModal.tsx) y aprueba o rechaza.
+
+  Tres cosas que no se negocian ahí:
+
+  - **La clínica solo INSERTA.** `pagos_clinica_insert` exige `estado = 'pendiente'` y los campos de revisión en null: sin ese `with check`, el admin enviaba el comprobante ya aprobado. No hay policy de UPDATE ni DELETE para la clínica — un comprobante enviado no se retira, se rechaza con un motivo que ella lee.
+  - **`aprobarPago()` vive en [services/plataforma.ts](src/services/plataforma.ts)**, no en `facturacion.ts`, porque hace dos cosas —marcar el pago y correr `proximo_cobro`— bajo las dos policies de superadmin. Lleva `.eq('estado','pendiente')` para que un doble clic no regale un mes.
+  - **`pagos_suscripcion` sí lleva `auth_es_plataforma()` en sus policies, y no contradice la regla de más abajo**: esa prohíbe abrirle al superadmin las tablas **clínicas**. Esta es del dominio de la plataforma, como `clinicas` y `planes` desde `0001` — es el cobro que la plataforma le hace a su cliente, no el dato de un paciente. No lo uses como precedente para lo otro.
+
+  Una clínica **suspendida no puede entrar y por tanto no puede pagar desde aquí**: eso es a propósito y se resuelve hablando con el dueño de la plataforma. Facturación sirve al estado **`en_mora`**, que es el previo. Dejar entrar a un admin suspendido convertiría la suspensión en fachada, porque hoy no está en la RLS: su JWT seguiría leyendo su clínica entera desde PostgREST.
 - **Tiempo:** siempre los helpers de [lib/datetime.ts](src/lib/datetime.ts) (`America/La_Paz`). Nunca `toLocaleString` ni `new Date().getHours()` sobre una fecha de negocio: el navegador puede estar en otra zona.
 - **Límites del plan:** se consultan por sus **números** (`max_sucursales`, `max_usuarios`, `whatsapp_limite`), nunca por el nombre del plan — el dueño de la plataforma crea planes desde el panel. `limitesDe()` en [services/plataforma.ts](src/services/plataforma.ts) es la fuente única para validar y para mostrar.
 - **WhatsApp no es una API.** [lib/whatsapp.ts](src/lib/whatsapp.ts) compone un enlace `wa.me` y **lo envía una persona** desde su propio teléfono; no hay token, ni webhook, ni coste por mensaje. El `whatsapp_limite` es una palanca comercial, no la repercusión de una factura.
@@ -182,7 +192,7 @@ Además:
   |---|---|
   | `['admin', 'veterinario', 'recepcion']` | `/agenda`, `/pacientes`, `/pacientes/:id`, `/internacion`, `/inventario`, `/asistente` |
   | `['recepcion', 'admin']` | `/caja`, `/respaldo` |
-  | `['admin']` | `/servicios`, `/movimientos`, `/metricas` |
+  | `['admin']` | `/servicios`, `/movimientos`, `/metricas`, `/facturacion` |
   | `['superadmin']` | `/plataforma`, `/plataforma/clinicas`, `/plataforma/planes` |
 
   Ese primer `RolRoute` es la barrera de frontend equivalente a `auth_es_personal()`: sin él, una cuenta `cliente` del portal entraría en las mismas pantallas que el personal. El propio portal vive aparte, bajo `/portal-cliente` (`PortalClienteLayout`, sin `RolRoute` porque su propio layout y sus policies de solo-lectura ya acotan lo que se ve).
