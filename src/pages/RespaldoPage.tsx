@@ -3,7 +3,9 @@ import { Download } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Seccion } from '../components/ui/Seccion'
-import { generarRespaldo } from '../lib/exportacion'
+// `exportacion` arrastra JSZip. Con un `import` normal acaba en el bundle
+// principal y lo descarga todo el mundo al abrir el login, para una pantalla
+// que se usa de vez en cuando. Se carga al pulsar el botón.
 
 export function RespaldoPage() {
   const [generando, setGenerando] = useState(false)
@@ -13,6 +15,7 @@ export function RespaldoPage() {
     try {
       setGenerando(true)
       setError(null)
+      const { generarRespaldo } = await import('../lib/exportacion')
       await generarRespaldo()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al generar el respaldo')

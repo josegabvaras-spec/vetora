@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react'
-import { Ban, Building2, CheckCircle2, MessageCircle, Plus, RotateCcw, Users } from 'lucide-react'
+import {
+  Ban,
+  Building2,
+  CheckCircle2,
+  Database,
+  Download,
+  MessageCircle,
+  Plus,
+  RotateCcw,
+  Upload,
+  Users,
+} from 'lucide-react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -18,6 +29,7 @@ import {
   type DatosClinica,
 } from '../../services/plataforma'
 import { listPlanes } from '../../services/planes'
+import { exportarClinica, importarEnClinica } from '../../services/respaldoPlataforma'
 import { ultimasInvitacionesDe } from '../../services/invitaciones'
 import { EnviarAccesoModal } from './EnviarAccesoModal'
 import { formatBs } from '../../lib/currency'
@@ -114,6 +126,45 @@ export function ClinicaDetalleModal({
       .then(setPlanes)
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los planes'))
   }, [])
+
+  const [respaldando, setRespaldando] = useState(false)
+  const [errorRespaldo, setErrorRespaldo] = useState<string | null>(null)
+  const [avisoRespaldo, setAvisoRespaldo] = useState<string | null>(null)
+
+  async function exportar() {
+    setRespaldando(true)
+    setErrorRespaldo(null)
+    setAvisoRespaldo(null)
+    try {
+      await exportarClinica(clinica.id)
+      setAvisoRespaldo('Respaldo descargado')
+    } catch (err) {
+      setErrorRespaldo(err instanceof Error ? err.message : 'No se pudo exportar')
+    } finally {
+      setRespaldando(false)
+    }
+  }
+
+  async function importar(e: React.ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0]
+    // Se limpia siempre: sin esto, reintentar con el mismo archivo no dispara
+    // `change` y parece que el botón dejó de responder.
+    e.target.value = ''
+    if (!archivo) return
+
+    setRespaldando(true)
+    setErrorRespaldo(null)
+    setAvisoRespaldo(null)
+    try {
+      await importarEnClinica(clinica.id, archivo)
+      setAvisoRespaldo('Datos importados en esta clínica')
+      onChanged()
+    } catch (err) {
+      setErrorRespaldo(err instanceof Error ? err.message : 'No se pudo importar')
+    } finally {
+      setRespaldando(false)
+    }
+  }
 
   // Una sola consulta para todo el listado, y se rehace cuando la tabla de
   // invitaciones cambia (al generar o enviar un acceso).
@@ -277,6 +328,36 @@ export function ClinicaDetalleModal({
             <Button onClick={guardarCuenta} disabled={guardando} className="px-3 py-1.5 text-xs">
               {guardando ? 'Guardando…' : 'Guardar cambios'}
             </Button>
+          </div>
+        </Seccion>
+
+        <Seccion titulo="Respaldo de datos" icono={<Database size={13} className="text-teal-600" />}>
+          <p className="text-xs text-slate-500">
+            Un ZIP con un CSV por tabla (separados por punto y coma, para que Excel los abra en columnas) y las
+            fotos de los pacientes. Al importar, las filas se fusionan por id: se actualiza lo que coincide y se
+            agrega lo nuevo, no se borra nada.
+          </p>
+          <p className="mt-1 text-[11px] text-amber-700">
+            Los estudios de imagen no entran en el respaldo: viven en el almacenamiento, aparte.
+          </p>
+
+          {errorRespaldo && <p className="mt-2 text-xs font-bold text-rose-600">{errorRespaldo}</p>}
+          {avisoRespaldo && <p className="mt-2 text-xs font-semibold text-emerald-700">{avisoRespaldo}</p>}
+
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <Button
+              variant="secondary"
+              className="px-3 py-1.5 text-xs"
+              disabled={respaldando}
+              onClick={exportar}
+            >
+              <Download size={14} /> {respaldando ? 'Preparando…' : 'Exportar datos'}
+            </Button>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+              <Upload size={14} />
+              {respaldando ? 'Importando…' : 'Importar ZIP'}
+              <input type="file" accept=".zip" className="hidden" onChange={importar} disabled={respaldando} />
+            </label>
           </div>
         </Seccion>
 

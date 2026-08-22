@@ -386,38 +386,28 @@ export function PlataformaResumenPage() {
         </Seccion>
       </div>
 
-      <Seccion titulo="Herramientas Avanzadas" tono="destacado">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <p className="text-sm text-slate-600 max-w-2xl">
-            Herramienta de migración: Puedes importar un archivo `.zip` generado por otra clínica para restaurar su base de datos íntegra.
-          </p>
-          <div>
-            <input
-              type="file"
-              accept=".zip"
-              id="import-zip"
-              className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files?.[0]
-                if (file) {
-                  try {
-                    const { importarRespaldo } = await import('../../lib/importacion')
-                    await importarRespaldo(file)
-                    alert('Importación completada con éxito. Actualiza la página para ver los cambios.')
-                  } catch (err) {
-                    alert('Error en la importación: ' + (err instanceof Error ? err.message : String(err)))
-                  }
-                }
-              }}
-            />
-            <button
-              onClick={() => document.getElementById('import-zip')?.click()}
-              className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-colors hover:bg-slate-800 focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
-            >
-              <Server size={16} /> Importar Respaldo ZIP
-            </button>
-          </div>
-        </div>
+      {/*
+        Aquí había un «Importar Respaldo ZIP» suelto que llamaba a la función de
+        la clínica. No podía funcionar: esa versión escribe con la sesión de
+        quien opera, y el superadmin tiene `clinica_id` nulo — las filas o las
+        rechazaba la RLS o habrían entrado sin clínica a la que pertenecer.
+        Sobre todo, **no preguntaba a qué clínica restaurar**, que es el dato
+        que decide dónde acaban los datos de un paciente.
+
+        El respaldo vive ahora dentro de cada clínica, donde el destino es
+        inequívoco.
+      */}
+      <Seccion titulo="Respaldo de datos" tono="neutro">
+        <p className="max-w-2xl text-sm text-slate-600">
+          Exportar e importar los datos de una clínica se hace desde su propia ficha, para que el destino de la
+          restauración quede siempre explícito.
+        </p>
+        <Link
+          to="/plataforma/clinicas"
+          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+        >
+          <Server size={16} /> Ir a Clínicas
+        </Link>
       </Seccion>
     </div>
   )
