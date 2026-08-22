@@ -1,3 +1,4 @@
+import { clinicDayIso } from './datetime'
 import type { EstadoInternacion } from '../types/database'
 
 export const ESTADO_INTERNACION_LABEL: Record<EstadoInternacion, string> = {
@@ -29,4 +30,20 @@ export function diasDeEstadia(fechaIngreso: string, fechaAlta?: string | null, h
 
 export function etiquetaDias(dias: number): string {
   return `${dias} ${dias === 1 ? 'día' : 'días'}`
+}
+
+/**
+ * Si al paciente todavía no se le ha registrado la evolución de HOY.
+ *
+ * `notas` viene ordenada de la más reciente a la más antigua desde
+ * `detalleDeInternacion`, así que basta con mirar la primera.
+ *
+ * La comparación es de días clínicos como cadena. Con `new Date()` del
+ * navegador, una nota escrita a las 21:00 en Bolivia cae ya en el día siguiente
+ * en UTC y el aviso reaparecería esa misma noche, como si nadie hubiera escrito
+ * nada.
+ */
+export function faltaEvolucionDeHoy(notas: { created_at: string }[]): boolean {
+  const ultima = notas[0]
+  return !ultima || clinicDayIso(ultima.created_at) !== clinicDayIso()
 }

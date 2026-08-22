@@ -97,6 +97,28 @@ export interface ConsultaOrigen {
   motivo: string
 }
 
+/**
+ * Consulta abierta y sin cerrar: el borrador de historial que espera a que un
+ * veterinario lo atienda.
+ *
+ * Lo abre recepción desde la cita —o el propio veterinario— y queda vivo hasta
+ * que se cierra. Lleva solo lo justo para pintar la fila del asistente y
+ * navegar a la ficha; el resto ya está en el expediente.
+ */
+export interface ConsultaAbierta {
+  historial_id: string
+  paciente_id: string
+  paciente_nombre: string
+  cliente_nombre: string
+  motivo: string
+  /** De la cita a la que cuelga: cuándo estaba citado y de qué tipo. */
+  cita_id: string
+  fecha_hora: string
+  tipo_cita: TipoCita
+  /** El día clínico de la cita ya pasó: se abrió y quedó sin cerrar. */
+  atrasada: boolean
+}
+
 export interface CitaConDetalle extends Cita {
   paciente: PacienteConDueno
   veterinario_nombre: string

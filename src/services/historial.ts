@@ -6,6 +6,8 @@ import type {
   TipoCita,
   ViaAdministracion,
 } from '../types/database'
+import type { ConsultaAbierta } from '../types/views'
+import { clinicDayIso } from '../lib/datetime'
 import { consultaOrigenDe } from './citas'
 import { registrarMovimiento } from './inventario'
 
@@ -241,4 +243,96 @@ export async function eliminarRecetaItem(
   await exigirBorrador(historialId)
   const { error } = await supabase.from('recetas').delete().eq('id', recetaItemId)
   if (error) throw new Error(`Error al eliminar receta: ${error.message}`)
+}
+
+/**
+ * Tope de la barrida de borradores.
+ *
+ * Una consulta abierta es, por definición, trabajo del día: si hay más de
+ * doscientas sin cerrar, el problema no es la consulta sino la clínica. El
+ * límite es explícito para que no lo ponga en silencio el corte de 1000 filas
+ * de PostgREST.
+ */
+const TOPE_BORRADORES = 200
+
+/**
+ * Consultas abiertas y sin cerrar, para el asistente del veterinario.
+ *
+ * Es lo único de esa pantalla que no se puede sacar de `listCitas`:
+ * `CitaConDetalle.historial_id` dice que hay historial, pero no si sigue
+ * abierto, y un borrador que recepción abrió ayer y nadie cerró tiene que
+ * seguir apareciendo.
+ *
+ * `veterinarioId` y `sucursalId` son opcionales y los pasa quien llama, igual
+ * que en el resto de servicios. Ojo: `historial_clinico` **no tiene**
+ * `sucursal_id` (0001:185), así que la sucursal se resuelve por la cita.
+ *
+ * Se compone con `.in(...)` sobre los ids que aparecen, como
+ * `componerDetalleDeCitas`: traerse `pacientes` o `clientes` enteros se rompe
+ * en silencio al pasar de 1000 filas.
+ */
+export async function listConsultasAbiertas(
+  veterinarioId?: string,
+  sucursalId?: string,
+): Promise<ConsultaAbierta[]> {
+  let query = supabase
+    .from('historial_clinico')
+    .select('id, cita_id, paciente_id, motivo')
+    .eq('editable', true)
+    .order('created_at', { ascending: false })
+    .limit(TOPE_BORRADORES)
+  if (veterinarioId) query = query.eq('veterinario_id', veterinarioId)
+
+  const { data: borradores, error } = await query
+  if (error) throw new Error(`No se pudieron cargar las consultas abiertas: ${error.message}`)
+  if (!borradores || borradores.length === 0) return []
+
+  const [{ data: citas }, { data: pacientes }] = await Promise.all([
+    supabase
+      .from('citas')
+      .select('id, sucursal_id, fecha_hora, tipo_cita')
+      .in('id', borradores.map((b) => b.cita_id)),
+    supabase
+      .from('pacientes')
+      .select('id, nombre, cliente_id')
+      .in('id', borradores.map((b) => b.paciente_id)),
+  ])
+
+  const clienteIds = [...new Set((pacientes ?? []).map((p) => p.cliente_id))]
+  const { data: clientes } = clienteIds.length
+    ? await supabase.from('clientes').select('id, nombre').in('id', clienteIds)
+    : { data: [] as { id: string; nombre: string }[] }
+
+  const mapaCitas = new Map((citas ?? []).map((c) => [c.id, c]))
+  const mapaPacientes = new Map((pacientes ?? []).map((p) => [p.id, p]))
+  const mapaClientes = new Map((clientes ?? []).map((c) => [c.id, c]))
+  const hoy = clinicDayIso()
+
+  return borradores
+    .flatMap((b) => {
+      const cita = mapaCitas.get(b.cita_id)
+      // Sin la cita no hay ni sucursal ni fecha que enseñar. `cita_id` es
+      // `not null` con `on delete cascade`, así que esto solo ocurre si la
+      // RLS la filtró — y entonces la consulta no es de quien está mirando.
+      if (!cita) return []
+      if (sucursalId && cita.sucursal_id !== sucursalId) return []
+
+      const paciente = mapaPacientes.get(b.paciente_id)
+      const cliente = paciente ? mapaClientes.get(paciente.cliente_id) : undefined
+      const dia = clinicDayIso(cita.fecha_hora)
+
+      return [{
+        historial_id: b.id,
+        paciente_id: b.paciente_id,
+        paciente_nombre: paciente?.nombre ?? 'Paciente no disponible',
+        cliente_nombre: cliente?.nombre ?? '',
+        motivo: b.motivo,
+        cita_id: cita.id,
+        fecha_hora: cita.fecha_hora,
+        tipo_cita: cita.tipo_cita as TipoCita,
+        atrasada: dia < hoy,
+      }]
+    })
+    // Lo más atrasado primero: es lo que lleva más tiempo esperando.
+    .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora))
 }

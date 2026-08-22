@@ -30,7 +30,8 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
     to: '/asistente',
     label: 'Asistente',
     icon: BellRing,
-    roles: ['recepcion', 'admin'],
+    // Un enlace, dos pantallas: `AsistenteSegunRol` decide cuál según el rol.
+    roles: ['recepcion', 'admin', 'veterinario'],
   },
   { to: '/internacion', label: 'Internación', icon: BedDouble, etiquetaCorta: 'Internac.' },
   { to: '/inventario', label: 'Inventario', icon: Boxes },

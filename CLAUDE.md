@@ -39,6 +39,8 @@ Cuando toques una regla de negocio, tiene que quedar en los **tres** sitios: el 
 
 ## El asistente de avisos (IA)
 
+`/asistente` es **una ruta y dos pantallas**: [AsistenteSegunRol](src/components/layout/AsistenteSegunRol.tsx) despacha por rol, igual que `InicioSegunRol` despacha el destino de entrada. Lo que sigue describe la de recepción y administración. La del veterinario está más abajo y no comparte nada con esta: ni WhatsApp ni IA.
+
 Cierra la Épica 4 del PRD: qué toca avisar hoy y con qué texto. **Es interno y one-way** — el PRD §2 excluye del MVP el chatbot conversacional y el agendamiento automático, así que la IA redacta y propone, pero quien envía es una persona.
 
 ```
@@ -62,6 +64,15 @@ supabase/functions/asistente/                           Deno + claude-opus-5
 - **Lo que sale hacia Anthropic** está acotado en un solo sitio, `contextoDeAviso()` de [lib/asistente.ts](src/lib/asistente.ts): paciente, especie, nombre de pila del dueño, fecha y procedimiento. No salen el teléfono, el CI, el diagnóstico ni el historial. Si añades un aviso, no amplíes ese contexto por comodidad.
 - **La IA no escribe en la base.** `services/programados.ts` deriva los avisos de las citas, las vacunas y las desparasitaciones ya registradas; enviar pasa por `enviarAviso()`, y crear una cita sigue siendo `crearCita()` con sus invariantes.
 - Los refuerzos de vacuna y desparasitación **no guardan «ya avisado»**. Un refuerzo pendiente deja de aparecer cuando se registra la dosis nueva o se agenda la cita, no cuando alguien manda el mensaje.
+
+### El asistente del veterinario
+
+La otra mitad de `/asistente` ([AsistenteVeterinarioPage](src/pages/AsistenteVeterinarioPage.tsx)) es su **cola de trabajo clínico**: las consultas abiertas que le esperan, sus citas de hoy y sus internados. Existe para cerrar un camino que estaba a ciegas — recepción abre la consulta desde la cita, y hasta ahora el borrador quedaba colgado del paciente sin ninguna pantalla que los enseñara juntos.
+
+- **Sin WhatsApp y sin IA, a propósito.** El cupo de mensajes del plan se gasta por un solo lado, el de recepción; y esto es una cola derivada de la base, no un redactor de textos (mismo criterio que [lib/asistentePlataforma.ts](src/lib/asistentePlataforma.ts)).
+- **Todo se deriva, igual que `listProgramados`.** Una fila desaparece sola cuando deja de ser cierta: se cerró la consulta, se firmó el consentimiento, se escribió la evolución. No hay nada que marcar como hecho.
+- `listConsultasAbiertas()` ([services/historial.ts](src/services/historial.ts)) es lo único que hubo que escribir: `CitaConDetalle.historial_id` dice que hay historial pero no si sigue abierto, y un borrador de ayer sin cerrar tiene que seguir apareciendo. `historial_clinico` **no tiene `sucursal_id`** — la sucursal se resuelve por la cita.
+- Las otras dos secciones salen de `listCitas` y `listInternaciones` con el `veterinarioId` que ya aceptan.
 
 ## Aislamiento multi-inquilino
 
@@ -159,8 +170,8 @@ Además:
 
   | `RolRoute` | Rutas |
   |---|---|
-  | `['admin', 'veterinario', 'recepcion']` | `/agenda`, `/pacientes`, `/pacientes/:id`, `/internacion`, `/inventario` |
-  | `['recepcion', 'admin']` | `/caja`, `/asistente`, `/respaldo` |
+  | `['admin', 'veterinario', 'recepcion']` | `/agenda`, `/pacientes`, `/pacientes/:id`, `/internacion`, `/inventario`, `/asistente` |
+  | `['recepcion', 'admin']` | `/caja`, `/respaldo` |
   | `['admin']` | `/servicios`, `/movimientos`, `/metricas` |
   | `['superadmin']` | `/plataforma`, `/plataforma/clinicas`, `/plataforma/planes` |
 

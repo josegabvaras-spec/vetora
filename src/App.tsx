@@ -23,7 +23,7 @@ import { ReciboPage } from './pages/ReciboPage'
 import { InternacionPage } from './pages/InternacionPage'
 import { RespaldoPage } from './pages/RespaldoPage'
 import { MetricasPage } from './pages/MetricasPage'
-import { AsistentePage } from './pages/AsistentePage'
+import { AsistenteSegunRol } from './components/layout/AsistenteSegunRol'
 import { InternacionImprimirPage } from './pages/InternacionImprimirPage'
 import { PoliticaPrivacidadPage } from './pages/PoliticaPrivacidadPage'
 import { PlataformaLayout } from './components/layout/PlataformaLayout'
@@ -92,11 +92,17 @@ export default function App() {
                 <Route path="/inventario" element={<InventarioPage />} />
               </Route>
 
+              {/* El asistente lo abre todo el personal, pero enseña dos cosas
+                  distintas: al veterinario su cola de trabajo clínico, y a
+                  recepción y administración los avisos al cliente y el informe
+                  del día. Ver AsistenteSegunRol. */}
+              <Route element={<RolRoute roles={['recepcion', 'admin', 'veterinario']} />}>
+                <Route path="/asistente" element={<AsistenteSegunRol />} />
+              </Route>
+
               {/* Caja para recepción y administración; los movimientos, solo administración */}
               <Route element={<RolRoute roles={['recepcion', 'admin']} />}>
                 <Route path="/caja" element={<CajaPage />} />
-                {/* Los avisos al cliente son trabajo de recepción; el informe, del administrador */}
-                <Route path="/asistente" element={<AsistentePage />} />
                 <Route path="/respaldo" element={<RespaldoPage />} />
               </Route>
               <Route element={<RolRoute roles={['admin']} />}>
