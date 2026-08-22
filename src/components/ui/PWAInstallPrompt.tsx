@@ -1,50 +1,33 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Download, X } from 'lucide-react'
+import {
+  pedirInstalacion,
+  promptDeInstalacion,
+  suscribirseAlPrompt,
+  yaEstaInstalada,
+} from '../../lib/pwa'
 
-// Extender la interfaz de Window para admitir BeforeInstallPromptEvent
-interface BeforeInstallPromptEvent extends Event {
-  readonly platforms: string[]
-  readonly userChoice: Promise<{
-    outcome: 'accepted' | 'dismissed'
-    platform: string
-  }>
-  prompt(): Promise<void>
-}
-
+/**
+ * Aviso para instalar la aplicación.
+ *
+ * No escucha el evento por su cuenta: lo captura `lib/pwa.ts` al arrancar. Este
+ * componente se monta después de iniciar sesión, y para entonces
+ * `beforeinstallprompt` ya se disparó — por eso antes no aparecía nunca.
+ */
 export function PWAInstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-  const [showPrompt, setShowPrompt] = useState(false)
+  const [disponible, setDisponible] = useState(() => promptDeInstalacion() !== null)
+  const [descartado, setDescartado] = useState(
+    () => sessionStorage.getItem('pwaPromptDismissed') === 'true',
+  )
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault()
-      setDeferredPrompt(e as BeforeInstallPromptEvent)
-      // Mostrar el prompt solo si no fue descartado previamente en la sesión actual
-      if (!sessionStorage.getItem('pwaPromptDismissed')) {
-        setShowPrompt(true)
-      }
-    }
+  useEffect(() => suscribirseAlPrompt(() => setDisponible(promptDeInstalacion() !== null)), [])
 
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
-  }, [])
+  if (!disponible || descartado || yaEstaInstalada()) return null
 
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return
-    deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null)
-      setShowPrompt(false)
-    }
-  }
-
-  const handleDismiss = () => {
-    setShowPrompt(false)
+  function descartar() {
+    setDescartado(true)
     sessionStorage.setItem('pwaPromptDismissed', 'true')
   }
-
-  if (!showPrompt) return null
 
   return (
     <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 md:bottom-6 md:left-auto md:right-6 md:w-96 animate-slide-up">
@@ -53,22 +36,28 @@ export function PWAInstallPrompt() {
           <Download size={20} strokeWidth={2.5} />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="font-display text-sm font-bold text-slate-900">Instala Vetora App</h3>
-          <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-            Instala nuestra aplicación para acceso rápido, uso en pantalla completa y una mejor experiencia.
+          <h3 className="font-display text-sm font-bold text-slate-900">Instala Vetora</h3>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            Queda como una aplicación más del celular: se abre a pantalla completa y sin la barra del navegador.
           </p>
           <div className="mt-3 flex items-center gap-2">
-            <button onClick={handleInstallClick} className="flex-1 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-teal-500">
-              Instalar Ahora
+            <button
+              onClick={() => pedirInstalacion()}
+              className="flex-1 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-teal-500"
+            >
+              Instalar
             </button>
-            <button onClick={handleDismiss} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-              Ahora No
+            <button
+              onClick={descartar}
+              className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Ahora no
             </button>
           </div>
         </div>
         <button
-          onClick={handleDismiss}
-          className="-mr-2 -mt-2 p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-full hover:bg-slate-50"
+          onClick={descartar}
+          className="-mr-2 -mt-2 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
           aria-label="Cerrar"
         >
           <X size={16} />

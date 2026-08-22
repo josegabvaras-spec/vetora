@@ -10,7 +10,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['vetoraicono.png', 'vetoralogo.png'],
+      includeAssets: ['vetoraicono.png', 'vetoralogo.png', 'pwa-192.png', 'pwa-512.png', 'pwa-maskable-512.png'],
       manifest: {
         name: 'Vetora - SaaS Clínico',
         short_name: 'Vetora',
@@ -20,17 +20,33 @@ export default defineConfig({
         display: 'standalone',
         scope: '/',
         start_url: '/',
+        lang: 'es',
+        // Chrome COMPRUEBA que las dimensiones reales coincidan con `sizes`, y
+        // aquí se declaraba el mismo `vetoraicono.png` —que es de 1024×1024—
+        // como 192 y como 512 a la vez. Al no coincidir descartaba el icono, y
+        // sin un icono válido la aplicación no es instalable: el aviso de
+        // «Instalar» no llegaba a aparecer nunca.
         icons: [
           {
-            src: 'vetoraicono.png',
+            src: 'pwa-192.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
           },
           {
-            src: 'vetoraicono.png',
+            src: 'pwa-512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
+          },
+          {
+            // Aparte del normal: Android recorta los `maskable` a un círculo, y
+            // el logo sin margen propio perdía los bordes. Este lleva el logo al
+            // 66% sobre fondo blanco para sobrevivir al recorte.
+            src: 'pwa-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       },

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FieldGroup, Input } from '../components/ui/Field'
+import { PWAInstallPrompt } from '../components/ui/PWAInstallPrompt'
 
 export function LoginPage() {
   const { usuario, esPlataforma, entrarConCredenciales } = useAuth()
@@ -119,6 +120,10 @@ export function LoginPage() {
             Registrarme como Cliente
           </Button>
         </div>
+
+        {/* También aquí, no solo dentro de la aplicación: instalarla antes de
+            entrar es justo lo que hace alguien que la va a usar a diario. */}
+        <PWAInstallPrompt />
 
         <div className="mt-8 flex flex-col items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
           <span>Bolivia · v1.0.1</span>

@@ -5,9 +5,14 @@ import App from './App.tsx'
 // @ts-expect-error - Vite PWA plugin virtual module
 import { registerSW } from 'virtual:pwa-register'
 import { instalarCapturaDeErrores } from './lib/errores'
+import { instalarCapturaDePrompt } from './lib/pwa'
 import { ErrorBoundary } from './components/layout/ErrorBoundary'
 
 registerSW({ immediate: true })
+
+// `beforeinstallprompt` se dispara una sola vez y muy pronto: hay que estar
+// escuchando antes de montar React, o se pierde.
+instalarCapturaDePrompt()
 
 // Antes de montar la aplicación: si el fallo ocurre durante el primer render,
 // engancharlo después llegaría tarde.
