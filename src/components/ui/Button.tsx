@@ -29,7 +29,13 @@ export function Button({ variant = 'primary', size = 'md', className, ...props }
       className={clsx(
         // `min-h-10` asegura el área de toque mínima incluso cuando el llamador
         // reduce el padding para un botón compacto dentro de una tabla.
-        'inline-flex min-h-10 w-full sm:w-auto items-center justify-center gap-2 rounded-lg font-medium whitespace-normal text-center',
+        'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg font-medium whitespace-normal text-center',
+        // Ancho completo en celular solo para los botones normales: en un
+        // formulario es lo que se busca. Un `sm` es por definición compacto y va
+        // en barras y filas junto a otros; estirarlo dejaba dos botones enormes
+        // con un icono diminuto en medio, uno debajo del otro. Quien necesite un
+        // `sm` a todo lo ancho puede pedirlo con `className="w-full"`.
+        size === 'sm' ? 'w-auto' : 'w-full sm:w-auto',
         'transition-all duration-200 cubic-bezier(0.4, 0, 0.2, 1)',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
         'active:scale-[0.98] active:opacity-95',

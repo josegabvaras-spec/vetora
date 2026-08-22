@@ -55,7 +55,7 @@ export function ReciboPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 print:bg-white">
-      <div className="mx-auto flex max-w-xl items-center justify-between px-6 py-4 print:hidden">
+      <div className="mx-auto flex max-w-xl flex-col items-stretch gap-3 px-4 py-4 print:hidden sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <Link to="/caja" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
           <ArrowLeft size={16} /> Volver a caja
         </Link>

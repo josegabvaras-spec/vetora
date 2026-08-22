@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useTable } from '../mocks/useDb'
+import { useEsEscritorio } from '../hooks/useMediaQuery'
 import {
   AccionesFirmaInforme,
   FirmasInformeImpresas,
@@ -28,15 +29,23 @@ const VACIO = '—'
 /** Una fila de la ficha: siempre se imprime, aunque el dato no se haya registrado. */
 type Fila = [etiqueta: string, valor: string | null | undefined]
 
-const celdaEtiqueta = 'w-40 border border-slate-400 bg-slate-100 px-2 py-1 text-left align-top text-[10px] font-bold uppercase tracking-wide text-slate-600'
+// `w-40` solo desde `md`. Con dos pares por fila eran 320 px de etiqueta en un
+// celular de 375: quedaban 23 px para los dos valores, así que el texto se
+// superponía y la última columna se salía del papel.
+const celdaEtiqueta = 'w-28 md:w-40 border border-slate-400 bg-slate-100 px-2 py-1 text-left align-top text-[10px] font-bold uppercase tracking-wide text-slate-600'
 const celdaValor = 'border border-slate-400 px-2 py-1 align-top text-slate-800'
 
 /** Tabla etiqueta/valor a dos columnas de pares por fila. */
 export function TablaFicha({ titulo, filas, columnas = 2 }: { titulo: string; filas: Fila[]; columnas?: 1 | 2 }) {
-  // Se agrupan los pares para que la ficha ocupe el ancho de la hoja.
+  // En celular va SIEMPRE un par por fila. Dos pares son cuatro columnas, y en
+  // 343 px de ancho no hay forma de repartirlas sin que se pisen: el documento
+  // se alarga, pero se lee.
+  const esEscritorio = useEsEscritorio()
+  const paresPorFila = esEscritorio ? columnas : 1
+
   const grupos: Fila[][] = []
-  for (let i = 0; i < filas.length; i += columnas) {
-    grupos.push(filas.slice(i, i + columnas))
+  for (let i = 0; i < filas.length; i += paresPorFila) {
+    grupos.push(filas.slice(i, i + paresPorFila))
   }
 
   return (
@@ -55,7 +64,9 @@ export function TablaFicha({ titulo, filas, columnas = 2 }: { titulo: string; fi
                 </Fragment>
               ))}
               {/* Completa la última fila si quedó impar, para no romper la rejilla */}
-              {grupo.length < columnas && <td className="border border-slate-400" colSpan={(columnas - grupo.length) * 2} />}
+              {grupo.length < paresPorFila && (
+                <td className="border border-slate-400" colSpan={(paresPorFila - grupo.length) * 2} />
+              )}
             </tr>
           ))}
         </tbody>
@@ -76,7 +87,12 @@ export function TablaListado({
   return (
     <section className="mb-4 break-inside-avoid">
       <h3 className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-700">{titulo}</h3>
-      <table className="w-full border-collapse text-[11px]">
+      {/* El recetario llega a seis columnas (medicamento, dosis, vía, frecuencia,
+          duración, indicaciones): en celular no caben, así que la tabla se
+          desplaza sola en vez de salirse del documento. Al imprimir se anula el
+          desplazamiento para que no recorte nada en el papel. */}
+      <div className="overflow-x-auto print:overflow-visible">
+      <table className="w-full min-w-[28rem] border-collapse text-[11px] print:min-w-0">
         <thead>
           <tr>
             {cabeceras.map((c) => (
@@ -106,6 +122,7 @@ export function TablaListado({
           )}
         </tbody>
       </table>
+      </div>
     </section>
   )
 }
@@ -185,7 +202,7 @@ export function HistorialImprimirPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 print:bg-white">
-      <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4 print:hidden">
+      <div className="mx-auto flex max-w-4xl flex-col items-stretch gap-3 px-4 py-4 print:hidden sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <Link
           to={`/pacientes/${paciente.id}`}
           className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"

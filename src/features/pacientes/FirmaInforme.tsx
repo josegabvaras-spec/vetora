@@ -38,7 +38,9 @@ export function AccionesFirmaInforme({
   const [firmando, setFirmando] = useState(false)
 
   return (
-    <div className="flex items-center gap-2">
+    // En celular los botones van uno debajo del otro y a todo lo ancho: en fila
+    // quedaban dos cajas estrechas con el texto partido en tres líneas.
+    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
       {firma ? (
         <>
           <Button variant="secondary" onClick={() => setFirmando(true)}>
