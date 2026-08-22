@@ -19,9 +19,12 @@ import { supabase } from '../lib/supabase'
 export type EstadoServicio = 'operativo' | 'degradado' | 'caido'
 
 export interface SaludSistema {
-  baseDatos: { estado: EstadoServicio; latenciaMs: number | null }
-  almacenamiento: { estado: EstadoServicio; bytesUsados: number | null }
+  /** `mensaje` lleva el motivo cuando algo va mal: un «caído» sin explicación
+   *  obliga a adivinar, que es justo lo que este panel vino a evitar. */
+  baseDatos: { estado: EstadoServicio; latenciaMs: number | null; mensaje: string | null }
+  almacenamiento: { estado: EstadoServicio; bytesUsados: number | null; mensaje: string | null }
   errores24h: number | null
+  erroresMensaje: string | null
 }
 
 /**
@@ -40,32 +43,47 @@ async function medirBaseDatos(): Promise<SaludSistema['baseDatos']> {
     const { error } = await supabase.from('planes').select('id', { count: 'exact', head: true })
     const latenciaMs = Math.round(performance.now() - inicio)
 
-    if (error) return { estado: 'caido', latenciaMs: null }
-    return { estado: latenciaMs > LATENCIA_DEGRADADA_MS ? 'degradado' : 'operativo', latenciaMs }
-  } catch {
-    return { estado: 'caido', latenciaMs: null }
+    if (error) return { estado: 'caido', latenciaMs: null, mensaje: error.message }
+    if (latenciaMs > LATENCIA_DEGRADADA_MS) {
+      return { estado: 'degradado', latenciaMs, mensaje: `La consulta tardó ${latenciaMs} ms` }
+    }
+    return { estado: 'operativo', latenciaMs, mensaje: null }
+  } catch (err) {
+    return { estado: 'caido', latenciaMs: null, mensaje: err instanceof Error ? err.message : String(err) }
   }
 }
 
 async function medirAlmacenamiento(): Promise<SaludSistema['almacenamiento']> {
   try {
-    // Si el bucket no existe —la migración 0016 sin aplicar— esto falla, que es
-    // exactamente lo que el panel debe enseñar en vez de un «operativo» fijo.
-    const { error } = await supabase.storage.getBucket('estudios')
-    if (error) return { estado: 'caido', bytesUsados: null }
+    // NO se usa `getBucket()`. Lee `storage.buckets`, y 0016 solo creó policies
+    // sobre `storage.objects`: fallaba SIEMPRE por permisos y el panel decía
+    // «caído» aunque subir y ver imágenes funcionara perfectamente. Estaba
+    // midiendo una tabla que la aplicación no usa para nada.
+    //
+    // `list` sí ejerce lo que la aplicación hace de verdad. Para el superadmin
+    // devuelve vacío —sus policies son por clínica y él no tiene ninguna—, y
+    // vacío NO es un error: solo lo es que el bucket no exista.
+    const { error } = await supabase.storage.from('estudios').list('', { limit: 1 })
+    if (error) return { estado: 'caido', bytesUsados: null, mensaje: error.message }
 
-    // El tamaño sale de una función `security definer`: las policies de
-    // `storage.objects` acotan por clínica y el superadmin no tiene ninguna.
+    // El tamaño sale de una función `security definer`, por el mismo motivo:
+    // las policies de `storage.objects` acotan por clínica.
     const { data, error: errorEspacio } = await supabase.rpc('espacio_estudios_bytes')
-    if (errorEspacio) return { estado: 'degradado', bytesUsados: null }
+    if (errorEspacio) {
+      return {
+        estado: 'degradado',
+        bytesUsados: null,
+        mensaje: `El bucket responde, pero no se pudo medir el espacio: ${errorEspacio.message}`,
+      }
+    }
 
-    return { estado: 'operativo', bytesUsados: Number(data ?? 0) }
-  } catch {
-    return { estado: 'caido', bytesUsados: null }
+    return { estado: 'operativo', bytesUsados: Number(data ?? 0), mensaje: null }
+  } catch (err) {
+    return { estado: 'caido', bytesUsados: null, mensaje: err instanceof Error ? err.message : String(err) }
   }
 }
 
-async function contarErrores24h(): Promise<number | null> {
+async function contarErrores24h(): Promise<{ total: number | null; mensaje: string | null }> {
   const desde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { count, error } = await supabase
     .from('registro_errores')
@@ -74,17 +92,17 @@ async function contarErrores24h(): Promise<number | null> {
 
   // `null` y `0` significan cosas distintas: uno es «no se pudo contar» y el
   // otro «no hubo errores». El panel los pinta diferente.
-  if (error) return null
-  return count ?? 0
+  if (error) return { total: null, mensaje: error.message }
+  return { total: count ?? 0, mensaje: null }
 }
 
 export async function medirSaludSistema(): Promise<SaludSistema> {
-  const [baseDatos, almacenamiento, errores24h] = await Promise.all([
+  const [baseDatos, almacenamiento, errores] = await Promise.all([
     medirBaseDatos(),
     medirAlmacenamiento(),
     contarErrores24h(),
   ])
-  return { baseDatos, almacenamiento, errores24h }
+  return { baseDatos, almacenamiento, errores24h: errores.total, erroresMensaje: errores.mensaje }
 }
 
 /** Bytes legibles para el panel. */

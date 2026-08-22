@@ -76,12 +76,15 @@ function EstadoServicio({
   estado,
   icono,
   detalle,
+  mensaje,
 }: {
   nombre: string
   estado: 'operativo' | 'degradado' | 'caido'
   icono: React.ReactNode
   /** La medición concreta: latencia, espacio ocupado. Es lo que hace creíble el estado. */
   detalle?: string
+  /** El motivo del fallo, si lo hubo. */
+  mensaje?: string | null
 }) {
   const isOperativo = estado === 'operativo'
   const colorText = isOperativo ? 'text-emerald-700' : estado === 'degradado' ? 'text-amber-700' : 'text-rose-700'
@@ -102,6 +105,8 @@ function EstadoServicio({
             <span className={`text-[11px] font-semibold ${colorText} opacity-80 capitalize`}>{estado}</span>
             {detalle && <span className="text-[11px] text-slate-500">· {detalle}</span>}
           </div>
+          {/* El motivo, cuando lo hay. Un «caído» a secas obliga a adivinar. */}
+          {mensaje && <p className={`mt-1 text-[11px] ${colorText} opacity-90`}>{mensaje}</p>}
         </div>
       </div>
     </div>
@@ -117,6 +122,7 @@ export function PlataformaResumenPage() {
   // La salud se mide en cada carga, aparte del resumen: es lo único de esta
   // pantalla que depende del momento y no de los datos.
   const [salud, setSalud] = useState<SaludSistema | null>(null)
+  const [detalleAbierto, setDetalleAbierto] = useState(false)
 
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
@@ -135,13 +141,15 @@ export function PlataformaResumenPage() {
     // reventara antes de eso la tarjeta se quedaría en «Midiendo…» para siempre.
     medirSaludSistema()
       .then(setSalud)
-      .catch(() =>
+      .catch((err) => {
+        const motivo = err instanceof Error ? err.message : String(err)
         setSalud({
-          baseDatos: { estado: 'caido', latenciaMs: null },
-          almacenamiento: { estado: 'caido', bytesUsados: null },
+          baseDatos: { estado: 'caido', latenciaMs: null, mensaje: motivo },
+          almacenamiento: { estado: 'caido', bytesUsados: null, mensaje: motivo },
           errores24h: null,
-        }),
-      )
+          erroresMensaje: motivo,
+        })
+      })
   }, [])
 
   // Un fallo dejaba «Cargando panel…» fijo, indistinguible de una consulta lenta.
@@ -154,6 +162,14 @@ export function PlataformaResumenPage() {
   }
 
   if (!resumen) return <p className="text-sm text-slate-500">Cargando panel…</p>
+
+  // Hay algo que explicar si un servicio no está operativo o si el contador de
+  // errores no se pudo leer.
+  const hayIncidencias =
+    !!salud &&
+    (salud.baseDatos.mensaje !== null ||
+      salud.almacenamiento.mensaje !== null ||
+      salud.erroresMensaje !== null)
 
   const enMora = clinicas.filter((c) => c.estado_pago === 'en_mora')
   const cerca = clinicas.filter((c) => {
@@ -265,6 +281,7 @@ export function PlataformaResumenPage() {
                     estado={salud.baseDatos.estado}
                     icono={<Database size={16} />}
                     detalle={salud.baseDatos.latenciaMs !== null ? `${salud.baseDatos.latenciaMs} ms` : undefined}
+                    mensaje={detalleAbierto ? salud.baseDatos.mensaje : null}
                   />
                   <EstadoServicio
                     nombre="Almacenamiento"
@@ -275,6 +292,7 @@ export function PlataformaResumenPage() {
                         ? `${formatBytes(salud.almacenamiento.bytesUsados)} en estudios`
                         : undefined
                     }
+                    mensaje={detalleAbierto ? salud.almacenamiento.mensaje : null}
                   />
                 </div>
                 <div className="mt-5 border-t border-slate-100 pt-4">
@@ -287,7 +305,23 @@ export function PlataformaResumenPage() {
                       <Badge tone={salud.errores24h > 0 ? 'amber' : 'emerald'}>{salud.errores24h}</Badge>
                     )}
                   </div>
+                  {detalleAbierto && salud.erroresMensaje && (
+                    <p className="mt-1 text-[11px] text-rose-700">{salud.erroresMensaje}</p>
+                  )}
                 </div>
+
+                {/* El motivo del fallo no se enseña de entrada: en un panel que
+                    casi siempre está en verde, tres mensajes técnicos serían
+                    ruido permanente. Se piden cuando hacen falta. */}
+                {hayIncidencias && (
+                  <button
+                    type="button"
+                    onClick={() => setDetalleAbierto((abierto) => !abierto)}
+                    className="mt-4 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    {detalleAbierto ? 'Ocultar el motivo' : '¿Por qué? Ver el motivo'}
+                  </button>
+                )}
               </>
             )}
           </Card>
