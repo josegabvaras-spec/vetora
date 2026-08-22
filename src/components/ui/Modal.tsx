@@ -69,8 +69,13 @@ export function Modal({ title, onClose, children, widthClassName = 'max-w-lg' }:
           </button>
         </div>
         {/* Solo desplaza el cuerpo: la cabecera con el botón de cerrar queda
-            siempre a la vista, que en un formulario largo es lo que se busca. */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
+            siempre a la vista, que en un formulario largo es lo que se busca.
+
+            `overflow-x-auto` es la red de seguridad: antes solo desplazaba en
+            vertical, así que un contenido más ancho que el modal —una tabla, una
+            fila de campos— se salía por el lado sin forma de alcanzarlo. Ahora
+            se desplaza dentro del modal en vez de desbordar la pantalla. */}
+        <div className="flex-1 overflow-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
           {children}
         </div>
       </div>

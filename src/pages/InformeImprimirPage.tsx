@@ -118,7 +118,7 @@ export function InformeImprimirPage() {
         />
       </div>
 
-      <div className="mx-auto max-w-4xl bg-white p-10 shadow-sm print:p-0 print:shadow-none">
+      <div className="mx-auto max-w-4xl bg-white p-4 shadow-sm sm:p-10 print:p-0 print:shadow-none">
         {/* Encabezado de la clínica */}
         <header className="mb-6 border-b-2 border-teal-700 pb-4 text-center">
           <h1 className="text-lg font-black uppercase tracking-wider text-slate-900">{tituloInforme}</h1>

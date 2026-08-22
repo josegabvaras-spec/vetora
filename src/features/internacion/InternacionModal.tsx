@@ -87,7 +87,10 @@ export function InternacionModal({
         </dl>
 
         {/* El importe se muestra a título informativo: quien cobra es caja. */}
-        <dl className="grid grid-cols-3 gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-4">
+        {/* Una sola columna en celular: con tres, la etiqueta «Estadía (Bs.
+            150.00/día)» y su importe se parten en un tercio de 343 px y quedan
+            ilegibles. */}
+        <dl className="grid grid-cols-1 gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-4 sm:grid-cols-3">
           <Dato
             etiqueta={`Estadía (${formatBs(internacion.precio_dia_bs)}/día)`}
             valor={formatBs(internacion.costo_estadia_bs)}

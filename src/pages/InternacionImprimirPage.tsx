@@ -76,7 +76,7 @@ export function InternacionImprimirPage() {
         </Button>
       </div>
 
-      <div className="mx-auto max-w-4xl bg-white p-10 shadow-sm print:p-0 print:shadow-none">
+      <div className="mx-auto max-w-4xl bg-white p-4 shadow-sm sm:p-10 print:p-0 print:shadow-none">
         <header className="mb-5 border-b-2 border-slate-700 pb-3 text-center">
           <h1 className="text-base font-bold uppercase tracking-wide text-slate-800">Hoja de internación</h1>
           <p className="mt-0.5 text-xs text-slate-600">

@@ -594,8 +594,12 @@ function CobrarModal({
           )}
         </Seccion>
 
-        <table className="w-full border-collapse text-sm">
-          <thead>
+        {/* La tabla se desplaza sola si no cabe: en celular, el importe editable
+            más la línea de referencia empujan la columna del concepto, y antes
+            se salía del modal sin forma de alcanzarla. */}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[20rem] border-collapse text-sm">
+            <thead>
             <tr>
               <th className="border-b border-slate-200 pb-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Concepto
@@ -665,6 +669,7 @@ function CobrarModal({
             </tr>
           </tbody>
         </table>
+        </div>
 
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Método de pago</p>
@@ -1007,8 +1012,12 @@ function VentaMedicamentosModal({
         </div>
 
         {/* Tabla resumen de lo que se cobrará */}
-        <table className="w-full border-collapse text-sm">
-          <thead>
+        {/* La tabla se desplaza sola si no cabe: en celular, el importe editable
+            más la línea de referencia empujan la columna del concepto, y antes
+            se salía del modal sin forma de alcanzarla. */}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[20rem] border-collapse text-sm">
+            <thead>
             <tr>
               <th className="border-b border-slate-200 pb-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Medicamento / Producto
@@ -1060,6 +1069,7 @@ function VentaMedicamentosModal({
             </tr>
           </tbody>
         </table>
+        </div>
 
         {/* Método de pago */}
         <div>
