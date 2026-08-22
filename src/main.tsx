@@ -5,6 +5,7 @@ import App from './App.tsx'
 // @ts-expect-error - Vite PWA plugin virtual module
 import { registerSW } from 'virtual:pwa-register'
 import { instalarCapturaDeErrores } from './lib/errores'
+import { ErrorBoundary } from './components/layout/ErrorBoundary'
 
 registerSW({ immediate: true })
 
@@ -14,6 +15,10 @@ instalarCapturaDeErrores()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {/* Por encima del router: es el único punto que cubre todo, incluido un
+        fallo del propio enrutado. */}
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )
