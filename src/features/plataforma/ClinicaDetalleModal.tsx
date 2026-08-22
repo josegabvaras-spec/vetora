@@ -108,7 +108,11 @@ export function ClinicaDetalleModal({
   const [enviandoAcceso, setEnviandoAcceso] = useState<Usuario | null>(null)
 
   useEffect(() => {
-    listPlanes().then(setPlanes)
+    // Sin el `catch`, un fallo dejaba el selector de plan vacío y parecía que
+    // la plataforma no tenía ninguno dado de alta.
+    listPlanes()
+      .then(setPlanes)
+      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los planes'))
   }, [])
 
   // Una sola consulta para todo el listado, y se rehace cuando la tabla de

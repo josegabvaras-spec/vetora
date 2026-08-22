@@ -26,12 +26,19 @@ const ESPECIE_LABEL: Record<string, string> = {
 export function InternacionImprimirPage() {
   const { id } = useParams<{ id: string }>()
   const [internacion, setInternacion] = useState<InternacionConDetalle | null | undefined>(undefined)
+  // «No se pudo cargar» y «no existe» son cosas distintas.
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const clinica = useTable('clinicas')[0]
   const sucursales = useTable('sucursales')
 
   useEffect(() => {
     if (!id) return
-    getInternacion(id).then(setInternacion)
+    getInternacion(id)
+      .then(setInternacion)
+      .catch((err) => {
+        setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar la hoja de internación')
+        setInternacion(null)
+      })
   }, [id])
 
   if (internacion === undefined) {
@@ -41,7 +48,9 @@ export function InternacionImprimirPage() {
   if (!internacion) {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-6 text-center">
-        <p className="text-sm text-slate-500">No se encontró la internación solicitada.</p>
+        <p className={errorCarga ? 'text-sm font-semibold text-rose-700' : 'text-sm text-slate-500'}>
+          {errorCarga ?? 'No se encontró la internación solicitada.'}
+        </p>
         <Link to="/internacion" className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
           <ArrowLeft size={16} /> Volver a internación
         </Link>

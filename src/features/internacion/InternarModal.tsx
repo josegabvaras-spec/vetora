@@ -39,14 +39,20 @@ export function InternarModal({
   
   useEffect(() => {
     let montado = true
-    serviciosDeCategoria('internacion').then((data) => {
-      if (montado) {
-        setTarifas(data)
-        if (data.length > 0 && !servicioDiaId) {
-          setServicioDiaId(data[0].id)
+    serviciosDeCategoria('internacion')
+      .then((data) => {
+        if (montado) {
+          setTarifas(data)
+          if (data.length > 0 && !servicioDiaId) {
+            setServicioDiaId(data[0].id)
+          }
         }
-      }
-    })
+      })
+      // Sin esto, un fallo dejaba el selector de tarifa vacío y parecía que la
+      // clínica no tenía ninguna configurada.
+      .catch((err) => {
+        if (montado) setError(err instanceof Error ? err.message : 'No se pudieron cargar las tarifas de internación')
+      })
     return () => { montado = false }
     // `servicioDiaId` se omite a propósito de las dependencias, y el linter lo
     // avisa: el `!servicioDiaId` de arriba solo quiere fijar la primera tarifa

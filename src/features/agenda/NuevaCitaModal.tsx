@@ -90,9 +90,16 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
       return
     }
     let montado = true
-    consultasControlables(pacienteId).then((data) => {
-      if (montado) setConsultasPrevias(data)
-    })
+    consultasControlables(pacienteId)
+      .then((data) => {
+        if (montado) setConsultasPrevias(data)
+      })
+      // Sin esto, un fallo de la consulta dejaba la lista vacía y el formulario
+      // decía «este paciente no tiene consultas para controlar» — una respuesta
+      // clínica falsa a un problema técnico.
+      .catch((err) => {
+        if (montado) setError(err instanceof Error ? err.message : 'No se pudieron cargar las consultas previas')
+      })
     return () => { montado = false }
   }, [pacienteId, citas])
   const origenValido = consultasPrevias.some((c) => c.cita_id === citaOrigenId)
@@ -100,9 +107,13 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   const [cirugias, setCirugias] = useState<any[]>([])
   useEffect(() => {
     let montado = true
-    serviciosDeCategoria('cirugia').then((data) => {
-      if (montado) setCirugias(data)
-    })
+    serviciosDeCategoria('cirugia')
+      .then((data) => {
+        if (montado) setCirugias(data)
+      })
+      .catch((err) => {
+        if (montado) setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo de cirugías')
+      })
     return () => { montado = false }
   }, [servicios])
 

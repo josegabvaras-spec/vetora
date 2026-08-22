@@ -24,11 +24,18 @@ const VACIO = '—'
 export function ConsultaImprimirPage() {
   const { pacienteId, consultaId } = useParams<{ pacienteId: string; consultaId: string }>()
   const [ficha, setFicha] = useState<FichaPaciente | null | undefined>(undefined)
+  // «No se pudo cargar» y «no existe» son cosas distintas.
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const clinica = useTable('clinicas')[0]
 
   useEffect(() => {
     if (!pacienteId) return
-    getFichaPaciente(pacienteId).then(setFicha)
+    getFichaPaciente(pacienteId)
+      .then(setFicha)
+      .catch((err) => {
+        setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar la consulta')
+        setFicha(null)
+      })
   }, [pacienteId])
 
   if (ficha === undefined) {
@@ -38,7 +45,9 @@ export function ConsultaImprimirPage() {
   if (!ficha) {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-6 text-center">
-        <p className="text-sm text-slate-500">No se encontró el paciente solicitado.</p>
+        <p className={errorCarga ? 'text-sm font-semibold text-rose-700' : 'text-sm text-slate-500'}>
+          {errorCarga ?? 'No se encontró el paciente solicitado.'}
+        </p>
         <Link to="/pacientes" className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
           <ArrowLeft size={16} /> Volver a pacientes
         </Link>

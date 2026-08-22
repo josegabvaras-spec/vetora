@@ -18,6 +18,8 @@ const METODO_LABEL: Record<MetodoPago, string> = { efectivo: 'Efectivo', qr: 'QR
 export function ReciboPage() {
   const { cobroId } = useParams<{ cobroId: string }>()
   const [cobro, setCobro] = useState<CobroConDetalle | null | undefined>(undefined)
+  // «No se pudo cargar» y «no existe» son cosas distintas.
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const clinica = useTable('clinicas')[0]
   const sucursales = useTable('sucursales')
   // Sin paciente: un recibo puede ser de una venta de mostrador, que se cobra a
@@ -26,7 +28,12 @@ export function ReciboPage() {
 
   useEffect(() => {
     if (!cobroId) return
-    getCobro(cobroId).then(setCobro)
+    getCobro(cobroId)
+      .then(setCobro)
+      .catch((err) => {
+        setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar el recibo')
+        setCobro(null)
+      })
   }, [cobroId])
 
   if (cobro === undefined) return <p className="p-6 text-sm text-slate-500">Cargando recibo…</p>
@@ -34,7 +41,9 @@ export function ReciboPage() {
   if (!cobro) {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-6 text-center">
-        <p className="text-sm text-slate-500">No se encontró el cobro solicitado.</p>
+        <p className={errorCarga ? 'text-sm font-semibold text-rose-700' : 'text-sm text-slate-500'}>
+          {errorCarga ?? 'No se encontró el cobro solicitado.'}
+        </p>
         <Link to="/caja" className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
           <ArrowLeft size={16} /> Volver a caja
         </Link>

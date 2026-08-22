@@ -141,10 +141,16 @@ export function InternacionPage() {
   useEffect(() => {
     if (pacienteInicial) setInternando(true)
     if (!internacionInicial) return
-    listInternaciones().then((todas) => {
-      const encontrada = todas.find((i) => i.id === internacionInicial)
-      if (encontrada) setSeleccionada(encontrada)
-    })
+    listInternaciones()
+      .then((todas) => {
+        const encontrada = todas.find((i) => i.id === internacionInicial)
+        if (encontrada) setSeleccionada(encontrada)
+      })
+      // Sin esto, llegar desde la agenda con un enlace a una internación que no
+      // se pudo cargar simplemente no abría nada, sin decir por qué.
+      .catch((err) =>
+        setErrorCarga(err instanceof Error ? err.message : 'No se pudo abrir la internación solicitada'),
+      )
   }, [pacienteInicial, internacionInicial])
 
   function limpiarParametros() {

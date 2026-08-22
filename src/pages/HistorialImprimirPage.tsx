@@ -148,13 +148,20 @@ export function examenFilas(h: HistorialConDetalle): Fila[] {
 export function HistorialImprimirPage() {
   const { id } = useParams<{ id: string }>()
   const [ficha, setFicha] = useState<FichaPaciente | null | undefined>(undefined)
+  // «No se pudo cargar» y «no existe» son cosas distintas.
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const clinica = useTable('clinicas')[0]
   // El historial completo no habla de una consulta concreta: va sin `item_id`.
   const { firma, setFirma } = useFirmaInforme(id, 'historial', null)
 
   useEffect(() => {
     if (!id) return
-    getFichaPaciente(id).then(setFicha)
+    getFichaPaciente(id)
+      .then(setFicha)
+      .catch((err) => {
+        setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar el historial')
+        setFicha(null)
+      })
   }, [id])
 
   if (ficha === undefined) {
@@ -164,7 +171,9 @@ export function HistorialImprimirPage() {
   if (!ficha) {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-6 text-center">
-        <p className="text-sm text-slate-500">No se encontró el paciente solicitado.</p>
+        <p className={errorCarga ? 'text-sm font-semibold text-rose-700' : 'text-sm text-slate-500'}>
+          {errorCarga ?? 'No se encontró el paciente solicitado.'}
+        </p>
         <Link to="/pacientes" className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
           <ArrowLeft size={16} /> Volver a pacientes
         </Link>

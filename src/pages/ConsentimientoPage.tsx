@@ -28,9 +28,18 @@ export function ConsentimientoPage() {
   const clinica = useTable('clinicas')[0]
   const sucursales = useTable('sucursales')
 
+  // «No se pudo cargar» y «no existe» son cosas distintas: sin el `catch`, un
+  // fallo dejaba la pantalla en «Cargando…» para siempre.
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+
   useEffect(() => {
     if (!citaId) return
-    getCita(citaId).then(setCita)
+    getCita(citaId)
+      .then(setCita)
+      .catch((err) => {
+        setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar el consentimiento')
+        setCita(null)
+      })
   }, [citaId])
 
   if (cita === undefined) {
@@ -40,7 +49,9 @@ export function ConsentimientoPage() {
   if (!cita) {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-6 text-center">
-        <p className="text-sm text-slate-500">No se encontró la cita solicitada.</p>
+        <p className={errorCarga ? 'text-sm font-semibold text-rose-700' : 'text-sm text-slate-500'}>
+          {errorCarga ?? 'No se encontró la cita solicitada.'}
+        </p>
         <Link to="/agenda" className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
           <ArrowLeft size={16} /> Volver a la agenda
         </Link>

@@ -194,13 +194,17 @@ function NuevaClinicaModal({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    listPlanes(true).then((activos) => {
-      setPlanes(activos)
-      if (activos[0]) {
-        setPlanId(activos[0].id)
-        setPrecio(String(activos[0].precio_mensual_bs))
-      }
-    })
+    listPlanes(true)
+      .then((activos) => {
+        setPlanes(activos)
+        if (activos[0]) {
+          setPlanId(activos[0].id)
+          setPrecio(String(activos[0].precio_mensual_bs))
+        }
+      })
+      // Sin esto, un fallo dejaba el alta sin planes que elegir y el formulario
+      // moría después con un error de clave foránea, mucho más lejos del origen.
+      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los planes'))
   }, [])
 
   // El precio de lista es solo la propuesta: lo acordado puede ser otro.

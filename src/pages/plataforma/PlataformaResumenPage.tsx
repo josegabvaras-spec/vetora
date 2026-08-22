@@ -22,6 +22,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { AvisoError } from '../../components/ui/AvisoError'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Seccion } from '../../components/ui/Seccion'
@@ -117,14 +118,40 @@ export function PlataformaResumenPage() {
   // pantalla que depende del momento y no de los datos.
   const [salud, setSalud] = useState<SaludSistema | null>(null)
 
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+
   useEffect(() => {
-    resumenPlataforma().then(setResumen)
-    listClinicas().then(setClinicas)
+    setErrorCarga(null)
+    resumenPlataforma()
+      .then(setResumen)
+      .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar el panel'))
+    listClinicas()
+      .then(setClinicas)
+      .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudieron cargar las clínicas'))
   }, [filas])
 
   useEffect(() => {
-    medirSaludSistema().then(setSalud)
+    // `medirSaludSistema` ya devuelve los fallos como estado ('caido'), pero si
+    // reventara antes de eso la tarjeta se quedaría en «Midiendo…» para siempre.
+    medirSaludSistema()
+      .then(setSalud)
+      .catch(() =>
+        setSalud({
+          baseDatos: { estado: 'caido', latenciaMs: null },
+          almacenamiento: { estado: 'caido', bytesUsados: null },
+          errores24h: null,
+        }),
+      )
   }, [])
+
+  // Un fallo dejaba «Cargando panel…» fijo, indistinguible de una consulta lenta.
+  if (errorCarga) {
+    return (
+      <div className="py-10">
+        <AvisoError mensaje={errorCarga} />
+      </div>
+    )
+  }
 
   if (!resumen) return <p className="text-sm text-slate-500">Cargando panel…</p>
 

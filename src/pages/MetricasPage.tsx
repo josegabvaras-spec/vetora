@@ -4,6 +4,7 @@ import {
   TrendingUp, Users, Boxes, Wallet, 
   ArrowUpRight, ArrowDownRight, PackageX
 } from 'lucide-react'
+import { AvisoError } from '../components/ui/AvisoError'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Seccion } from '../components/ui/Seccion'
@@ -188,9 +189,24 @@ export function MetricasPage() {
     useSuscripcionTabla('productos'),
   ].join('-')
 
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+
   useEffect(() => {
-    obtenerResumenMetricas().then(setMetricas)
+    setErrorCarga(null)
+    obtenerResumenMetricas()
+      .then(setMetricas)
+      .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudieron calcular las métricas'))
   }, [revisionMetricas])
+
+  // Un fallo dejaba la rueda girando para siempre: `metricas` seguía en null y
+  // nada distinguía «calculando» de «se rompió».
+  if (errorCarga) {
+    return (
+      <div className="py-10">
+        <AvisoError mensaje={errorCarga} />
+      </div>
+    )
+  }
 
   if (!metricas) {
     return (
