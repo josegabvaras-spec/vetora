@@ -19,3 +19,26 @@
 export function puedeAtender(usuario: { rol: string; activo: boolean }): boolean {
   return (usuario.rol === 'veterinario' || usuario.rol === 'admin') && usuario.activo
 }
+
+/**
+ * Veterinario al que se acota lo que este usuario ve y agenda, o `undefined`
+ * si ve el trabajo de toda la sucursal.
+ *
+ * Un `veterinario` abre la agenda para saber qué le toca a ÉL. Con las citas de
+ * todos mezcladas, tiene que buscar las suyas y el contador del día no es el
+ * suyo.
+ *
+ * El `admin` NO se acota aunque atienda —en el Plan Consultorio atiende, ver
+ * `puedeAtender`—: coordina la clínica y necesita la vista completa. `recepcion`
+ * tampoco, que agenda para todos.
+ *
+ * **Es un filtro de pantalla, no una barrera de seguridad.** La RLS sigue
+ * dejando que un veterinario lea la consulta que un colega le hizo al mismo
+ * paciente, y así debe ser: el expediente clínico tiene que estar completo para
+ * atender sin riesgo. Lo que se acota es «mi trabajo de hoy», no el historial.
+ */
+export function veterinarioAcotado(
+  usuario: { id: string; rol: string } | null | undefined,
+): string | undefined {
+  return usuario?.rol === 'veterinario' ? usuario.id : undefined
+}

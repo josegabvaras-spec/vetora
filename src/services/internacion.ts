@@ -76,9 +76,15 @@ export async function detalleDeInternacion(internacion: Internacion): Promise<In
   }
 }
 
+/**
+ * `veterinarioId` acota el listado al responsable, igual que `sucursalId` acota
+ * a la sucursal: sin él no filtra. Lo pasa quien llama, con
+ * `veterinarioAcotado()` ([lib/personal.ts](../lib/personal.ts)).
+ */
 export async function listInternaciones(
   sucursalId?: string,
   estado?: EstadoInternacion,
+  veterinarioId?: string,
 ): Promise<InternacionConDetalle[]> {
   // Tope explícito: `internaciones` crece sin techo y la pantalla solo pinta un
   // listado. Con el orden descendente, lo que se recorta es lo más antiguo, no
@@ -91,6 +97,7 @@ export async function listInternaciones(
     .limit(500)
   if (sucursalId) query = query.eq('sucursal_id', sucursalId)
   if (estado) query = query.eq('estado', estado)
+  if (veterinarioId) query = query.eq('veterinario_id', veterinarioId)
 
   const { data: internaciones } = await query
   if (!internaciones || internaciones.length === 0) return []

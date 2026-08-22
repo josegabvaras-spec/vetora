@@ -8,7 +8,8 @@ import { Button } from '../components/ui/Button'
 import { Seccion } from '../components/ui/Seccion'
 import { useAuth } from '../context/AuthContext'
 import { useSuscripcionTabla, useTable } from '../mocks/useDb'
-import { listInternaciones } from '../services/internacion'
+import { getInternacion, listInternaciones } from '../services/internacion'
+import { veterinarioAcotado } from '../lib/personal'
 import { InternarModal } from '../features/internacion/InternarModal'
 import { InternacionModal } from '../features/internacion/InternacionModal'
 import { RegistrarEvolucionModal } from '../features/internacion/RegistrarEvolucionModal'
@@ -122,13 +123,18 @@ export function InternacionPage() {
 
   const sucursalId = sucursalActivaId || usuario?.sucursal_id || sucursales[0]?.id || ''
 
+  // Un veterinario ve solo los pacientes de los que es responsable; admin y
+  // recepción, los de toda la sucursal. Alcanza a las dos secciones —los
+  // internados y las altas—: acotar una sí y la otra no sería incoherente.
+  const soloMisPacientes = veterinarioAcotado(usuario)
+
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const recargar = useCallback(async () => {
-    const data = await listInternaciones(sucursalActivaId || undefined)
+    const data = await listInternaciones(sucursalActivaId || undefined, undefined, soloMisPacientes)
     setInternaciones(data)
     setSeleccionada((actual) => (actual ? data.find((i) => i.id === actual.id) ?? null : null))
     return data
-  }, [sucursalActivaId])
+  }, [sucursalActivaId, soloMisPacientes])
 
   useEffect(() => {
     setErrorCarga(null)
@@ -141,10 +147,17 @@ export function InternacionPage() {
   useEffect(() => {
     if (pacienteInicial) setInternando(true)
     if (!internacionInicial) return
-    listInternaciones()
-      .then((todas) => {
-        const encontrada = todas.find((i) => i.id === internacionInicial)
+    // Una fila, no quinientas. Antes esto pedía `listInternaciones()` entera y
+    // buscaba el id en el resultado: hasta 500 internaciones, y
+    // `detalleDeInternacion` lanza cinco consultas por cada una.
+    //
+    // Va SIN acotar al veterinario a propósito: el enlace lo genera la agenda,
+    // que ya solo enseña lo suyo, y filtrarlo aquí convertiría un enlace válido
+    // en una pantalla que no abre nada.
+    getInternacion(internacionInicial)
+      .then((encontrada) => {
         if (encontrada) setSeleccionada(encontrada)
+        else setErrorCarga('No se encontró la internación que abría el enlace')
       })
       // Sin esto, llegar desde la agenda con un enlace a una internación que no
       // se pudo cargar simplemente no abría nada, sin decir por qué.
@@ -168,7 +181,9 @@ export function InternacionPage() {
         <div>
           <h1 className="font-display text-xl font-bold text-slate-900">Internación</h1>
           <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Pacientes hospitalizados y su evolución diaria
+            {soloMisPacientes
+              ? 'Tus pacientes hospitalizados y su evolución diaria'
+              : 'Pacientes hospitalizados y su evolución diaria'}
           </p>
         </div>
         <Button onClick={() => setInternando(true)}>

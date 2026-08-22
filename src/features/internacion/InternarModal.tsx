@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { internarPaciente } from '../../services/internacion'
 import { serviciosDeCategoria } from '../../services/servicios'
 import { formatBs } from '../../lib/currency'
-import { puedeAtender } from '../../lib/personal'
+import { puedeAtender, veterinarioAcotado } from '../../lib/personal'
 
 /**
  * Alta de una internación. La tarifa por día sale del catálogo de servicios
@@ -69,8 +69,14 @@ export function InternarModal({
   const [pacienteElegido, setPacienteElegido] = useState<string | null>(null)
   const [veterinarioElegido, setVeterinarioElegido] = useState<string | null>(null)
 
+  // Igual que al agendar: un veterinario interna a su propio nombre. La pantalla
+  // de internación solo le enseña sus pacientes, así que uno asignado a un
+  // colega desaparecería nada más internarlo.
+  const fijadoASiMismo = veterinarioAcotado(usuario)
+
   const pacienteId = pacienteIdInicial ?? pacienteElegido ?? pacientes[0]?.id ?? ''
   const veterinarioId =
+    fijadoASiMismo ??
     veterinarioElegido ??
     (usuario && puedeAtender(usuario) ? usuario.id : veterinarios[0]?.id ?? '')
 
@@ -134,13 +140,20 @@ export function InternarModal({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <FieldGroup label="Veterinario/a responsable">
-            <Select value={veterinarioId} onChange={(e) => setVeterinarioId(e.target.value)}>
-              {veterinarios.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.nombre}
-                </option>
-              ))}
-            </Select>
+            {fijadoASiMismo ? (
+              // Sin desplegable, pero visible: el paciente queda a su cargo.
+              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                {usuario?.nombre}
+              </p>
+            ) : (
+              <Select value={veterinarioId} onChange={(e) => setVeterinarioId(e.target.value)}>
+                {veterinarios.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.nombre}
+                  </option>
+                ))}
+              </Select>
+            )}
           </FieldGroup>
           <FieldGroup label="Jaula o box (opcional)">
             <Input value={jaula} onChange={(e) => setJaula(e.target.value)} placeholder="Ej. Box 2" />

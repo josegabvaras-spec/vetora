@@ -12,6 +12,7 @@ import { CitaDetalleModal } from '../features/agenda/CitaDetalleModal'
 import { clinicMonth, formatClinicDate, formatClinicTime, TIMEZONE } from '../lib/datetime'
 import { ESTADO_LABEL, ESTADO_TONE, TIPO_LABEL, TIPO_TONE } from '../lib/citas'
 import { listCitas } from '../services/citas'
+import { veterinarioAcotado } from '../lib/personal'
 import { CONSULTA_MD } from '../hooks/useMediaQuery'
 import type { CitaConDetalle } from '../types/views'
 import { clsx } from 'clsx'
@@ -62,13 +63,16 @@ export function AgendaPage() {
   const sucursalId = sucursalActivaId || sucursales[0]?.id
   const multiSucursal = useMultiSucursal()
 
+  // Un veterinario ve solo sus citas; admin y recepción, las de la sucursal.
+  const soloMisCitas = veterinarioAcotado(usuario)
+
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   async function recargar() {
     // Solo se piden las citas de los días que se están pintando. Antes se traía
     // la tabla entera, que PostgREST corta en 1000 filas: en una clínica con
     // historial, los días recientes podían quedar fuera del lote y la agenda
     // aparecía vacía sin ningún error.
-    const data = await listCitas(sucursalActivaId || undefined, rangoVisible)
+    const data = await listCitas(sucursalActivaId || undefined, rangoVisible, soloMisCitas)
     setCitas(data)
     if (citaSeleccionada) {
       setCitaSeleccionada(data.find((c) => c.id === citaSeleccionada.id) ?? null)
@@ -121,7 +125,7 @@ export function AgendaPage() {
     // Al cambiar de día, semana o mes hay que volver a pedir: la consulta va
     // acotada a lo que se pinta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sucursalActivaId, rangoVisible])
+  }, [sucursalActivaId, rangoVisible, soloMisCitas])
 
   function irA(delta: number) {
     const d = new Date(fechaRef)
@@ -153,11 +157,15 @@ export function AgendaPage() {
         <div>
           <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Agenda</h1>
           <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-teal-600/80">
-            {!multiSucursal
-              ? 'Citas y agenda diaria'
-              : usuario?.rol === 'admin'
-                ? 'Todas las citas de la clínica'
-                : 'Citas de tu sucursal'}
+            {/* Con la agenda acotada hay que decirlo: un veterinario que ve tres
+                citas donde la clínica tiene doce pensaría que se perdieron. */}
+            {soloMisCitas
+              ? 'Tus citas asignadas'
+              : !multiSucursal
+                ? 'Citas y agenda diaria'
+                : usuario?.rol === 'admin'
+                  ? 'Todas las citas de la clínica'
+                  : 'Citas de tu sucursal'}
           </p>
         </div>
         <Button onClick={() => setModalNueva(true)} className="w-full shadow-lg shadow-teal-500/20 sm:w-auto">

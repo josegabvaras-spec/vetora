@@ -14,7 +14,7 @@ import { formatBs } from '../../lib/currency'
 import { formatClinicDateTime, TIMEZONE } from '../../lib/datetime'
 import { calcularDisponibilidad, contarDisponibles } from '../../lib/agenda'
 import { requiereConsultaOrigen, requiereProcedimiento, TIPO_LABEL, TIPOS_CITA } from '../../lib/citas'
-import { puedeAtender } from '../../lib/personal'
+import { puedeAtender, veterinarioAcotado } from '../../lib/personal'
 import type { TipoCita, Cita } from '../../types/database'
 
 interface NuevaCitaModalProps {
@@ -59,8 +59,15 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   const [pacienteElegido, setPacienteElegido] = useState<string | null>(null)
   const [veterinarioElegido, setVeterinarioElegido] = useState<string | null>(null)
 
+  // Un veterinario agenda a su propio nombre y nada más. Su agenda solo enseña
+  // lo suyo, así que una cita asignada a un colega desaparecería en el mismo
+  // instante de crearla — que es exactamente como se ve un guardado que falló.
+  // Recepción y admin siguen eligiendo a quien quieran.
+  const fijadoASiMismo = veterinarioAcotado(usuario)
+
   const pacienteId = pacienteElegido ?? pacientes[0]?.id ?? ''
   const veterinarioId =
+    fijadoASiMismo ??
     veterinarioElegido ??
     (usuario && puedeAtender(usuario) ? usuario.id : veterinarios[0]?.id ?? '')
 
@@ -220,10 +227,13 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
                 No hay ningún veterinario activo en la clínica. El administrador debe darlo de alta antes de que se
                 pueda agendar.
               </p>
-            ) : unSoloVeterinario ? (
+            ) : fijadoASiMismo || unSoloVeterinario ? (
               // Sin desplegable, pero visible: es a quien se le asigna la cita.
+              // Dos motivos distintos para el mismo recuadro — o solo hay un
+              // veterinario en la clínica, o quien agenda es un veterinario y la
+              // cita es suya por definición.
               <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                {veterinarios[0]?.nombre}
+                {fijadoASiMismo ? usuario?.nombre : veterinarios[0]?.nombre}
               </p>
             ) : (
               <Select value={veterinarioId} onChange={(e) => setVeterinarioId(e.target.value)}>

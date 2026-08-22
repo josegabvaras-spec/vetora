@@ -108,16 +108,27 @@ async function componerDetalleDeCitas(citas: any[]): Promise<CitaConDetalle[]> {
 }
 
 /**
- * Citas de una sucursal, opcionalmente acotadas a una ventana de fechas.
+ * Citas de una sucursal, opcionalmente acotadas a una ventana de fechas y a un
+ * veterinario.
  *
  * El `rango` no es opcional por comodidad: `citas` crece sin techo y sin él la
  * consulta se trunca a 1000 filas en silencio. La agenda sabe exactamente qué
  * días pinta, así que pasa esa ventana.
+ *
+ * `veterinarioId` es el tercer eje de filtrado, y como los otros dos **lo pasa
+ * quien llama**: sin él no filtra. La agenda lo saca de `veterinarioAcotado()`
+ * ([lib/personal.ts](../lib/personal.ts)) — para un `veterinario` es su propio
+ * id, para admin y recepción es `undefined`.
  */
-export async function listCitas(sucursalId?: string, rango?: RangoFechas): Promise<CitaConDetalle[]> {
+export async function listCitas(
+  sucursalId?: string,
+  rango?: RangoFechas,
+  veterinarioId?: string,
+): Promise<CitaConDetalle[]> {
   let query = supabase.from('citas').select('*')
   if (sucursalId) query = query.eq('sucursal_id', sucursalId)
   if (rango) query = query.gte('fecha_hora', rango.desde).lte('fecha_hora', rango.hasta)
+  if (veterinarioId) query = query.eq('veterinario_id', veterinarioId)
 
   const { data: citas, error } = await query
   if (error) throw new Error(`No se pudo cargar la agenda: ${error.message}`)
