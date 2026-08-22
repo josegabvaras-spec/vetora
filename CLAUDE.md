@@ -168,7 +168,9 @@ Además:
 
   `formatBs` y `formatUsd` son dos funciones a propósito. Una sola con un parámetro de moneda es exactamente cómo se acaba imprimiendo `Bs.` sobre un importe en dólares el día que alguien olvida pasarlo.
 
-  **Cómo se cobra esa suscripción (migración 0020): sin pasarela.** El admin de la clínica entra en `/facturacion` ([FacturacionPage](src/pages/FacturacionPage.tsx)), elige 1, 3, 6 o 12 meses, escanea el QR del dueño de la plataforma —que vive en `configuracion_plataforma.qr_pago`, junto al tipo de cambio, y se sube en Plataforma → Planes— y sube la **foto del comprobante**. Eso inserta un `pagos_suscripcion`, que aparece en el asistente del superadmin como tarea `comprobante_pendiente`; él lo mira en [ComprobanteModal](src/features/plataforma/ComprobanteModal.tsx) y aprueba o rechaza.
+  **Cómo se cobra esa suscripción (migración 0020): sin pasarela.** El admin abre la pestaña **Facturación** de su panel de cuenta —[PanelFacturacion](src/features/facturacion/PanelFacturacion.tsx), dentro de [PerfilModal](src/features/auth/PerfilModal.tsx)—, elige 1, 3, 6 o 12 meses, escanea el QR del dueño de la plataforma —que vive en `configuracion_plataforma.qr_pago`, junto al tipo de cambio, y se sube en Plataforma → Planes— y sube la **foto del comprobante**. Eso inserta un `pagos_suscripcion`, que aparece en el asistente del superadmin como tarea `comprobante_pendiente`; él lo mira en [ComprobanteModal](src/features/plataforma/ComprobanteModal.tsx) y aprueba o rechaza.
+
+  **No tiene ruta propia ni entrada de menú, a propósito**: pagar la suscripción es una gestión de la cuenta, no del trabajo del día, y en el menú lateral quedaba mezclada con la agenda y el inventario. La pestaña solo se dibuja para el `admin` — `PerfilModal` sigue siendo el modal estrecho de siempre para el veterinario y para recepción.
 
   Tres cosas que no se negocian ahí:
 
@@ -192,7 +194,7 @@ Además:
   |---|---|
   | `['admin', 'veterinario', 'recepcion']` | `/agenda`, `/pacientes`, `/pacientes/:id`, `/internacion`, `/inventario`, `/asistente` |
   | `['recepcion', 'admin']` | `/caja`, `/respaldo` |
-  | `['admin']` | `/servicios`, `/movimientos`, `/metricas`, `/facturacion` |
+  | `['admin']` | `/servicios`, `/movimientos`, `/metricas` |
   | `['superadmin']` | `/plataforma`, `/plataforma/clinicas`, `/plataforma/planes` |
 
   Ese primer `RolRoute` es la barrera de frontend equivalente a `auth_es_personal()`: sin él, una cuenta `cliente` del portal entraría en las mismas pantallas que el personal. El propio portal vive aparte, bajo `/portal-cliente` (`PortalClienteLayout`, sin `RolRoute` porque su propio layout y sus policies de solo-lectura ya acotan lo que se ve).

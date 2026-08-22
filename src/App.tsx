@@ -23,7 +23,6 @@ import { ReciboPage } from './pages/ReciboPage'
 import { InternacionPage } from './pages/InternacionPage'
 import { RespaldoPage } from './pages/RespaldoPage'
 import { MetricasPage } from './pages/MetricasPage'
-import { FacturacionPage } from './pages/FacturacionPage'
 import { AsistenteSegunRol } from './components/layout/AsistenteSegunRol'
 import { InternacionImprimirPage } from './pages/InternacionImprimirPage'
 import { PoliticaPrivacidadPage } from './pages/PoliticaPrivacidadPage'
@@ -110,8 +109,6 @@ export default function App() {
                 <Route path="/servicios" element={<ServiciosPage />} />
                 <Route path="/movimientos" element={<MovimientosPage />} />
                 <Route path="/metricas" element={<MetricasPage />} />
-                {/* La suscripción la paga quien contrató el servicio. */}
-                <Route path="/facturacion" element={<FacturacionPage />} />
               </Route>
 
               <Route path="/" element={<InicioSegunRol />} />

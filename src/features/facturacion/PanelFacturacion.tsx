@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, Clock, Receipt, Upload, XCircle } from 'lucide-react'
-import { AvisoError } from '../components/ui/AvisoError'
-import { Badge } from '../components/ui/Badge'
-import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
-import { FieldGroup, Input, Select } from '../components/ui/Field'
-import { Seccion } from '../components/ui/Seccion'
-import { TablaResponsive, type Columna } from '../components/ui/Tabla'
-import { useAuth } from '../context/AuthContext'
+import { AvisoError } from '../../components/ui/AvisoError'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
+import { Card } from '../../components/ui/Card'
+import { FieldGroup, Input, Select } from '../../components/ui/Field'
+import { Seccion } from '../../components/ui/Seccion'
+import { TablaResponsive, type Columna } from '../../components/ui/Tabla'
+import { useAuth } from '../../context/AuthContext'
 import {
   enviarComprobante,
   getDatosDePago,
@@ -17,10 +17,10 @@ import {
   MESES_RENOVACION,
   type DatosDePago,
   type ResumenSuscripcion,
-} from '../services/facturacion'
-import { formatBs, formatUsd, usdABs } from '../lib/currency'
-import { clinicDayIso, desdeFechaSola, formatClinicDate } from '../lib/datetime'
-import type { EstadoComprobante, PagoSuscripcion } from '../types/database'
+} from '../../services/facturacion'
+import { formatBs, formatUsd, usdABs } from '../../lib/currency'
+import { clinicDayIso, desdeFechaSola, formatClinicDate } from '../../lib/datetime'
+import type { EstadoComprobante, PagoSuscripcion } from '../../types/database'
 
 const ESTADO_LABEL: Record<EstadoComprobante, string> = {
   pendiente: 'En revisión',
@@ -37,6 +37,11 @@ const ESTADO_TONE: Record<EstadoComprobante, 'amber' | 'emerald' | 'rose'> = {
 /**
  * Facturación de la clínica: su plan, y cómo pagarlo.
  *
+ * Vive dentro del panel de cuenta (PerfilModal), junto a los datos y el cambio
+ * de contraseña: pagar la suscripción es una gestión de LA CUENTA, no del
+ * trabajo del día, y en el menú lateral quedaba mezclada con la agenda y el
+ * inventario.
+ *
  * No hay pasarela. Se paga escaneando el QR del dueño de la plataforma y se
  * sube la foto del comprobante; él la revisa desde su asistente y al aprobarla
  * avanza la fecha del próximo cobro.
@@ -47,9 +52,9 @@ const ESTADO_TONE: Record<EstadoComprobante, 'amber' | 'emerald' | 'rose'> = {
  * superadministrador.
  *
  * Es del `admin` a secas: recepción y el veterinario no gestionan la
- * suscripción, y la ruta va envuelta en su `RolRoute`.
+ * suscripción, y `PerfilModal` solo le enseña la pestaña a él.
  */
-export function FacturacionPage() {
+export function PanelFacturacion() {
   const { usuario } = useAuth()
 
   const [resumen, setResumen] = useState<ResumenSuscripcion | null>(null)
@@ -176,15 +181,6 @@ export function FacturacionPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-          Facturación
-        </h1>
-        <p className="mt-1 text-sm font-medium text-slate-500">
-          Tu suscripción a Vetora: cuánto pagas, cuándo vence y cómo renovarla.
-        </p>
-      </div>
-
       {/* Tu plan */}
       <Card padding="md" className="border border-slate-200/60">
         <div className="flex flex-wrap items-start justify-between gap-4">
