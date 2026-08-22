@@ -645,6 +645,33 @@ export type Database = {
         }
         Relationships: []
       }
+      registro_errores: {
+        Row: {
+          clinica_id: string | null
+          contexto: string
+          created_at: string
+          id: string
+          mensaje: string
+          usuario_id: string | null
+        }
+        Insert: {
+          clinica_id?: string | null
+          contexto?: string
+          created_at?: string
+          id?: string
+          mensaje: string
+          usuario_id?: string | null
+        }
+        Update: {
+          clinica_id?: string | null
+          contexto?: string
+          created_at?: string
+          id?: string
+          mensaje?: string
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       informes_firmados: {
         Row: {
           clinica_id: string
@@ -1452,6 +1479,7 @@ export type Database = {
         }[]
       }
       consumir_cuota_whatsapp: { Args: never; Returns: number }
+      espacio_estudios_bytes: { Args: never; Returns: number }
       get_citas_end_time: { Args: { start_time: string }; Returns: string }
     }
     Enums: {

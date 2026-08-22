@@ -62,15 +62,10 @@ export interface ResumenPlataforma {
   pacientes_totales: number
   citas_totales: number
   
-  // Sistema / Salud
-  errores_plataforma: number
-  uptime_pct: number
-  servicios_estado: {
-    base_datos: 'operativo' | 'degradado' | 'caido'
-    whatsapp_api: 'operativo' | 'degradado' | 'caido'
-    storage: 'operativo' | 'degradado' | 'caido'
-  }
-  
+  // La salud del sistema ya no viaja aquí: era un puñado de literales
+  // («operativo», 99.98 %, cero errores) que no medían nada. Ahora se pide
+  // aparte y se mide de verdad — ver services/salud.ts (0018).
+
   // Gráficos
   historial_mrr: { mes: string; mrr: number }[]
 }

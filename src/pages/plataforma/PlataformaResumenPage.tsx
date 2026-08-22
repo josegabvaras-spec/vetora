@@ -27,8 +27,9 @@ import { Badge } from '../../components/ui/Badge'
 import { Seccion } from '../../components/ui/Seccion'
 import { useTable } from '../../mocks/useDb'
 import { listClinicas, resumenPlataforma } from '../../services/plataforma'
+import { medirSaludSistema, formatBytes, type SaludSistema } from '../../services/salud'
 import { formatBs } from '../../lib/currency'
-import { formatClinicDate } from '../../lib/datetime'
+import { formatClinicDate, formatClinicTime } from '../../lib/datetime'
 import type { ClinicaConDetalle, ResumenPlataforma } from '../../types/views'
 
 function Cifra({
@@ -69,7 +70,18 @@ function Cifra({
   )
 }
 
-function EstadoServicio({ nombre, estado, icono }: { nombre: string; estado: 'operativo' | 'degradado' | 'caido'; icono: React.ReactNode }) {
+function EstadoServicio({
+  nombre,
+  estado,
+  icono,
+  detalle,
+}: {
+  nombre: string
+  estado: 'operativo' | 'degradado' | 'caido'
+  icono: React.ReactNode
+  /** La medición concreta: latencia, espacio ocupado. Es lo que hace creíble el estado. */
+  detalle?: string
+}) {
   const isOperativo = estado === 'operativo'
   const colorText = isOperativo ? 'text-emerald-700' : estado === 'degradado' ? 'text-amber-700' : 'text-rose-700'
   const colorBg = isOperativo ? 'bg-emerald-50' : estado === 'degradado' ? 'bg-amber-50' : 'bg-rose-50'
@@ -87,6 +99,7 @@ function EstadoServicio({ nombre, estado, icono }: { nombre: string; estado: 'op
           <div className="flex items-center gap-1.5 mt-0.5">
             <IconoEstado size={12} className={colorIcono} />
             <span className={`text-[11px] font-semibold ${colorText} opacity-80 capitalize`}>{estado}</span>
+            {detalle && <span className="text-[11px] text-slate-500">· {detalle}</span>}
           </div>
         </div>
       </div>
@@ -100,10 +113,18 @@ export function PlataformaResumenPage() {
   // Cualquier cambio del panel (alta, plan, cobro) refresca estas cifras.
   const filas = useTable('clinicas')
 
+  // La salud se mide en cada carga, aparte del resumen: es lo único de esta
+  // pantalla que depende del momento y no de los datos.
+  const [salud, setSalud] = useState<SaludSistema | null>(null)
+
   useEffect(() => {
     resumenPlataforma().then(setResumen)
     listClinicas().then(setClinicas)
   }, [filas])
+
+  useEffect(() => {
+    medirSaludSistema().then(setSalud)
+  }, [])
 
   if (!resumen) return <p className="text-sm text-slate-500">Cargando panel…</p>
 
@@ -122,10 +143,16 @@ export function PlataformaResumenPage() {
             Métricas y salud de la plataforma SaaS
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
-          <span className="flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></span>
-          Sistema en línea ({resumen.uptime_pct}%)
-        </div>
+        {/* Antes decía «Sistema en línea (99.98 %)», con el número escrito a
+            mano. Una aplicación no puede medir su propio tiempo en línea: solo
+            informa mientras está funcionando. Lo que sí se puede decir con
+            verdad es cuándo se tomó la medición. */}
+        {salud && (
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
+            <Server size={13} className="text-slate-400" />
+            Medido {formatClinicTime(new Date().toISOString())}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -199,17 +226,43 @@ export function PlataformaResumenPage() {
             <h2 className="mb-4 font-display text-base font-bold text-slate-800 flex items-center gap-2">
               <Activity size={18} className="text-teal-600" /> Salud del Sistema
             </h2>
-            <div className="space-y-3">
-              <EstadoServicio nombre="Base de Datos" estado={resumen.servicios_estado.base_datos} icono={<Database size={16} />} />
-              <EstadoServicio nombre="API WhatsApp" estado={resumen.servicios_estado.whatsapp_api} icono={<MessageCircle size={16} />} />
-              <EstadoServicio nombre="Almacenamiento" estado={resumen.servicios_estado.storage} icono={<Cloud size={16} />} />
-            </div>
-            <div className="mt-5 border-t border-slate-100 pt-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">Errores registrados (24h)</span>
-                <Badge tone={resumen.errores_plataforma > 0 ? 'amber' : 'emerald'}>{resumen.errores_plataforma}</Badge>
-              </div>
-            </div>
+            {/* Ya no hay fila de «API WhatsApp»: Vetora no llama a ninguna API
+                de WhatsApp, compone un enlace wa.me que abre una persona. */}
+            {salud === null ? (
+              <p className="py-4 text-center text-sm text-slate-400">Midiendo…</p>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  <EstadoServicio
+                    nombre="Base de Datos"
+                    estado={salud.baseDatos.estado}
+                    icono={<Database size={16} />}
+                    detalle={salud.baseDatos.latenciaMs !== null ? `${salud.baseDatos.latenciaMs} ms` : undefined}
+                  />
+                  <EstadoServicio
+                    nombre="Almacenamiento"
+                    estado={salud.almacenamiento.estado}
+                    icono={<Cloud size={16} />}
+                    detalle={
+                      salud.almacenamiento.bytesUsados !== null
+                        ? `${formatBytes(salud.almacenamiento.bytesUsados)} en estudios`
+                        : undefined
+                    }
+                  />
+                </div>
+                <div className="mt-5 border-t border-slate-100 pt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500">Errores registrados (24h)</span>
+                    {/* `null` es «no se pudo contar», que no es lo mismo que cero. */}
+                    {salud.errores24h === null ? (
+                      <Badge tone="slate">Sin datos</Badge>
+                    ) : (
+                      <Badge tone={salud.errores24h > 0 ? 'amber' : 'emerald'}>{salud.errores24h}</Badge>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </Card>
         </div>
       </div>

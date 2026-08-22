@@ -256,13 +256,6 @@ export async function resumenPlataforma(): Promise<ResumenPlataforma> {
     usuarios_totales: usuariosTotal ?? 0,
     pacientes_totales: pacientesTotal ?? 0,
     citas_totales: citasTotal ?? 0,
-    errores_plataforma: 0,
-    uptime_pct: 99.98,
-    servicios_estado: {
-      base_datos: 'operativo',
-      whatsapp_api: 'operativo',
-      storage: 'operativo',
-    },
     historial_mrr,
   }
 }
