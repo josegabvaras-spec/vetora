@@ -54,7 +54,7 @@ export function ReciboPage() {
   const sucursal = sucursales.find((s) => s.id === cobro.sucursal_id)
 
   return (
-    <div className="min-h-screen bg-slate-100 print:bg-white">
+    <div className="min-h-screen bg-slate-100 print:min-h-0 print:bg-white">
       <div className="mx-auto flex max-w-xl flex-col items-stretch gap-3 px-4 py-4 print:hidden sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <Link to="/caja" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
           <ArrowLeft size={16} /> Volver a caja
@@ -72,7 +72,7 @@ export function ReciboPage() {
         />
       </div>
 
-      <div className="mx-auto max-w-xl bg-white p-4 shadow-sm sm:p-10 print:p-0 print:shadow-none">
+      <div className="mx-auto max-w-xl doc-una-pagina bg-white p-4 shadow-sm sm:p-10 print:p-0 print:shadow-none">
         <header className="mb-5 border-b-2 border-slate-700 pb-3 text-center">
           <h1 className="text-base font-bold uppercase tracking-wide text-slate-800">Recibo de pago</h1>
           <p className="mt-0.5 text-xs text-slate-600">{clinica?.nombre ?? ""}</p>

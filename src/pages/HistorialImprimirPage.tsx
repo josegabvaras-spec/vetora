@@ -201,7 +201,7 @@ export function HistorialImprimirPage() {
   const { paciente, historiales, internaciones } = ficha
 
   return (
-    <div className="min-h-screen bg-slate-100 print:bg-white">
+    <div className="min-h-screen bg-slate-100 print:min-h-0 print:bg-white">
       <div className="mx-auto flex max-w-4xl flex-col items-stretch gap-3 px-4 py-4 print:hidden sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <Link
           to={`/pacientes/${paciente.id}`}

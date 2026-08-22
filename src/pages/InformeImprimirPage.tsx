@@ -99,7 +99,7 @@ export function InformeImprimirPage() {
           : 'Informe Médico de Consulta'
 
   return (
-    <div className="min-h-screen bg-slate-100 print:bg-white">
+    <div className="min-h-screen bg-slate-100 print:min-h-0 print:bg-white">
       <div className="mx-auto flex max-w-4xl flex-col items-stretch gap-3 px-4 py-4 print:hidden sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <Link
           to={`/pacientes/${paciente.id}`}
@@ -118,7 +118,7 @@ export function InformeImprimirPage() {
         />
       </div>
 
-      <div className="mx-auto max-w-4xl bg-white p-4 shadow-sm sm:p-10 print:p-0 print:shadow-none">
+      <div className="mx-auto max-w-4xl doc-una-pagina bg-white p-4 shadow-sm sm:p-10 print:p-0 print:shadow-none">
         {/* Encabezado de la clínica */}
         <header className="mb-6 border-b-2 border-teal-700 pb-4 text-center">
           <h1 className="text-lg font-black uppercase tracking-wider text-slate-900">{tituloInforme}</h1>

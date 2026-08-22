@@ -70,7 +70,7 @@ export function ConsultaImprimirPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 print:bg-white">
+    <div className="min-h-screen bg-slate-100 print:min-h-0 print:bg-white">
       <div className="mx-auto flex max-w-4xl flex-col items-stretch gap-3 px-4 py-4 print:hidden sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <Link
           to={`/pacientes/${paciente.id}`}
@@ -83,7 +83,7 @@ export function ConsultaImprimirPage() {
         </Button>
       </div>
 
-      <div className="mx-auto max-w-4xl bg-white p-4 shadow-sm sm:p-10 print:p-0 print:shadow-none">
+      <div className="mx-auto max-w-4xl doc-una-pagina bg-white p-4 shadow-sm sm:p-10 print:p-0 print:shadow-none">
         <header className="mb-5 border-b-2 border-slate-700 pb-3 text-center">
           <h1 className="text-base font-bold uppercase tracking-wide text-slate-800">
             Informe Médico

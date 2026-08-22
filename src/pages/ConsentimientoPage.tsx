@@ -79,7 +79,7 @@ export function ConsentimientoPage() {
         </Button>
       </div>
 
-      <div className="mx-auto max-w-3xl bg-white p-4 shadow-sm sm:p-10 print:shadow-none print:p-0">
+      <div className="mx-auto max-w-3xl doc-una-pagina bg-white p-4 shadow-sm sm:p-10 print:shadow-none print:p-0">
         <header className="mb-8 border-b border-slate-200 pb-6 text-center">
           <h1 className="text-lg font-bold uppercase tracking-wide text-slate-800">
             Consentimiento informado para procedimiento quirúrgico

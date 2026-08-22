@@ -140,7 +140,39 @@ a, button, select, input, textarea {
   }
 
   @page {
-    margin: 14mm;
+    margin: 12mm;
+  }
+
+  /*
+   * Documentos que deben caber en una sola hoja: consentimiento, recibo,
+   * recetario e informe de una consulta. Son de extensión acotada, así que en
+   * vez de encogerlos con una escala impredecible se comprime lo que sobra:
+   * espacios entre secciones y aire de las tablas.
+   *
+   * El historial completo y la hoja de internación NO llevan esta clase: su
+   * largo depende de cuántas consultas o evoluciones tenga el paciente, y
+   * apretarlos hasta una hoja significaría recortar historia clínica.
+   */
+  .doc-una-pagina section {
+    margin-bottom: 0.4rem;
+  }
+
+  .doc-una-pagina td,
+  .doc-una-pagina th {
+    padding-top: 0.1rem;
+    padding-bottom: 0.1rem;
+  }
+
+  .doc-una-pagina header {
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.4rem;
+  }
+
+  /* El pie y el bloque de firmas son lo primero que empuja a la hoja
+     siguiente cuando el documento va justo. */
+  .doc-una-pagina footer {
+    margin-top: 0.6rem;
+    padding-top: 0.3rem;
   }
 
   table {

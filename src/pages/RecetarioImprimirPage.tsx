@@ -81,7 +81,7 @@ export function RecetarioImprimirPage() {
   const fechaReceta = formatClinicDate(consulta.created_at)
 
   return (
-    <div className="min-h-screen bg-slate-100 print:bg-white">
+    <div className="min-h-screen bg-slate-100 print:min-h-0 print:bg-white">
       {/* Barra de acciones — oculta al imprimir */}
       <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-4 print:hidden">
         <Link
@@ -96,7 +96,7 @@ export function RecetarioImprimirPage() {
       </div>
 
       {/* Hoja de receta — formato A5 / media carta */}
-      <div className="mx-auto max-w-2xl bg-white shadow-sm print:shadow-none">
+      <div className="doc-una-pagina mx-auto max-w-2xl bg-white shadow-sm print:shadow-none">
         {/* ── MEMBRETE ── */}
         <header className="border-b-4 border-teal-600 px-10 pb-4 pt-8 print:px-8 print:pt-6">
           <div className="flex items-start justify-between gap-4">
