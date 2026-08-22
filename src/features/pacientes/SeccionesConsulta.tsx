@@ -7,6 +7,7 @@ import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
 import { dosisDisponible, formatDosis, formatEnvases } from '../../lib/inventario'
 import { SeccionRecetario, type RecetaItemPendiente } from './SeccionRecetario'
+import { SeccionEstudios } from './SeccionEstudios'
 import type { ProductoUsado } from '../../types/views'
 import type { RecetaItem } from '../../types/database'
 
@@ -156,6 +157,13 @@ export function SeccionesConsulta(props: {
   recetaPendientes: RecetaItemPendiente[]
   onAgregarRecetaItem: (item: RecetaItemPendiente) => Promise<void>
   onEliminarRecetaItem?: (id: string) => Promise<void>
+  /**
+   * Consulta y paciente a los que adjuntar los estudios de imagen. Faltan en el
+   * alta de paciente, donde el historial todavía no existe: un estudio necesita
+   * `historial_id`, así que allí la sección no se monta.
+   */
+  historialId?: string
+  pacienteId?: string
   disabled?: boolean
 }) {
   return (
@@ -172,6 +180,13 @@ export function SeccionesConsulta(props: {
         onEliminar={props.onEliminarRecetaItem}
         disabled={props.disabled}
       />
+      {props.historialId && props.pacienteId && (
+        <SeccionEstudios
+          historialId={props.historialId}
+          pacienteId={props.pacienteId}
+          disabled={props.disabled}
+        />
+      )}
     </div>
   )
 }

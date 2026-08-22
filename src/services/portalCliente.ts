@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import type { ConsentimientoCirugia, Paciente, HistorialClinico, VacunaAplicada } from '../types/database'
+import type { EstudioImagen } from './estudios'
 import { addDays } from 'date-fns'
 import { clinicDayIso } from '../lib/datetime'
 
@@ -141,6 +142,27 @@ export async function getConsentimientosPacientePortal(
     .order('created_at', { ascending: false })
 
   return (consentimientos || []) as ConsentimientoCirugia[]
+}
+
+/**
+ * Estudios de imagen de las mascotas del dueño.
+ *
+ * `estudios_portal` (0016) solo devuelve los de consultas ya cerradas: un
+ * borrador es trabajo en curso del veterinario. Las imágenes viven en un bucket
+ * privado, así que la pantalla pide una URL firmada por cada una.
+ */
+export async function getEstudiosPacientePortal(
+  clinicaId: string,
+  pacienteId: string,
+): Promise<EstudioImagen[]> {
+  const { data } = await supabase
+    .from('estudios_imagen')
+    .select('*')
+    .eq('clinica_id', clinicaId)
+    .eq('paciente_id', pacienteId)
+    .order('created_at', { ascending: false })
+
+  return (data || []) as EstudioImagen[]
 }
 
 export async function getNotificacionesPortal(clinicaId: string, usuarioId: string): Promise<NotificacionPortal[]> {

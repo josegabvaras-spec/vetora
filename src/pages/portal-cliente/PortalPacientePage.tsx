@@ -3,12 +3,14 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import {
   getConsentimientosPacientePortal,
+  getEstudiosPacientePortal,
   getHistorialPacientePortal,
   getVacunasPacientePortal,
   getPacientesPortal,
 } from '../../services/portalCliente'
+import { urlFirmadaDe, TIPO_ESTUDIO_LABEL, type EstudioImagen } from '../../services/estudios'
 import type { ConsentimientoCirugia, HistorialClinico, Paciente, VacunaAplicada } from '../../types/database'
-import { ArrowLeft, Syringe, FileText, AlertTriangle, Calendar, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Syringe, FileText, AlertTriangle, Calendar, ScanLine, ShieldCheck } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
@@ -22,6 +24,7 @@ export function PortalPacientePage() {
   const [historial, setHistorial] = useState<HistorialClinico[]>([])
   const [vacunas, setVacunas] = useState<VacunaAplicada[]>([])
   const [consentimientos, setConsentimientos] = useState<ConsentimientoCirugia[]>([])
+  const [estudios, setEstudios] = useState<EstudioImagen[]>([])
   const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
@@ -29,12 +32,14 @@ export function PortalPacientePage() {
       if (usuario?.clinica_id && usuario.id && pacienteId) {
         try {
           const clinicaId = usuario.clinica_id
-          const [pacientesData, historialData, vacunasData, consentimientosData] = await Promise.all([
-            getPacientesPortal(clinicaId, usuario.id),
-            getHistorialPacientePortal(clinicaId, pacienteId),
-            getVacunasPacientePortal(clinicaId, pacienteId),
-            getConsentimientosPacientePortal(clinicaId, pacienteId),
-          ])
+          const [pacientesData, historialData, vacunasData, consentimientosData, estudiosData] =
+            await Promise.all([
+              getPacientesPortal(clinicaId, usuario.id),
+              getHistorialPacientePortal(clinicaId, pacienteId),
+              getVacunasPacientePortal(clinicaId, pacienteId),
+              getConsentimientosPacientePortal(clinicaId, pacienteId),
+              getEstudiosPacientePortal(clinicaId, pacienteId),
+            ])
 
           const pacienteActual = pacientesData.find(p => p.id === pacienteId)
           if (pacienteActual) {
@@ -42,6 +47,7 @@ export function PortalPacientePage() {
             setHistorial(historialData)
             setVacunas(vacunasData)
             setConsentimientos(consentimientosData)
+            setEstudios(estudiosData)
           }
         } catch (e) {
           console.error(e)
@@ -171,6 +177,26 @@ export function PortalPacientePage() {
             </div>
           </div>
 
+          {/* Estudios de imagen. Como los consentimientos, la tarjeta solo
+              aparece si hay algo: la mayoría de mascotas nunca pasa por una
+              ecografía. Solo llegan aquí los de consultas ya cerradas
+              (policy `estudios_portal`). */}
+          {estudios.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+              <div className="p-5 border-b border-slate-100 bg-slate-50">
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <ScanLine className="h-5 w-5 text-teal-500" />
+                  Estudios de imagen
+                </h3>
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-4">
+                {estudios.map((e) => (
+                  <EstudioPortal key={e.id} estudio={e} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Consentimientos firmados: lo que el propio dueño autorizó. Solo
               aparece la tarjeta si hay alguno — la mayoría de mascotas nunca
               pasa por cirugía y una tarjeta vacía permanente sobra. */}
@@ -258,5 +284,48 @@ export function PortalPacientePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Una imagen del estudio, con su URL firmada.
+ *
+ * El bucket es privado y las firmas caducan, así que la URL se pide al montar y
+ * no se guarda en ningún sitio: poner la ruta directamente en el `src` no
+ * mostraría nada.
+ */
+function EstudioPortal({ estudio }: { estudio: EstudioImagen }) {
+  const [url, setUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    let montado = true
+    urlFirmadaDe(estudio.ruta)
+      .then((u) => montado && setUrl(u))
+      .catch(() => montado && setUrl(null))
+    return () => { montado = false }
+  }, [estudio.ruta])
+
+  const etiqueta = TIPO_ESTUDIO_LABEL[estudio.tipo]
+
+  return (
+    <a
+      href={url ?? undefined}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+    >
+      {url ? (
+        <img src={url} alt={etiqueta} className="h-24 w-full object-cover" />
+      ) : (
+        <span className="block h-24 w-full animate-pulse bg-slate-200" />
+      )}
+      <span className="block px-2 py-1.5 text-[11px] font-medium text-slate-700">
+        {etiqueta}
+        {estudio.descripcion && <span className="block truncate text-slate-400">{estudio.descripcion}</span>}
+        <span className="block text-[10px] text-slate-400">
+          {format(new Date(estudio.created_at), "d 'de' MMMM, yyyy", { locale: es })}
+        </span>
+      </span>
+    </a>
   )
 }

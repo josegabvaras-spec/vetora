@@ -137,6 +137,8 @@ export function FichaConsulta({
           await eliminarRecetaItem(id, historial.id)
           onChanged()
         }}
+        historialId={historial.id}
+        pacienteId={historial.paciente_id}
         disabled={cerrado}
       />
 

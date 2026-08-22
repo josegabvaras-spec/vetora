@@ -61,6 +61,11 @@ export async function generarRespaldo() {
   }
 
   // Agregar Fotos
+  //
+  // Solo las de los pacientes, que ya vienen en memoria como base64 dentro de
+  // su propia fila. Los estudios de imagen (0016) NO entran en el respaldo:
+  // viven en Supabase Storage y habría que descargarlos uno a uno, lo que puede
+  // significar cientos de MB en una sola operación del navegador.
   const fotosFolder = zip.folder('fotos')
   
   if (fotosFolder) {

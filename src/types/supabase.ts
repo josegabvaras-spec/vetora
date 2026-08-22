@@ -612,6 +612,39 @@ export type Database = {
           },
         ]
       }
+      estudios_imagen: {
+        Row: {
+          clinica_id: string
+          created_at: string
+          descripcion: string
+          historial_id: string
+          id: string
+          paciente_id: string
+          ruta: string
+          tipo: string
+        }
+        Insert: {
+          clinica_id?: string
+          created_at?: string
+          descripcion?: string
+          historial_id: string
+          id?: string
+          paciente_id: string
+          ruta: string
+          tipo: string
+        }
+        Update: {
+          clinica_id?: string
+          created_at?: string
+          descripcion?: string
+          historial_id?: string
+          id?: string
+          paciente_id?: string
+          ruta?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
       informes_firmados: {
         Row: {
           clinica_id: string
