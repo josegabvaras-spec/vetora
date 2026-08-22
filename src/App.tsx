@@ -4,6 +4,8 @@ import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { AccesoPage } from './pages/AccesoPage'
+import { RecuperarPasswordPage } from './pages/RecuperarPasswordPage'
+import { NuevaPasswordPage } from './pages/NuevaPasswordPage'
 import { AgendaPage } from './pages/AgendaPage'
 import { PacientesListPage } from './pages/PacientesListPage'
 import { FichaPacientePage } from './pages/FichaPacientePage'
@@ -54,6 +56,11 @@ export default function App() {
           <Route path="/registro-cliente" element={<RegistroClientePage />} />
           {/* Enlace que reciben por WhatsApp quienes acaban de ser dados de alta */}
           <Route path="/acceso/:token" element={<AccesoPage />} />
+          {/* Recuperación por correo. Las dos van FUERA de `ProtectedRoute`:
+              quien olvidó su contraseña no tiene sesión, y el enlace del correo
+              rebotaría al login sin dejarle hacer nada. */}
+          <Route path="/recuperar-password" element={<RecuperarPasswordPage />} />
+          <Route path="/nueva-password" element={<NuevaPasswordPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/consentimientos/:citaId" element={<ConsentimientoPage />} />
             <Route path="/pacientes/:id/historial/imprimir" element={<HistorialImprimirPage />} />

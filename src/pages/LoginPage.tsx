@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { Button } from '../components/ui/Button'
@@ -13,6 +13,11 @@ export function LoginPage() {
   const [mostrarPassword, setMostrarPassword] = useState(false)
   const [entrando, setEntrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Quien acaba de cambiar su contraseña llega aquí con la sesión cerrada a
+  // propósito. Sin este aviso parecería que algo salió mal.
+  const location = useLocation()
+  const passwordActualizada = (location.state as { passwordActualizada?: boolean } | null)?.passwordActualizada
 
   if (usuario) {
     if (esPlataforma) return <Navigate to="/plataforma" replace />
@@ -45,6 +50,12 @@ export function LoginPage() {
             Entra con la cuenta que te dieron al registrarte.
           </p>
         </div>
+
+        {passwordActualizada && (
+          <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">
+            Tu contraseña quedó actualizada. Entra con la nueva.
+          </p>
+        )}
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <FieldGroup label="Correo electrónico">
@@ -93,8 +104,13 @@ export function LoginPage() {
           </Button>
         </form>
 
+        {/* Antes esto mandaba a pedirle al superadmin que reenviara el enlace
+            de alta por WhatsApp: una gestión manual por cada olvido, y encima
+            reutilizando el enlace de invitación para algo que no es un alta. */}
         <p className="mt-4 text-center text-xs text-slate-500">
-          ¿Olvidaste tu contraseña? Pide a quien te dio de alta que te reenvíe tu enlace de acceso por WhatsApp.
+          <Link to="/recuperar-password" className="font-medium text-teal-700 hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
         </p>
 
         <div className="mt-6 border-t border-slate-200 pt-6 text-center">

@@ -72,8 +72,38 @@ function validarPassword(password: string, email: string) {
   }
 }
 
+/** Adonde lleva el enlace del correo de recuperación. */
+export const RUTA_NUEVA_PASSWORD = '/nueva-password'
+
+/**
+ * Manda el correo con el enlace para poner una contraseña nueva.
+ *
+ * **No dice si el correo existe, y es deliberado.** Responder «esa cuenta no
+ * está registrada» convertiría este formulario en un comprobador de qué correos
+ * tienen cuenta, que es justo lo que Supabase evita al no distinguir usuario de
+ * contraseña en el login. Por eso tampoco se propaga el error de Auth: quien lo
+ * use verá siempre el mismo mensaje.
+ *
+ * `redirectTo` sale de `window.location.origin`, así que **cada dirección desde
+ * la que se use la aplicación tiene que estar en la lista de Redirect URLs de
+ * Supabase**; si no, el enlace del correo llega y no lleva a ninguna parte.
+ */
+export async function solicitarRecuperacion(email: string): Promise<void> {
+  const normalizado = normalizarEmail(email)
+  if (!normalizado) throw new Error('Escribe tu correo electrónico')
+  validarEmail(normalizado)
+
+  await supabase.auth.resetPasswordForEmail(normalizado, {
+    redirectTo: `${window.location.origin}${RUTA_NUEVA_PASSWORD}`,
+  })
+}
+
 /**
  * Fija (o reemplaza) la contraseña de una cuenta logueada actualmente.
+ *
+ * Sirve tanto para el canje del enlace de alta como para la recuperación por
+ * correo: la sesión que crea el enlace de recuperación es una sesión normal
+ * para todo lo que aquí importa.
  */
 export async function establecerPassword(_usuarioId: string, password: string): Promise<void> {
   const { data: authData } = await supabase.auth.getUser()
@@ -139,25 +169,4 @@ export async function verificarCredenciales(email: string, password: string): Pr
   }
 
   return usuario as Usuario
-}
-
-/**
- * Cambia la contraseña de un usuario logueado, exigiendo la contraseña actual para seguridad.
- */
-export async function cambiarMiPassword(usuarioId: string, actual: string, nueva: string): Promise<void> {
-  const { data: authData } = await supabase.auth.getUser()
-  if (!authData.user) throw new Error('Usuario no encontrado')
-
-  // Re-autenticar para verificar la contraseña actual
-  const { error: authError } = await supabase.auth.signInWithPassword({
-    email: authData.user.email!,
-    password: actual,
-  })
-
-  if (authError) {
-    throw new Error('La contraseña actual es incorrecta')
-  }
-
-  // Si la actual es correcta, establecemos la nueva
-  await establecerPassword(usuarioId, nueva)
 }
