@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Printer } from 'lucide-react'
-import { Button } from '../components/ui/Button'
+import { ArrowLeft } from 'lucide-react'
 import { useTable } from '../mocks/useDb'
+import {
+  AccionesFirmaInforme,
+  FirmasInformeImpresas,
+  useFirmaInforme,
+} from '../features/pacientes/FirmaInforme'
 import { getCobro } from '../services/caja'
 import { formatBs } from '../lib/currency'
 import { formatClinicDateTime } from '../lib/datetime'
@@ -16,6 +20,9 @@ export function ReciboPage() {
   const [cobro, setCobro] = useState<CobroConDetalle | null | undefined>(undefined)
   const clinica = useTable('clinicas')[0]
   const sucursales = useTable('sucursales')
+  // Sin paciente: un recibo puede ser de una venta de mostrador, que se cobra a
+  // un nombre suelto. Se localiza por su cobro (0017).
+  const { firma, setFirma } = useFirmaInforme(null, 'recibo', cobroId ?? null)
 
   useEffect(() => {
     if (!cobroId) return
@@ -43,9 +50,17 @@ export function ReciboPage() {
         <Link to="/caja" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
           <ArrowLeft size={16} /> Volver a caja
         </Link>
-        <Button onClick={() => window.print()}>
-          <Printer size={16} /> Imprimir / Guardar PDF
-        </Button>
+        <AccionesFirmaInforme
+          pacienteId={null}
+          tipo="recibo"
+          itemId={cobro.id}
+          tituloDocumento={`Recibo de ${formatBs(cobro.monto_bs)} — ${cobro.cliente_nombre}`}
+          nombreTutor={cobro.cliente_nombre}
+          etiquetaTutor="Cliente"
+          etiquetaFirmante="Cajero/a"
+          firma={firma}
+          onFirmado={setFirma}
+        />
       </div>
 
       <div className="mx-auto max-w-xl bg-white p-10 shadow-sm print:p-0 print:shadow-none">
@@ -135,14 +150,11 @@ export function ReciboPage() {
           </tbody>
         </table>
 
-        <div className="mt-12 grid grid-cols-2 gap-8 text-[11px]">
-          <div className="text-center">
-            <div className="border-t border-slate-400 pt-2">Firma de quien recibe</div>
-          </div>
-          <div className="text-center">
-            <div className="border-t border-slate-400 pt-2">Sello de la clínica</div>
-          </div>
-        </div>
+        <FirmasInformeImpresas
+          firma={firma}
+          etiquetaTutor="Firma del Cliente"
+          etiquetaFirmante="Firma del Cajero/a"
+        />
 
         <footer className="mt-8 border-t border-slate-300 pt-3 text-center text-[9px] text-slate-500">
           Documento generado electrónicamente por Vetora · Los cobros registrados son inmutables.

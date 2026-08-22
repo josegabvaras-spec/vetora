@@ -12,11 +12,19 @@ import { supabase } from '../lib/supabase'
  * marzo no certifica lo que el documento dice en junio.
  */
 
-export type TipoInforme = 'historial' | 'consulta' | 'laboratorio' | 'imagenologia' | 'cirugia'
+export type TipoInforme =
+  | 'historial'
+  | 'consulta'
+  | 'laboratorio'
+  | 'imagenologia'
+  | 'cirugia'
+  /** Recibo de caja (0017). Es el único tipo que va sin paciente: la venta de
+   *  mostrador se cobra a un nombre suelto, sin ficha. Su `item_id` es el cobro. */
+  | 'recibo'
 
 export interface InformeFirmado {
   id: string
-  paciente_id: string
+  paciente_id: string | null
   tipo: TipoInforme
   item_id: string | null
   firma_tutor: string
@@ -36,17 +44,20 @@ export interface FirmasInforme {
 
 /** La firma vigente de ese documento, o null si todavía no se firmó. */
 export async function getFirmaInforme(
-  pacienteId: string,
+  pacienteId: string | null,
   tipo: TipoInforme,
   itemId?: string | null,
 ): Promise<InformeFirmado | null> {
   let query = supabase
     .from('informes_firmados')
     .select('*')
-    .eq('paciente_id', pacienteId)
     .eq('tipo', tipo)
     .order('created_at', { ascending: false })
     .limit(1)
+
+  // El recibo va sin paciente y se identifica por su cobro (`item_id`), que ya
+  // es único. El resto de documentos sí acotan por mascota.
+  if (pacienteId) query = query.eq('paciente_id', pacienteId)
 
   // `is('item_id', null)` y `eq` no son intercambiables: en SQL `null = null`
   // es null, así que el historial completo (sin item) necesita `is`.
@@ -58,7 +69,7 @@ export async function getFirmaInforme(
 }
 
 export async function firmarInforme(
-  pacienteId: string,
+  pacienteId: string | null,
   tipo: TipoInforme,
   itemId: string | null,
   firmas: FirmasInforme,

@@ -19,14 +19,19 @@ export function AccionesFirmaInforme({
   itemId,
   tituloDocumento,
   nombreTutor,
+  etiquetaTutor,
+  etiquetaFirmante,
   firma,
   onFirmado,
 }: {
-  pacienteId: string
+  /** Null solo en recibos: la venta de mostrador no tiene ficha de paciente. */
+  pacienteId: string | null
   tipo: TipoInforme
   itemId: string | null
   tituloDocumento: string
   nombreTutor: string
+  etiquetaTutor?: string
+  etiquetaFirmante?: string
   firma: InformeFirmado | null | undefined
   onFirmado: (firma: InformeFirmado) => void
 }) {
@@ -63,6 +68,8 @@ export function AccionesFirmaInforme({
           itemId={itemId}
           tituloDocumento={tituloDocumento}
           nombreTutor={nombreTutor}
+          etiquetaTutor={etiquetaTutor}
+          etiquetaFirmante={etiquetaFirmante}
           onClose={() => setFirmando(false)}
           onFirmado={(nueva) => {
             setFirmando(false)
@@ -80,33 +87,37 @@ export function AccionesFirmaInforme({
  * Las imágenes se dibujan **encima** de la raya, no en su lugar: el papel tiene
  * que verse igual con trazo y sin él.
  */
-export function FirmasInformeImpresas({ firma }: { firma: InformeFirmado | null | undefined }) {
+export function FirmasInformeImpresas({
+  firma,
+  etiquetaTutor = 'Firma del Propietario/a',
+  etiquetaFirmante = 'Firma Médico Veterinario',
+}: {
+  firma: InformeFirmado | null | undefined
+  etiquetaTutor?: string
+  etiquetaFirmante?: string
+}) {
   return (
     <section className="mt-10 break-inside-avoid">
       <div className="grid grid-cols-2 gap-10 text-center text-sm">
         <div>
           <div className="flex h-16 items-end justify-center print:h-14">
             {firma?.firma_tutor && (
-              <img src={firma.firma_tutor} alt="Firma del propietario" className="max-h-16 object-contain" />
+              <img src={firma.firma_tutor} alt={etiquetaTutor} className="max-h-16 object-contain" />
             )}
           </div>
           <div className="mb-1 border-t border-slate-400 pt-2 text-[11px] font-bold text-slate-800">
-            Firma del Propietario/a
+            {etiquetaTutor}
           </div>
           {firma?.nombre_tutor && <p className="text-[10px] text-slate-600">{firma.nombre_tutor}</p>}
         </div>
         <div>
           <div className="flex h-16 items-end justify-center print:h-14">
             {firma?.firma_veterinario && (
-              <img
-                src={firma.firma_veterinario}
-                alt="Firma del veterinario"
-                className="max-h-16 object-contain"
-              />
+              <img src={firma.firma_veterinario} alt={etiquetaFirmante} className="max-h-16 object-contain" />
             )}
           </div>
           <div className="mb-1 border-t border-slate-400 pt-2 text-[11px] font-bold text-slate-800">
-            Firma Médico Veterinario
+            {etiquetaFirmante}
           </div>
           {firma?.nombre_veterinario && (
             <p className="text-[10px] text-slate-600">{firma.nombre_veterinario}</p>
@@ -130,13 +141,19 @@ export function FirmasInformeImpresas({ firma }: { firma: InformeFirmado | null 
  * valor, la pantalla enseñaría «sin firmar» durante la carga y el botón de
  * firmar parpadearía en cada apertura.
  */
-export function useFirmaInforme(pacienteId: string | undefined, tipo: TipoInforme, itemId: string | null) {
+export function useFirmaInforme(
+  pacienteId: string | null | undefined,
+  tipo: TipoInforme,
+  itemId: string | null,
+) {
   const [firma, setFirma] = useState<InformeFirmado | null | undefined>(undefined)
 
   useEffect(() => {
-    if (!pacienteId) return
+    // Hace falta al menos un identificador. Los recibos van sin paciente y se
+    // localizan por su cobro (`itemId`); el resto, al revés.
+    if (!pacienteId && !itemId) return
     let montado = true
-    getFirmaInforme(pacienteId, tipo, itemId)
+    getFirmaInforme(pacienteId ?? null, tipo, itemId)
       .then((f) => {
         if (montado) setFirma(f)
       })

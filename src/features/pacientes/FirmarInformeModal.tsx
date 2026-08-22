@@ -19,15 +19,21 @@ export function FirmarInformeModal({
   itemId,
   tituloDocumento,
   nombreTutor,
+  etiquetaTutor = 'Propietario/a',
+  etiquetaFirmante = 'Veterinario/a',
   onClose,
   onFirmado,
 }: {
-  pacienteId: string
+  /** Null solo en recibos: la venta de mostrador no tiene ficha de paciente. */
+  pacienteId: string | null
   tipo: TipoInforme
   itemId: string | null
   /** Cómo se llama el documento en pantalla: «Historial clínico completo»… */
   tituloDocumento: string
   nombreTutor: string
+  /** En un recibo no firma un «propietario» ni un «veterinario». */
+  etiquetaTutor?: string
+  etiquetaFirmante?: string
   onClose: () => void
   onFirmado: (firma: InformeFirmado) => void
 }) {
@@ -68,9 +74,9 @@ export function FirmarInformeModal({
           </span>
         </p>
 
-        <FirmaDigital etiqueta={`Propietario/a — ${nombreTutor}`} onChange={setFirmaTutor} />
+        <FirmaDigital etiqueta={`${etiquetaTutor} — ${nombreTutor}`} onChange={setFirmaTutor} />
         <FirmaDigital
-          etiqueta={`Veterinario/a — ${usuario?.nombre ?? ''}`}
+          etiqueta={`${etiquetaFirmante} — ${usuario?.nombre ?? ''}`}
           onChange={setFirmaVeterinario}
         />
 

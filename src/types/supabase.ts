@@ -655,7 +655,7 @@ export type Database = {
           item_id: string | null
           nombre_tutor: string
           nombre_veterinario: string
-          paciente_id: string
+          paciente_id: string | null
           tipo: string
           veterinario_id: string | null
         }
@@ -668,7 +668,7 @@ export type Database = {
           item_id?: string | null
           nombre_tutor: string
           nombre_veterinario: string
-          paciente_id: string
+          paciente_id?: string | null
           tipo: string
           veterinario_id?: string | null
         }
@@ -681,7 +681,7 @@ export type Database = {
           item_id?: string | null
           nombre_tutor?: string
           nombre_veterinario?: string
-          paciente_id?: string
+          paciente_id?: string | null
           tipo?: string
           veterinario_id?: string | null
         }
