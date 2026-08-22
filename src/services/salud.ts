@@ -83,7 +83,8 @@ async function medirAlmacenamiento(): Promise<SaludSistema['almacenamiento']> {
   }
 }
 
-async function contarErrores24h(): Promise<{ total: number | null; mensaje: string | null }> {
+/** También lo usa el asistente de la plataforma para su tarea de errores. */
+export async function contarErrores24h(): Promise<{ total: number | null; mensaje: string | null }> {
   const desde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { count, error } = await supabase
     .from('registro_errores')

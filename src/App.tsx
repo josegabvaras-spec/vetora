@@ -26,6 +26,7 @@ import { InternacionImprimirPage } from './pages/InternacionImprimirPage'
 import { PoliticaPrivacidadPage } from './pages/PoliticaPrivacidadPage'
 import { PlataformaLayout } from './components/layout/PlataformaLayout'
 import { PlataformaResumenPage } from './pages/plataforma/PlataformaResumenPage'
+import { PlataformaAsistentePage } from './pages/plataforma/PlataformaAsistentePage'
 import { PlataformaClinicasPage } from './pages/plataforma/PlataformaClinicasPage'
 import { PlataformaPlanesPage } from './pages/plataforma/PlataformaPlanesPage'
 import { InicioSegunRol } from './components/layout/InicioSegunRol'
@@ -66,6 +67,7 @@ export default function App() {
             <Route element={<RolRoute roles={['superadmin']} />}>
               <Route element={<PlataformaLayout />}>
                 <Route path="/plataforma" element={<PlataformaResumenPage />} />
+                <Route path="/plataforma/asistente" element={<PlataformaAsistentePage />} />
                 <Route path="/plataforma/clinicas" element={<PlataformaClinicasPage />} />
                 <Route path="/plataforma/planes" element={<PlataformaPlanesPage />} />
               </Route>

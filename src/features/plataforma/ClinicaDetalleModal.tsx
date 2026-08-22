@@ -30,10 +30,11 @@ import {
 } from '../../services/plataforma'
 import { listPlanes } from '../../services/planes'
 import { exportarClinica, importarEnClinica } from '../../services/respaldoPlataforma'
+import { estadoDeLaCuenta } from '../../lib/acceso'
 import { ultimasInvitacionesDe } from '../../services/invitaciones'
 import { EnviarAccesoModal } from './EnviarAccesoModal'
 import { formatBs } from '../../lib/currency'
-import { formatClinicDate, formatClinicDateTime } from '../../lib/datetime'
+import { formatClinicDate } from '../../lib/datetime'
 import type { Invitacion, Plan, Rol, Usuario } from '../../types/database'
 import type { ClinicaConDetalle } from '../../types/views'
 
@@ -43,34 +44,6 @@ const ROL_LABEL: Record<string, string> = {
   recepcion: 'Recepción',
 }
 
-/**
- * En qué anda la cuenta de un usuario, a partir de su última invitación.
- *
- * Lo que decide si la cuenta ya sirve es que la persona haya **canjeado su
- * enlace** (`usado_at`): ahí es cuando fija su propia contraseña. Antes esto se
- * apoyaba en `tienePassword()`, un stub que devolvía `true` siempre, así que
- * todo el mundo salía como "Cuenta activa" en verde.
- *
- * La invitación se recibe ya resuelta: es asíncrona, y resolverla dentro de
- * esta función obligaría a una consulta por usuario en cada render.
- */
-function estadoDeLaCuenta(invitacion: Invitacion | undefined): { texto: string; activa: boolean } {
-  if (invitacion?.usado_at) {
-    return {
-      texto: `Cuenta activa desde el ${formatClinicDateTime(invitacion.usado_at)}`,
-      activa: true,
-    }
-  }
-
-  if (!invitacion) return { texto: 'Sin acceso · enlace sin generar', activa: false }
-  if (new Date(invitacion.expira_at).getTime() <= Date.now()) {
-    return { texto: 'Sin acceso · su enlace caducó', activa: false }
-  }
-  if (invitacion.enviado_at) {
-    return { texto: `Sin acceso · enviado el ${formatClinicDateTime(invitacion.enviado_at)}`, activa: false }
-  }
-  return { texto: 'Sin acceso · enlace generado, sin enviar', activa: false }
-}
 
 /** Un mes después de la fecha dada, en formato yyyy-MM-dd. */
 function unMesDespues(fecha: string): string {

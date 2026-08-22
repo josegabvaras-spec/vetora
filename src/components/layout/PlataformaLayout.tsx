@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { Building2, LayoutDashboard, LogOut, Menu, ShieldCheck, Tags, X } from 'lucide-react'
+import { Building2, LayoutDashboard, LogOut, Menu, ShieldCheck, Sparkles, Tags, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { PanelLateral } from './PanelLateral'
 import { useEsEscritorio } from '../../hooks/useMediaQuery'
@@ -14,6 +14,7 @@ import { PWAInstallPrompt } from '../ui/PWAInstallPrompt'
  */
 const links = [
   { to: '/plataforma', label: 'Resumen', icon: LayoutDashboard, end: true },
+  { to: '/plataforma/asistente', label: 'Asistente', icon: Sparkles, end: false },
   { to: '/plataforma/clinicas', label: 'Clínicas', icon: Building2, end: false },
   { to: '/plataforma/planes', label: 'Planes', icon: Tags, end: false },
 ]

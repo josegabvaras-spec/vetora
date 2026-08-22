@@ -12,6 +12,14 @@
 //   supabase functions serve asistente --env-file supabase/functions/.env.local
 
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.68.0'
+import { createClient } from 'npm:@supabase/supabase-js@^2.58.0'
+
+// Solo para comprobar quién llama: esta función no escribe nada en la base.
+const admin = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  { auth: { persistSession: false, autoRefreshToken: false } },
+)
 
 const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') })
 
@@ -57,10 +65,47 @@ const cabeceras = {
   'Content-Type': 'application/json',
 }
 
+/**
+ * Quien llama tiene que ser personal con sesión abierta.
+ *
+ * Sin esto la función era **pública de hecho**: la clave anónima viaja dentro
+ * del bundle que descarga cualquier visitante del sitio, así que bastaba
+ * copiarla para invocar el modelo y gastar los créditos de Anthropic de la
+ * plataforma. `crear-cuenta` y `respaldo-clinica` ya validaban; esta no.
+ *
+ * No se exige un rol concreto: la usan admin, veterinario y recepción. Lo que
+ * se exige es una cuenta real y activa, y el rol se lee en el servidor con el
+ * cliente admin (la RLS no aplica aquí) en vez de creerse lo que venga en el
+ * cuerpo de la petición.
+ */
+async function esPersonalActivo(peticion: Request): Promise<boolean> {
+  const jwt = (peticion.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
+  if (!jwt) return false
+
+  const { data, error } = await admin.auth.getUser(jwt)
+  if (error || !data.user) return false
+
+  const { data: perfil } = await admin
+    .from('usuarios')
+    .select('rol, activo')
+    .eq('id', data.user.id)
+    .maybeSingle()
+
+  if (!perfil || perfil.activo !== true) return false
+  return ['admin', 'veterinario', 'recepcion'].includes(perfil.rol)
+}
+
 Deno.serve(async (peticion) => {
   if (peticion.method === 'OPTIONS') return new Response('ok', { headers: cabeceras })
 
   try {
+    if (!await esPersonalActivo(peticion)) {
+      return new Response(
+        JSON.stringify({ error: 'No tienes permiso para usar el asistente' }),
+        { status: 403, headers: cabeceras },
+      )
+    }
+
     const { tarea, contexto } = await peticion.json()
     if (tarea !== 'aviso' && tarea !== 'informe') {
       return new Response(JSON.stringify({ error: 'Tarea desconocida' }), { status: 400, headers: cabeceras })

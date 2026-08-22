@@ -64,6 +64,19 @@ export function sumarMeses(mes: string, delta: number): string {
 }
 
 /**
+ * Desplaza un día clínico `'yyyy-MM-dd'` y devuelve otro día clínico.
+ *
+ * Se ancla al mediodía UTC antes de sumar: partir de medianoche deja la fecha
+ * a un paso de cruzar el día en cuanto entra el desfase de La Paz (-4), y el
+ * resultado saldría un día corrido.
+ */
+export function sumarDias(dia: string, delta: number): string {
+  const d = new Date(`${dia.slice(0, 10)}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + delta)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
  * Convierte una columna `date` de PostgreSQL ("2026-08-01") en un instante que
  * cae en ese mismo día aquí.
  *
