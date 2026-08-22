@@ -110,6 +110,12 @@ export interface ConsultaAbierta {
   paciente_id: string
   paciente_nombre: string
   cliente_nombre: string
+  /**
+   * A quién le toca atenderla. El veterinario no lo necesita —todo lo que ve es
+   * suyo—, pero el administrador ve la clínica entera y sin esto no sabría de
+   * quién es cada consulta.
+   */
+  veterinario_nombre: string
   motivo: string
   /** De la cita a la que cuelga: cuándo estaba citado y de qué tipo. */
   cita_id: string

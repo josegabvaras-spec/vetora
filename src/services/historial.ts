@@ -277,7 +277,7 @@ export async function listConsultasAbiertas(
 ): Promise<ConsultaAbierta[]> {
   let query = supabase
     .from('historial_clinico')
-    .select('id, cita_id, paciente_id, motivo')
+    .select('id, cita_id, paciente_id, veterinario_id, motivo')
     .eq('editable', true)
     .order('created_at', { ascending: false })
     .limit(TOPE_BORRADORES)
@@ -298,14 +298,21 @@ export async function listConsultasAbiertas(
       .in('id', borradores.map((b) => b.paciente_id)),
   ])
 
+  // Los dueños salen de los pacientes ya traídos; los veterinarios, de los
+  // propios borradores. Los dos en el mismo viaje: son independientes.
   const clienteIds = [...new Set((pacientes ?? []).map((p) => p.cliente_id))]
-  const { data: clientes } = clienteIds.length
-    ? await supabase.from('clientes').select('id, nombre').in('id', clienteIds)
-    : { data: [] as { id: string; nombre: string }[] }
+  const veterinarioIds = [...new Set(borradores.map((b) => b.veterinario_id))]
+  const [{ data: clientes }, { data: veterinarios }] = await Promise.all([
+    clienteIds.length
+      ? supabase.from('clientes').select('id, nombre').in('id', clienteIds)
+      : Promise.resolve({ data: [] as { id: string; nombre: string }[] }),
+    supabase.from('usuarios').select('id, nombre').in('id', veterinarioIds),
+  ])
 
   const mapaCitas = new Map((citas ?? []).map((c) => [c.id, c]))
   const mapaPacientes = new Map((pacientes ?? []).map((p) => [p.id, p]))
   const mapaClientes = new Map((clientes ?? []).map((c) => [c.id, c]))
+  const mapaVeterinarios = new Map((veterinarios ?? []).map((v) => [v.id, v]))
   const hoy = clinicDayIso()
 
   return borradores
@@ -326,6 +333,7 @@ export async function listConsultasAbiertas(
         paciente_id: b.paciente_id,
         paciente_nombre: paciente?.nombre ?? 'Paciente no disponible',
         cliente_nombre: cliente?.nombre ?? '',
+        veterinario_nombre: mapaVeterinarios.get(b.veterinario_id)?.nombre ?? 'Veterinario',
         motivo: b.motivo,
         cita_id: cita.id,
         fecha_hora: cita.fecha_hora,

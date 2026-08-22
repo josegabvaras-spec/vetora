@@ -3,12 +3,14 @@ import { clsx } from 'clsx'
 import { BellRing, MessageCircle, Send, Sparkles } from 'lucide-react'
 import { AvisoError } from '../components/ui/AvisoError'
 import { Card } from '../components/ui/Card'
+import { Cifra } from '../components/ui/Cifra'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Seccion } from '../components/ui/Seccion'
 import { Textarea } from '../components/ui/Field'
 import { TablaResponsive, type Columna } from '../components/ui/Tabla'
 import { MensajeModal } from '../features/asistente/MensajeModal'
+import { JornadaClinica } from '../features/asistente/JornadaClinica'
 import { useAuth } from '../context/AuthContext'
 import { useSuscripcionTabla } from '../mocks/useDb'
 import { listProgramados, resumenDelDia } from '../services/programados'
@@ -28,24 +30,6 @@ const TONO_AVISO: Record<TipoAviso, 'teal' | 'rose' | 'amber' | 'slate' | 'indig
   atencion_sin_cobrar: 'rose',
   examen_listo: 'teal',
   paciente_inactivo: 'slate',
-}
-
-/** Cifra del resumen del día. */
-function Cifra({ etiqueta, valor, alerta }: { etiqueta: string; valor: string; alerta?: boolean }) {
-  return (
-    <div>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{etiqueta}</p>
-      <p
-        className={
-          alerta
-            ? 'font-display text-2xl font-black text-amber-600'
-            : 'font-display text-2xl font-black text-slate-900'
-        }
-      >
-        {valor}
-      </p>
-    </div>
-  )
 }
 
 export function AsistentePage() {
@@ -308,6 +292,26 @@ export function AsistentePage() {
             {errorInforme && <p className="mt-2 text-sm text-rose-600">{errorInforme}</p>}
           </div>
         </Card>
+      )}
+
+      {/* El administrador atiende —en el Plan Consultorio es el único que lo
+          hace, y por eso `puedeAtender` ya lo cuenta como veterinario—, así que
+          necesita la misma cola de trabajo. Va ANTES de los avisos: atender a
+          quien está esperando pesa más que mandar un recordatorio.
+
+          Sin acotar a nadie: ve la clínica entera, con la columna que dice de
+          quién es cada fila. En el Consultorio eso es exactamente lo suyo; con
+          varios veterinarios, es lo que le deja coordinar. */}
+      {usuario?.rol === 'admin' && (
+        <>
+          <div className="pt-4">
+            <h2 className="text-xl font-bold text-slate-900">Jornada</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Lo que hay abierto en la clínica: consultas por atender, las citas de hoy y los internados.
+            </p>
+          </div>
+          <JornadaClinica sucursalId={sucursalActivaId || undefined} />
+        </>
       )}
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4">
