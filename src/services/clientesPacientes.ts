@@ -44,9 +44,17 @@ export async function listPacientes(busqueda = '', limite = LIMITE_PACIENTES): P
   // `%` y `_` son comodines de LIKE: sin escaparlos, buscar "50%" listaría de más.
   const patron = `%${termino.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
 
-  let query = supabase.from('pacientes').select('*').order('nombre').limit(limite)
+  let pacientes: any[] | null
 
-  if (termino) {
+  if (!termino) {
+    const { data, error } = await supabase
+      .from('pacientes')
+      .select('*')
+      .order('nombre')
+      .limit(limite)
+    if (error) throw new Error(`No se pudo cargar la lista de pacientes: ${error.message}`)
+    pacientes = data
+  } else {
     const { data: duenosQueCasan } = await supabase
       .from('clientes')
       .select('id')
@@ -54,13 +62,39 @@ export async function listPacientes(busqueda = '', limite = LIMITE_PACIENTES): P
       .limit(limite)
 
     const idsDuenos = (duenosQueCasan ?? []).map((c) => c.id)
-    query = idsDuenos.length
-      ? query.or(`nombre.ilike.${patron},cliente_id.in.(${idsDuenos.join(',')})`)
-      : query.ilike('nombre', patron)
+
+    // DOS consultas y una unión en memoria, en vez de un `.or()`.
+    //
+    // Antes esto era `.or(\`nombre.ilike.${patron},cliente_id.in.(…)\`)`, y ahí
+    // el término del usuario entraba **dentro de la sintaxis de filtros de
+    // PostgREST**, cuyos separadores son la coma, el punto y los paréntesis.
+    // El escape de LIKE de arriba no los cubre: buscar `a,b` partía la
+    // expresión en dos condiciones y buscar `a)` la reventaba con un error
+    // crudo de PostgREST. La RLS seguía encerrando al inquilino —no había fuga
+    // entre clínicas—, pero el filtro dejaba de decir lo que aparentaba.
+    //
+    // No se arregla escapando: serían dos gramáticas de escape superpuestas
+    // (la de LIKE dentro de la de PostgREST), y el `\%` del patrón se comería
+    // el escape de la otra. Con dos consultas, el término viaja SIEMPRE como
+    // valor de un parámetro y nunca como sintaxis.
+    const [porNombre, porDueno] = await Promise.all([
+      supabase.from('pacientes').select('*').ilike('nombre', patron).order('nombre').limit(limite),
+      idsDuenos.length
+        ? supabase.from('pacientes').select('*').in('cliente_id', idsDuenos).order('nombre').limit(limite)
+        : Promise.resolve({ data: [] as any[], error: null }),
+    ])
+
+    const error = porNombre.error ?? porDueno.error
+    if (error) throw new Error(`No se pudo cargar la lista de pacientes: ${error.message}`)
+
+    // Un paciente puede casar por su nombre y por el de su dueño a la vez.
+    const unicos = new Map<string, any>()
+    for (const p of [...(porNombre.data ?? []), ...(porDueno.data ?? [])]) unicos.set(p.id, p)
+    pacientes = [...unicos.values()]
+      .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)))
+      .slice(0, limite)
   }
 
-  const { data: pacientes, error } = await query
-  if (error) throw new Error(`No se pudo cargar la lista de pacientes: ${error.message}`)
   if (!pacientes || pacientes.length === 0) return []
 
   const todayStr = formatClinicDate(new Date().toISOString())
@@ -371,6 +405,11 @@ export async function eliminarPaciente(pacienteId: string): Promise<void> {
 
   if (citaIds.length > 0 || internacionIds.length > 0) {
     let cobrosQuery = supabase.from('cobros').select('id')
+    // Este `.or()` sí es seguro, y conviene decir por qué: lo que se interpola
+    // son uuids que acaban de salir de la base, no texto de nadie. Un uuid no
+    // puede llevar una coma ni un paréntesis, así que no hay forma de partir la
+    // expresión. La regla es esa —**nunca** entrada de usuario dentro de un
+    // `.or()`—, no que `.or()` esté prohibido; ver `listPacientes` arriba.
     cobrosQuery =
       citaIds.length > 0 && internacionIds.length > 0
         ? cobrosQuery.or(
