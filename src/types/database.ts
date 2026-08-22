@@ -43,7 +43,13 @@ export type Sexo = 'macho' | 'hembra' | 'desconocido'
 export interface Plan {
   id: string
   nombre: string
-  precio_mensual_bs: number
+  /**
+   * En **dólares** (migración 0019). La suscripción es lo único del sistema que
+   * no está en bolivianos: lo que sostiene la plataforma se paga en dólares y
+   * sus tarifas se mueven. La clínica paga el equivalente en Bs al cambio de
+   * `configuracion_plataforma.tipo_cambio_usd`.
+   */
+  precio_mensual_usd: number
   whatsapp_limite: number
   max_sucursales: number
   max_usuarios: number
@@ -71,8 +77,11 @@ export interface Clinica {
   whatsapp_periodo: string
   estado: EstadoClinica
 
-  /** Suscripción: lo pactado puede diferir del precio de lista del plan. */
-  precio_acordado_bs: number
+  /**
+   * Suscripción **en dólares**: lo pactado puede diferir del precio de lista
+   * del plan. Se cobra convertido a bolivianos — ver `Plan.precio_mensual_usd`.
+   */
+  precio_acordado_usd: number
   fecha_alta: string
   proximo_cobro: string
   estado_pago: EstadoPago

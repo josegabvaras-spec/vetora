@@ -23,7 +23,7 @@ const admin = createClient(
 
 const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') })
 
-const INSTRUCCIONES = `Eres quien escribe los mensajes de WhatsApp de una clínica veterinaria de Tarija, Bolivia.
+const INSTRUCCIONES = `Eres quien escribe los mensajes de WhatsApp de una clínica veterinaria de Bolivia.
 
 Escribe en español de Bolivia, tratando de "usted" al dueño de la mascota.
 
@@ -38,7 +38,7 @@ Reglas:
 
 Devuelve solo el texto del mensaje, listo para enviar.`
 
-const INSTRUCCIONES_INFORME = `Eres el asistente del administrador de una clínica veterinaria de Tarija, Bolivia.
+const INSTRUCCIONES_INFORME = `Eres el asistente del administrador de una clínica veterinaria de Bolivia.
 
 Resume el día en 3 a 5 líneas, en español, para que lo lea de un vistazo en el celular.
 

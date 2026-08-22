@@ -144,7 +144,7 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
   for (let i = 5; i >= 0; i--) {
     // El mes se compara como 'yyyy-MM' en la zona de la clínica, igual que las
     // tarjetas de arriba. Con getMonth() se resolvía en la del navegador, así
-    // que un cobro del 31 a las 21:00 en Tarija caía en el mes siguiente para
+    // que un cobro del 31 a las 21:00 en Bolivia caía en el mes siguiente para
     // el gráfico y en el correcto para la tarjeta: la misma pantalla se
     // contradecía a sí misma.
     const mesObjetivo = sumarMeses(mesActual, -i)

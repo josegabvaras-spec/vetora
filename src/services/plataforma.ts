@@ -148,7 +148,7 @@ async function detalleDeClinica(clinica: Clinica): Promise<ClinicaConDetalle> {
   return {
     ...clinica,
     plan_nombre: limites.plan.nombre,
-    precio_lista_bs: limites.plan.precio_mensual_bs,
+    precio_lista_usd: limites.plan.precio_mensual_usd,
     limites,
     total_pacientes: pacientesCount ?? 0,
     total_citas: citasCount ?? 0,
@@ -184,7 +184,7 @@ export async function resumenPlataforma(): Promise<ResumenPlataforma> {
   const activas = todasClinicas.filter((c) => c.estado === 'activa')
   const enMora = todasClinicas.filter((c) => c.estado_pago === 'en_mora')
 
-  const ingresoMensual = Number(activas.reduce((n, c) => n + c.precio_acordado_bs, 0).toFixed(2))
+  const ingresoMensual = Number(activas.reduce((n, c) => n + c.precio_acordado_usd, 0).toFixed(2))
 
   // MRR histórico reconstruido desde `clinicas.fecha_alta`: para cada mes se
   // suma el precio acordado de las clínicas que ya estaban dadas de alta.
@@ -205,7 +205,7 @@ export async function resumenPlataforma(): Promise<ResumenPlataforma> {
     const mes = sumarMeses(mesActual, i - 5)
     const mrr = todasClinicas
       .filter((c) => c.estado === 'activa' && clinicMonth(desdeFechaSola(c.fecha_alta)) <= mes)
-      .reduce((n, c) => n + c.precio_acordado_bs, 0)
+      .reduce((n, c) => n + c.precio_acordado_usd, 0)
 
     const [anio, numeroMes] = mes.split('-').map(Number)
     return {
@@ -242,9 +242,9 @@ export async function resumenPlataforma(): Promise<ResumenPlataforma> {
   return {
     clinicas_activas: activas.length,
     clinicas_suspendidas: todasClinicas.filter((c) => c.estado === 'suspendida').length,
-    ingreso_mensual_bs: ingresoMensual,
+    ingreso_mensual_usd: ingresoMensual,
     en_mora: enMora.length,
-    importe_en_mora_bs: Number(enMora.reduce((n, c) => n + c.precio_acordado_bs, 0).toFixed(2)),
+    importe_en_mora_usd: Number(enMora.reduce((n, c) => n + c.precio_acordado_usd, 0).toFixed(2)),
     // Consumo del mes en curso, no acumulado histórico: cada clínica aporta 0
     // si su contador todavía es el del mes pasado.
     whatsapp_enviados: todasClinicas.reduce(
@@ -267,7 +267,7 @@ export interface DatosClinica {
   whatsapp: string
   ciudad: string
   plan_id: string
-  precio_acordado_bs: number
+  precio_acordado_usd: number
   proximo_cobro: string
 }
 
@@ -285,7 +285,7 @@ async function validarClinica(datos: DatosClinica, ignorarId?: string) {
   exigirWhatsapp(datos.whatsapp, 'de la clínica')
   const plan = await getPlan(datos.plan_id)
   if (!plan) throw new Error('Elige un plan válido')
-  if (!Number.isFinite(datos.precio_acordado_bs) || datos.precio_acordado_bs < 0) {
+  if (!Number.isFinite(datos.precio_acordado_usd) || datos.precio_acordado_usd < 0) {
     throw new Error('El precio acordado debe ser un número mayor o igual a 0')
   }
   // Verificar nombre único
@@ -344,7 +344,7 @@ export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinica
       ciudad: input.ciudad.trim() || 'Bolivia',
       whatsapp_mensajes_enviados: 0,
       estado: 'activa',
-      precio_acordado_bs: input.precio_acordado_bs,
+      precio_acordado_usd: input.precio_acordado_usd,
       fecha_alta: hoy,
       proximo_cobro: input.proximo_cobro || hoy,
       estado_pago: 'al_dia',
@@ -442,7 +442,7 @@ export async function actualizarClinica(clinicaId: string, datos: DatosClinica):
       whatsapp: datos.whatsapp.trim(),
       ciudad: datos.ciudad.trim(),
       plan_id: datos.plan_id,
-      precio_acordado_bs: datos.precio_acordado_bs,
+      precio_acordado_usd: datos.precio_acordado_usd,
       proximo_cobro: datos.proximo_cobro,
     })
     .eq('id', clinicaId)
@@ -496,7 +496,7 @@ export async function marcarEnMora(clinicaId: string): Promise<void> {
  *
  * Solo la plataforma: `clinicas_plataforma` es la única policy de UPDATE sobre
  * `clinicas`. Dársela al admin de la clínica le permitiría cambiarse `plan_id`
- * y `precio_acordado_bs`, que es justo lo que `consumir_cuota_whatsapp()` evita
+ * y `precio_acordado_usd`, que es justo lo que `consumir_cuota_whatsapp()` evita
  * siendo `security definer`.
  *
  * El periodo se pone al mes en curso: dejarlo en uno viejo haría que el primer

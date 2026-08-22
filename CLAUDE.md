@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Proyecto
 
-Vetora es un SaaS de gestión veterinaria (MVP) para clínicas de Tarija, Bolivia. **[vetora.MD](vetora.MD) es el PRD y manda**: alcance, reglas de negocio (§5.2), modelo de datos (§6) y paleta/pantallas (§8). Antes de añadir una regla o una tabla, revisa si el PRD ya la define.
+Vetora es un SaaS de gestión veterinaria (MVP) para clínicas de Bolivia. **[vetora.MD](vetora.MD) es el PRD y manda**: alcance, reglas de negocio (§5.2), modelo de datos (§6) y paleta/pantallas (§8). Antes de añadir una regla o una tabla, revisa si el PRD ya la define.
 
 Todo el código, los comentarios, los identificadores y la interfaz están **en español** (incluidos los nombres de columnas: `clinica_id`, `fecha_hora`, `stock_actual`). Mantén esa convención.
 
@@ -141,12 +141,16 @@ Cada una tiene su barrera en el SQL y su réplica en un servicio; si escribes c�
 Además:
 
 - **El esquema sanitario vive fuera de la consulta** (migración 0014). `vacunas_aplicadas` y `desparasitaciones_aplicadas` tienen `historial_id` **nullable**: se registran desde la pestaña «Esquema Sanitario» de la ficha del paciente ([features/pacientes/EsquemaSanitario.tsx](src/features/pacientes/EsquemaSanitario.tsx)), con la fecha de aplicación como campo — casi todo lo que se carga por primera vez es historial previo, con fecha pasada. Las filas anteriores conservan su `historial_id`, así que el historial impreso de una consulta antigua sigue mostrando lo que se aplicó ese día. No las reintroduzcas en `SeccionesConsulta`: tenerlas en dos sitios obliga a elegir uno como el bueno.
-- **Moneda:** siempre `formatBs()` de [lib/currency.ts](src/lib/currency.ts) (`Bs. 0.00`).
+- **Moneda: dos, y no se mezclan.** Todo lo de la clínica —consultas, productos, caja, recibos— va en bolivianos con `formatBs()` de [lib/currency.ts](src/lib/currency.ts) (`Bs. 0.00`): quien paga ahí es un dueño de mascota en Bolivia.
+
+  **La suscripción a la plataforma es la única excepción y va en dólares** (`planes.precio_mensual_usd`, `clinicas.precio_acordado_usd`, migración 0019), porque lo que sostiene el servicio —dominio, Supabase, Vercel— se paga en dólares y sus tarifas se mueven. Se enseña con `formatUsd()` y se convierte con `usdABs()` al cambio de `configuracion_plataforma.tipo_cambio_usd`, tabla de **una sola fila** por construcción (`id boolean primary key check (id)`) que edita el superadmin en Plataforma → Planes. Las cuatro pantallas de plataforma enseñan **el dólar como precio y el boliviano debajo**: es lo que la clínica transfiere, pero la cifra que manda es la de arriba.
+
+  `formatBs` y `formatUsd` son dos funciones a propósito. Una sola con un parámetro de moneda es exactamente cómo se acaba imprimiendo `Bs.` sobre un importe en dólares el día que alguien olvida pasarlo.
 - **Tiempo:** siempre los helpers de [lib/datetime.ts](src/lib/datetime.ts) (`America/La_Paz`). Nunca `toLocaleString` ni `new Date().getHours()` sobre una fecha de negocio: el navegador puede estar en otra zona.
 - **Límites del plan:** se consultan por sus **números** (`max_sucursales`, `max_usuarios`, `whatsapp_limite`), nunca por el nombre del plan — el dueño de la plataforma crea planes desde el panel. `limitesDe()` en [services/plataforma.ts](src/services/plataforma.ts) es la fuente única para validar y para mostrar.
 - **WhatsApp no es una API.** [lib/whatsapp.ts](src/lib/whatsapp.ts) compone un enlace `wa.me` y **lo envía una persona** desde su propio teléfono; no hay token, ni webhook, ni coste por mensaje. El `whatsapp_limite` es una palanca comercial, no la repercusión de una factura.
 
-  El tope se consume en la base con `consumir_cuota_whatsapp()`: comprobar y sumar son la misma sentencia, porque hacerlo en tres viajes desde el navegador deja pasar dos pestañas con la cuota al límite. Es `security definer` **a propósito y acotado** — dar al admin una policy de UPDATE sobre `clinicas` le permitiría cambiarse `plan_id` y `precio_acordado_bs`.
+  El tope se consume en la base con `consumir_cuota_whatsapp()`: comprobar y sumar son la misma sentencia, porque hacerlo en tres viajes desde el navegador deja pasar dos pestañas con la cuota al límite. Es `security definer` **a propósito y acotado** — dar al admin una policy de UPDATE sobre `clinicas` le permitiría cambiarse `plan_id` y `precio_acordado_usd`.
 
   El contador **no se reinicia a medianoche**: lo reinicia el primer envío de cada mes, comparando `whatsapp_periodo`. Por eso quien lo muestre debe leer las dos columnas — `enviadosEsteMes()` en [services/whatsapp.ts](src/services/whatsapp.ts) es la fuente única.
 

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { listClinicas } from './plataforma'
+import { getConfiguracion } from './configuracion'
 import { contarErrores24h } from './salud'
 import { ultimasInvitacionesDe } from './invitaciones'
 import { clinicDayIso, sumarDias } from '../lib/datetime'
@@ -21,6 +22,9 @@ import type { Usuario } from '../types/database'
  */
 export async function listTareasPlataforma(): Promise<TareaPlataforma[]> {
   const clinicas = await listClinicas()
+  // El tipo de cambio se lee una vez para todas las tareas: es el mismo para
+  // todas y pedirlo por clínica serían N viajes para el mismo número.
+  const { tipo_cambio_usd } = await getConfiguracion()
   const hoy = clinicDayIso()
   const limite = sumarDias(hoy, DIAS_AVISO_COBRO)
   const tareas: TareaPlataforma[] = []
@@ -47,7 +51,7 @@ export async function listTareasPlataforma(): Promise<TareaPlataforma[]> {
         ...base,
         id: `cobro_vencido-${c.id}`,
         tipo: 'cobro_vencido',
-        detalle: detalleDeCobro(c.precio_acordado_bs),
+        detalle: detalleDeCobro(c.precio_acordado_usd, tipo_cambio_usd),
         fecha: vence,
         vencido: true,
       })
@@ -56,7 +60,7 @@ export async function listTareasPlataforma(): Promise<TareaPlataforma[]> {
         ...base,
         id: `cobro_proximo-${c.id}`,
         tipo: 'cobro_proximo',
-        detalle: detalleDeCobro(c.precio_acordado_bs),
+        detalle: detalleDeCobro(c.precio_acordado_usd, tipo_cambio_usd),
         fecha: vence,
         vencido: false,
       })

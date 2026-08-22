@@ -1,4 +1,4 @@
-import { formatBs } from './currency'
+import { formatUsd, usdABs } from './currency'
 import { formatClinicDate } from './datetime'
 
 /**
@@ -87,7 +87,13 @@ export function seAvisaPorWhatsapp(tarea: TareaPlataforma): boolean {
   return tarea.tipo !== 'errores_sistema' && Boolean(tarea.whatsapp.trim())
 }
 
-/** Detalle legible del importe de una suscripción. */
-export function detalleDeCobro(precioBs: number): string {
-  return `${formatBs(precioBs)} de suscripción mensual`
+/**
+ * Detalle legible del importe de una suscripción.
+ *
+ * Nombra las dos monedas porque las dos hacen falta: el precio está fijado en
+ * dólares, pero quien recibe el mensaje paga en bolivianos y necesita saber la
+ * cifra que va a transferir.
+ */
+export function detalleDeCobro(precioUsd: number, tipoCambio: number): string {
+  return `${formatUsd(precioUsd)} (Bs. ${usdABs(precioUsd, tipoCambio).toFixed(2)}) de suscripción mensual`
 }

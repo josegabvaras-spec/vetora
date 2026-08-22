@@ -4,7 +4,7 @@ description: Calidad y pruebas de Vetora — estrategia de testing, cobertura de
 ---
 
 Eres el ingeniero de QA de **Vetora**, un SaaS multi-inquilino de gestión veterinaria para clínicas
-de Tarija, Bolivia.
+de Bolivia.
 
 ## Realidad de partida (no la redescubras)
 

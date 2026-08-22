@@ -33,7 +33,8 @@ import { exportarClinica, importarEnClinica } from '../../services/respaldoPlata
 import { estadoDeLaCuenta } from '../../lib/acceso'
 import { ultimasInvitacionesDe } from '../../services/invitaciones'
 import { EnviarAccesoModal } from './EnviarAccesoModal'
-import { formatBs } from '../../lib/currency'
+import { getConfiguracion, TIPO_CAMBIO_POR_DEFECTO } from '../../services/configuracion'
+import { formatBs, formatUsd, usdABs } from '../../lib/currency'
 import { formatClinicDate } from '../../lib/datetime'
 import type { Invitacion, Plan, Rol, Usuario } from '../../types/database'
 import type { ClinicaConDetalle } from '../../types/views'
@@ -78,7 +79,7 @@ export function ClinicaDetalleModal({
   const [whatsapp, setWhatsapp] = useState(clinica.whatsapp)
   const [ciudad, setCiudad] = useState(clinica.ciudad)
   const [planId, setPlanId] = useState(clinica.plan_id)
-  const [precio, setPrecio] = useState(String(clinica.precio_acordado_bs))
+  const [precio, setPrecio] = useState(String(clinica.precio_acordado_usd))
   const [proximoCobro, setProximoCobro] = useState(clinica.proximo_cobro)
   const [guardando, setGuardando] = useState(false)
 
@@ -92,12 +93,19 @@ export function ClinicaDetalleModal({
   const [usuarioSucursal, setUsuarioSucursal] = useState('')
   const [enviandoAcceso, setEnviandoAcceso] = useState<Usuario | null>(null)
 
+  // El precio acordado está en dólares; esto es lo que hace falta para decir
+  // cuánto se le pide de verdad a la clínica, que paga en bolivianos.
+  const [tipoCambio, setTipoCambio] = useState(TIPO_CAMBIO_POR_DEFECTO)
+
   useEffect(() => {
     // Sin el `catch`, un fallo dejaba el selector de plan vacío y parecía que
     // la plataforma no tenía ninguno dado de alta.
     listPlanes()
       .then(setPlanes)
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los planes'))
+    getConfiguracion()
+      .then((cfg) => setTipoCambio(cfg.tipo_cambio_usd))
+      .catch(() => setTipoCambio(TIPO_CAMBIO_POR_DEFECTO))
   }, [])
 
   const [respaldando, setRespaldando] = useState(false)
@@ -181,7 +189,7 @@ export function ClinicaDetalleModal({
       whatsapp,
       ciudad,
       plan_id: planId,
-      precio_acordado_bs: Number(precio),
+      precio_acordado_usd: Number(precio),
       proximo_cobro: proximoCobro,
     }
     await ejecutar(() => actualizarClinica(clinica.id, datos))
@@ -261,14 +269,19 @@ export function ClinicaDetalleModal({
               <Select value={planId} onChange={(e) => setPlanId(e.target.value)}>
                 {planes.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.nombre} — {formatBs(p.precio_mensual_bs)}
+                    {p.nombre} — {formatUsd(p.precio_mensual_usd)}
                     {p.activo ? '' : ' (retirado)'}
                   </option>
                 ))}
               </Select>
             </FieldGroup>
-            <FieldGroup label="Precio acordado (Bs.)">
+            <FieldGroup label="Precio acordado (USD)">
               <Input type="number" min="0" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)} />
+              {precio !== '' && Number.isFinite(Number(precio)) && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Cobras ≈ {formatBs(usdABs(Number(precio), tipoCambio))} al mes.
+                </p>
+              )}
             </FieldGroup>
             <FieldGroup label="Próximo cobro">
               <Input type="date" value={proximoCobro} onChange={(e) => setProximoCobro(e.target.value)} />
@@ -276,8 +289,9 @@ export function ClinicaDetalleModal({
           </div>
 
           <p className="text-xs text-slate-500">
-            Precio de lista del plan: {formatBs(clinica.precio_lista_bs)}. Bajar de plan se rechaza si la clínica ya
-            supera los topes del nuevo.
+            Precio de lista del plan: {formatUsd(clinica.precio_lista_usd)}. La suscripción se fija en dólares y se
+            cobra al cambio vigente (USD 1 = {formatBs(tipoCambio)}), que se ajusta en Planes. Bajar de plan se
+            rechaza si la clínica ya supera los topes del nuevo.
           </p>
 
           <div className="flex flex-wrap justify-end gap-2">

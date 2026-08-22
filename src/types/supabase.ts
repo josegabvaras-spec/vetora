@@ -161,7 +161,7 @@ export type Database = {
           logo_url: string | null
           nombre: string
           plan_id: string
-          precio_acordado_bs: number
+          precio_acordado_usd: number
           proximo_cobro: string
           responsable: string
           whatsapp: string
@@ -178,7 +178,7 @@ export type Database = {
           logo_url?: string | null
           nombre: string
           plan_id: string
-          precio_acordado_bs?: number
+          precio_acordado_usd?: number
           proximo_cobro?: string
           responsable?: string
           whatsapp?: string
@@ -195,7 +195,7 @@ export type Database = {
           logo_url?: string | null
           nombre?: string
           plan_id?: string
-          precio_acordado_bs?: number
+          precio_acordado_usd?: number
           proximo_cobro?: string
           responsable?: string
           whatsapp?: string
@@ -211,6 +211,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      configuracion_plataforma: {
+        Row: {
+          id: boolean
+          tipo_cambio_usd: number
+          actualizado_at: string
+        }
+        Insert: {
+          id?: boolean
+          tipo_cambio_usd: number
+          actualizado_at?: string
+        }
+        Update: {
+          id?: boolean
+          tipo_cambio_usd?: number
+          actualizado_at?: string
+        }
+        Relationships: []
       }
       cobro_lineas: {
         Row: {
@@ -1066,7 +1084,7 @@ export type Database = {
           max_sucursales: number
           max_usuarios: number
           nombre: string
-          precio_mensual_bs: number
+          precio_mensual_usd: number
           whatsapp_limite: number
         }
         Insert: {
@@ -1076,7 +1094,7 @@ export type Database = {
           max_sucursales: number
           max_usuarios: number
           nombre: string
-          precio_mensual_bs?: number
+          precio_mensual_usd?: number
           whatsapp_limite: number
         }
         Update: {
@@ -1086,7 +1104,7 @@ export type Database = {
           max_sucursales?: number
           max_usuarios?: number
           nombre?: string
-          precio_mensual_bs?: number
+          precio_mensual_usd?: number
           whatsapp_limite?: number
         }
         Relationships: []

@@ -17,7 +17,7 @@ export async function getPlan(planId: string): Promise<Plan | undefined> {
 }
 
 export async function listPlanes(soloActivos = false): Promise<Plan[]> {
-  let query = supabase.from('planes').select('*').order('precio_mensual_bs', { ascending: true })
+  let query = supabase.from('planes').select('*').order('precio_mensual_usd', { ascending: true })
   if (soloActivos) query = query.eq('activo', true)
   const { data } = await query
   return data ?? []
@@ -25,7 +25,7 @@ export async function listPlanes(soloActivos = false): Promise<Plan[]> {
 
 export interface DatosPlan {
   nombre: string
-  precio_mensual_bs: number
+  precio_mensual_usd: number
   whatsapp_limite: number
   max_sucursales: number
   max_usuarios: number

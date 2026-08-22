@@ -39,7 +39,7 @@ export interface LimitesClinica {
 /** Fila del panel de plataforma: la clínica con su plan, consumo y actividad. */
 export interface ClinicaConDetalle extends Clinica {
   plan_nombre: string
-  precio_lista_bs: number
+  precio_lista_usd: number
   limites: LimitesClinica
   total_pacientes: number
   total_citas: number
@@ -49,10 +49,13 @@ export interface ClinicaConDetalle extends Clinica {
 export interface ResumenPlataforma {
   clinicas_activas: number
   clinicas_suspendidas: number
-  /** Ingreso mensual recurrente: suma de lo acordado con las clínicas activas. */
-  ingreso_mensual_bs: number
+  /**
+   * Ingreso mensual recurrente **en dólares**: suma de lo acordado con las
+   * clínicas activas. Toda la suscripción va en dólares desde 0019.
+   */
+  ingreso_mensual_usd: number
   en_mora: number
-  importe_en_mora_bs: number
+  importe_en_mora_usd: number
   whatsapp_enviados: number
   whatsapp_limite: number
   

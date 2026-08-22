@@ -11,7 +11,8 @@ import { EnviarAccesoModal } from '../../features/plataforma/EnviarAccesoModal'
 import { useTable } from '../../mocks/useDb'
 import { crearClinica, listClinicas, type AltaClinicaInput } from '../../services/plataforma'
 import { listPlanes } from '../../services/planes'
-import { formatBs } from '../../lib/currency'
+import { getConfiguracion, TIPO_CAMBIO_POR_DEFECTO } from '../../services/configuracion'
+import { formatBs, formatUsd, usdABs } from '../../lib/currency'
 import { clinicDayIso, formatClinicDate, sumarMeses } from '../../lib/datetime'
 
 /**
@@ -57,9 +58,14 @@ export function PlataformaClinicasPage() {
   const usuarios = useTable('usuarios')
   const sucursales = useTable('sucursales')
 
+  // La suscripción está fijada en dólares, pero se cobra en bolivianos: sin el
+  // tipo de cambio esta pantalla no puede decir cuánto se le pide a cada clínica.
+  const [tipoCambio, setTipoCambio] = useState(TIPO_CAMBIO_POR_DEFECTO)
+
   const recargar = useCallback(async () => {
-    const datos = await listClinicas()
+    const [datos, cfg] = await Promise.all([listClinicas(), getConfiguracion()])
     setClinicas(datos)
+    setTipoCambio(cfg.tipo_cambio_usd)
     setSeleccionada((actual) => (actual ? datos.find((c) => c.id === actual.id) ?? null : null))
   }, [])
 
@@ -115,8 +121,10 @@ export function PlataformaClinicasPage() {
               </div>
 
               <div className="text-right">
-                <p className="font-display text-lg font-black text-slate-900">{formatBs(c.precio_acordado_bs)}</p>
-                <p className="text-[11px] font-semibold text-slate-400">al mes</p>
+                <p className="font-display text-lg font-black text-slate-900">{formatUsd(c.precio_acordado_usd)}</p>
+                <p className="text-[11px] font-semibold text-slate-400">
+                  al mes · ≈ {formatBs(usdABs(c.precio_acordado_usd, tipoCambio))}
+                </p>
                 <p className="mt-1 text-[11px] text-slate-500">
                   Próximo cobro: {formatClinicDate(`${c.proximo_cobro}T12:00:00Z`)}
                 </p>
@@ -137,6 +145,7 @@ export function PlataformaClinicasPage() {
 
       {creando && (
         <NuevaClinicaModal
+          tipoCambio={tipoCambio}
           onClose={() => setCreando(false)}
           onCreada={async (admin, clinicaNombre) => {
             setCreando(false)
@@ -168,9 +177,11 @@ export function PlataformaClinicasPage() {
 }
 
 function NuevaClinicaModal({
+  tipoCambio,
   onClose,
   onCreada,
 }: {
+  tipoCambio: number
   onClose: () => void
   onCreada: (admin: Usuario, clinicaNombre: string) => void
 }) {
@@ -199,7 +210,7 @@ function NuevaClinicaModal({
         setPlanes(activos)
         if (activos[0]) {
           setPlanId(activos[0].id)
-          setPrecio(String(activos[0].precio_mensual_bs))
+          setPrecio(String(activos[0].precio_mensual_usd))
         }
       })
       // Sin esto, un fallo dejaba el alta sin planes que elegir y el formulario
@@ -211,7 +222,7 @@ function NuevaClinicaModal({
   function elegirPlan(id: string) {
     setPlanId(id)
     const plan = planes.find((p) => p.id === id)
-    if (plan) setPrecio(String(plan.precio_mensual_bs))
+    if (plan) setPrecio(String(plan.precio_mensual_usd))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -225,7 +236,7 @@ function NuevaClinicaModal({
       whatsapp,
       ciudad,
       plan_id: planId,
-      precio_acordado_bs: Number(precio),
+      precio_acordado_usd: Number(precio),
       proximo_cobro: proximoCobro,
       sucursalNombre,
       sucursalDireccion,
@@ -310,13 +321,18 @@ function NuevaClinicaModal({
               <Select value={planId} onChange={(e) => elegirPlan(e.target.value)}>
                 {planes.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.nombre} — {formatBs(p.precio_mensual_bs)}
+                    {p.nombre} — {formatUsd(p.precio_mensual_usd)}
                   </option>
                 ))}
               </Select>
             </FieldGroup>
-            <FieldGroup label="Precio acordado (Bs.)">
+            <FieldGroup label="Precio acordado (USD)">
               <Input type="number" min="0" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)} />
+              {precio !== '' && Number.isFinite(Number(precio)) && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Pagará ≈ {formatBs(usdABs(Number(precio), tipoCambio))} al mes.
+                </p>
+              )}
             </FieldGroup>
             <FieldGroup label="Próximo cobro">
               <Input type="date" value={proximoCobro} onChange={(e) => setProximoCobro(e.target.value)} />

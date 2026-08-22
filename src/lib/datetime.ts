@@ -24,7 +24,7 @@ export function formatClinicDate(dateIso: string): string {
  * Mes de negocio (`'yyyy-MM'`) de un instante, en la zona de la clínica.
  *
  * Comparar meses con `getMonth()` los resuelve en la zona del navegador: un
- * cobro del 31 de agosto a las 21:00 en Tarija es `2026-09-01T01:00Z` y desde
+ * cobro del 31 de agosto a las 21:00 en Bolivia es `2026-09-01T01:00Z` y desde
  * un equipo en UTC cae en septiembre. El cierre de mes se descuadra justo en
  * las horas de más caja.
  */

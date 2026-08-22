@@ -18,7 +18,7 @@
 -- repercusión de un coste externo.
 
 -- El periodo se calcula SIEMPRE en la zona de la clínica: en UTC el mes
--- cambiaría a las 20:00 hora de Tarija y el reinicio caería en pleno día de
+-- cambiaría a las 20:00 hora de Bolivia y el reinicio caería en pleno día de
 -- trabajo del día anterior.
 alter table clinicas add column if not exists whatsapp_periodo date
   not null default date_trunc('month', now() at time zone 'America/La_Paz')::date;
@@ -32,7 +32,7 @@ alter table clinicas add column if not exists whatsapp_periodo date
 --
 -- `security definer` es deliberado y está acotado a subir este contador. La
 -- alternativa —dar al admin una policy de UPDATE sobre `clinicas`— le
--- permitiría cambiarse `plan_id` y `precio_acordado_bs`: subirse de plan solo.
+-- permitiría cambiarse `plan_id` y `precio_acordado_usd`: subirse de plan solo.
 create or replace function consumir_cuota_whatsapp() returns integer
   language plpgsql
   security definer

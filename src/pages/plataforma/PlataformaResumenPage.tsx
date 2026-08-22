@@ -29,7 +29,8 @@ import { Seccion } from '../../components/ui/Seccion'
 import { useTable } from '../../mocks/useDb'
 import { listClinicas, resumenPlataforma } from '../../services/plataforma'
 import { medirSaludSistema, formatBytes, type SaludSistema } from '../../services/salud'
-import { formatBs } from '../../lib/currency'
+import { getConfiguracion, TIPO_CAMBIO_POR_DEFECTO } from '../../services/configuracion'
+import { formatBs, formatUsd, usdABs } from '../../lib/currency'
 import { formatClinicDate, formatClinicTime } from '../../lib/datetime'
 import type { ClinicaConDetalle, ResumenPlataforma } from '../../types/views'
 
@@ -126,6 +127,10 @@ export function PlataformaResumenPage() {
 
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
+  // La suscripción se fija en dólares y se cobra en bolivianos: sin el tipo de
+  // cambio, el MRR no se puede expresar en la moneda en que entra el dinero.
+  const [tipoCambio, setTipoCambio] = useState(TIPO_CAMBIO_POR_DEFECTO)
+
   useEffect(() => {
     setErrorCarga(null)
     resumenPlataforma()
@@ -134,6 +139,11 @@ export function PlataformaResumenPage() {
     listClinicas()
       .then(setClinicas)
       .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudieron cargar las clínicas'))
+    // Un fallo aquí no vacía el panel: `getConfiguracion` ya cae al valor por
+    // defecto, y el precio que manda —el dólar— se sigue viendo igual.
+    getConfiguracion()
+      .then((cfg) => setTipoCambio(cfg.tipo_cambio_usd))
+      .catch(() => setTipoCambio(TIPO_CAMBIO_POR_DEFECTO))
   }, [filas])
 
   useEffect(() => {
@@ -201,11 +211,17 @@ export function PlataformaResumenPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Cifra
           etiqueta="Ingreso mensual (MRR)"
-          valor={formatBs(resumen.ingreso_mensual_bs)}
+          valor={formatUsd(resumen.ingreso_mensual_usd)}
           detalle={
-            <span className={`font-semibold ${resumen.mrr_crecimiento_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {resumen.mrr_crecimiento_pct >= 0 ? '+' : ''}{resumen.mrr_crecimiento_pct}% vs mes anterior
-            </span>
+            <>
+              {/* El dólar es el precio, el boliviano es lo que entra en caja. */}
+              <span className="block text-slate-400">
+                ≈ {formatBs(usdABs(resumen.ingreso_mensual_usd, tipoCambio))}
+              </span>
+              <span className={`font-semibold ${resumen.mrr_crecimiento_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {resumen.mrr_crecimiento_pct >= 0 ? '+' : ''}{resumen.mrr_crecimiento_pct}% vs mes anterior
+              </span>
+            </>
           }
           icono={<TrendingUp size={20} />}
           tono="emerald"
@@ -254,7 +270,7 @@ export function PlataformaResumenPage() {
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} tickFormatter={(value) => `${value}`} />
                   <Tooltip
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                    formatter={(value: any) => [formatBs(Number(value)), 'Ingreso']}
+                    formatter={(value: any) => [formatUsd(Number(value)), 'Ingreso']}
                   />
                   <Area type="monotone" dataKey="mrr" stroke="#0d9488" strokeWidth={3} fillOpacity={1} fill="url(#colorMrr)" />
                 </AreaChart>
@@ -346,8 +362,13 @@ export function PlataformaResumenPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-display text-base font-black text-rose-600">
-                      {formatBs(c.precio_acordado_bs)}
+                    <span className="text-right">
+                      <span className="block font-display text-base font-black text-rose-600">
+                        {formatUsd(c.precio_acordado_usd)}
+                      </span>
+                      <span className="block text-[11px] font-medium text-slate-400">
+                        ≈ {formatBs(usdABs(c.precio_acordado_usd, tipoCambio))}
+                      </span>
                     </span>
                     <Link
                       to="/plataforma/clinicas"
