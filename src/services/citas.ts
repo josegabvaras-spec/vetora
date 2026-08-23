@@ -2,6 +2,8 @@ import { supabase } from '../lib/supabase'
 import type { Cita, EstadoCita, TipoCita } from '../types/database'
 import type { CitaConDetalle, ConsultaOrigen } from '../types/views'
 import { citaQueOcupa, SLOT_MINUTOS } from '../lib/agenda'
+import { fromClinicTime } from '../lib/datetime'
+import { COLUMNAS_PACIENTE_SIN_FOTO } from '../lib/paciente'
 import { requiereConsultaOrigen, requiereProcedimiento, TIPO_LABEL } from '../lib/citas'
 
 /**
@@ -18,6 +20,73 @@ export async function consultaOrigenDe(cita: Cita): Promise<ConsultaOrigen | nul
     fecha_hora: origen.fecha_hora,
     motivo: historial?.motivo || origen.notas?.trim() || (TIPO_LABEL as any)[origen.tipo_cita],
   }
+}
+
+/**
+ * Lo mismo que `consultaOrigenDe`, pero para un lote entero: **dos consultas
+ * en total** en vez de dos por cita.
+ *
+ * Esta era la peor fuga de la agenda. `componerDetalleDeCitas` ya resolvía
+ * pacientes, dueños, veterinarios y servicios con `.in(...)`, pero llamaba a
+ * `consultaOrigenDe` dentro del `map`: una semana con 60 citas eran 120
+ * peticiones extra, y el usuario las esperaba todas antes de ver su agenda.
+ *
+ * Devuelve un mapa indexado por el id de la cita que PIDE el origen (no por el
+ * de la cita de origen), que es como lo consume quien compone la fila.
+ */
+export async function origenesDe(citas: Cita[]): Promise<Map<string, ConsultaOrigen>> {
+  const conOrigen = citas.filter((c) => c.cita_origen_id)
+  if (conOrigen.length === 0) return new Map()
+
+  const { data: origenes } = await supabase
+    .from('citas')
+    .select('id, fecha_hora, notas, tipo_cita')
+    .in('id', idsDe(conOrigen, (c) => c.cita_origen_id))
+
+  if (!origenes || origenes.length === 0) return new Map()
+
+  const { data: historiales } = await supabase
+    .from('historial_clinico')
+    .select('cita_id, motivo')
+    .in('cita_id', origenes.map((o) => o.id))
+
+  const motivoPorCita = new Map((historiales ?? []).map((h) => [h.cita_id, h.motivo]))
+  const porId = new Map(origenes.map((o) => [o.id, o]))
+
+  const resultado = new Map<string, ConsultaOrigen>()
+  for (const cita of conOrigen) {
+    const origen = porId.get(cita.cita_origen_id!)
+    if (!origen) continue
+    resultado.set(cita.id, {
+      cita_id: origen.id,
+      fecha_hora: origen.fecha_hora,
+      motivo:
+        motivoPorCita.get(origen.id) ||
+        origen.notas?.trim() ||
+        (TIPO_LABEL as any)[origen.tipo_cita],
+    })
+  }
+  return resultado
+}
+
+/**
+ * Citas de un veterinario en un día concreto, para la rejilla de horas libres.
+ *
+ * El modal de alta leía `useTable('citas')` —la tabla ENTERA del inquilino— y
+ * filtraba en memoria. Además de traerse de todo, era **incorrecto**: PostgREST
+ * corta en 1000 filas, así que en una clínica con historial la cita que ocupa
+ * el hueco podía no venir en el lote y la rejilla enseñaba libre un horario
+ * ocupado. Aquí el filtro lo hace la base.
+ */
+export async function citasDelDiaDe(veterinarioId: string, dia: string): Promise<Cita[]> {
+  if (!veterinarioId || !dia) return []
+  const { data } = await supabase
+    .from('citas')
+    .select('*')
+    .eq('veterinario_id', veterinarioId)
+    .gte('fecha_hora', fromClinicTime(`${dia}T00:00:00`))
+    .lte('fecha_hora', fromClinicTime(`${dia}T23:59:59`))
+  return (data ?? []) as Cita[]
 }
 
 /** Ventana de tiempo, en ISO. Ambos extremos inclusive. */
@@ -56,7 +125,7 @@ async function componerDetalleDeCitas(citas: any[]): Promise<CitaConDetalle[]> {
     { data: historiales },
     { data: internaciones },
   ] = await Promise.all([
-    supabase.from('pacientes').select('*').in('id', pacienteIds),
+    supabase.from('pacientes').select(COLUMNAS_PACIENTE_SIN_FOTO).in('id', pacienteIds),
     supabase.from('usuarios').select('id, nombre').in('id', veterinarioIds),
     servicioIds.length
       ? supabase.from('servicios').select('id, nombre').in('id', servicioIds)
@@ -85,24 +154,24 @@ async function componerDetalleDeCitas(citas: any[]): Promise<CitaConDetalle[]> {
   const mapaHistoriales = porCita(historiales as any[])
   const mapaInternaciones = porCita(internaciones as any[])
 
-  const result = await Promise.all(
-    citas.map(async (c: any) => {
-      const paciente = mapaPacientes.get(c.paciente_id) ?? null
-      const cliente = paciente ? mapaClientes.get((paciente as any).cliente_id) ?? null : null
-      return {
-        ...c,
-        paciente: paciente
-          ? { ...paciente, cliente }
-          : { id: c.paciente_id, nombre: 'Paciente no disponible', cliente },
-        veterinario_nombre: (mapaUsuarios.get(c.veterinario_id) as any)?.nombre ?? 'Veterinario',
-        consentimiento: mapaConsentimientos.get(c.id) ?? null,
-        historial_id: (mapaHistoriales.get(c.id) as any)?.id ?? null,
-        servicio_nombre: (mapaServicios.get(c.servicio_id) as any)?.nombre ?? null,
-        origen: await consultaOrigenDe(c),
-        internacion_id: (mapaInternaciones.get(c.id) as any)?.id ?? null,
-      } as CitaConDetalle
-    }),
-  )
+  const mapaOrigenes = await origenesDe(citas as Cita[])
+
+  const result = citas.map((c: any) => {
+    const paciente = mapaPacientes.get(c.paciente_id) ?? null
+    const cliente = paciente ? mapaClientes.get((paciente as any).cliente_id) ?? null : null
+    return {
+      ...c,
+      paciente: paciente
+        ? { ...paciente, cliente }
+        : { id: c.paciente_id, nombre: 'Paciente no disponible', cliente },
+      veterinario_nombre: (mapaUsuarios.get(c.veterinario_id) as any)?.nombre ?? 'Veterinario',
+      consentimiento: mapaConsentimientos.get(c.id) ?? null,
+      historial_id: (mapaHistoriales.get(c.id) as any)?.id ?? null,
+      servicio_nombre: (mapaServicios.get(c.servicio_id) as any)?.nombre ?? null,
+      origen: mapaOrigenes.get(c.id) ?? null,
+      internacion_id: (mapaInternaciones.get(c.id) as any)?.id ?? null,
+    } as CitaConDetalle
+  })
 
   return result.sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora))
 }

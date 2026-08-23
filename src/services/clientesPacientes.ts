@@ -6,9 +6,10 @@ import type {
   PacienteConDueno,
   ProductoUsado,
 } from '../types/views'
-import { consultaOrigenDe } from './citas'
+import { consultaOrigenDe, origenesDe } from './citas'
 import { detalleDeInternacion, internacionAbiertaDe } from './internacion'
 import { diasDeEstadia } from '../lib/internacion'
+import { COLUMNAS_PACIENTE_SIN_FOTO } from '../lib/paciente'
 import { actualizarBorradorHistorial, iniciarConsultaLibre, type CamposEditablesHistorial } from './historial'
 import { clinicDayIso, formatClinicDate, fromClinicTime } from '../lib/datetime'
 
@@ -26,6 +27,43 @@ async function internacionActivaDe(pacienteId: string): Promise<InternacionResum
 
 /** Tope de la lista de pacientes. Suficiente para una pantalla, con margen. */
 export const LIMITE_PACIENTES = 200
+
+/** Lo justo para pintar un desplegable de pacientes. */
+export interface PacienteParaSelector {
+  id: string
+  nombre: string
+  cliente_id: string
+  /** Para el rótulo «Fido (Ana Pérez)» sin descargar la tabla de clientes. */
+  cliente_nombre: string
+}
+
+/**
+ * Pacientes para un `<Select>`, y **nada más**.
+ *
+ * Los modales de alta usaban `useTable('pacientes')`, que hace `select('*')`
+ * sobre la tabla entera: con la foto en base64 de cada paciente, abrir «Nueva
+ * cita» descargaba decenas de MB para pintar una lista de nombres.
+ *
+ * No lleva `limit`: son tres columnas de texto y el desplegable los necesita
+ * todos —si falta uno, no se le puede agendar—. El corte de 1000 filas de
+ * PostgREST sigue ahí y es la razón de que la lista GRANDE (`listPacientes`)
+ * filtre en el servidor; aquí, en una clínica con más de mil pacientes, habría
+ * que cambiar el desplegable por un buscador.
+ */
+export async function listPacientesParaSelector(): Promise<PacienteParaSelector[]> {
+  const { data, error } = await supabase
+    .from('pacientes')
+    .select('id, nombre, cliente_id, cliente:clientes(nombre)')
+    .order('nombre')
+
+  if (error) throw new Error(`No se pudieron cargar los pacientes: ${error.message}`)
+  return (data ?? []).map((p: any) => ({
+    id: p.id,
+    nombre: p.nombre,
+    cliente_id: p.cliente_id,
+    cliente_nombre: p.cliente?.nombre ?? '',
+  }))
+}
 
 /**
  * Cartera de pacientes, filtrada **en el servidor**.
@@ -49,7 +87,7 @@ export async function listPacientes(busqueda = '', limite = LIMITE_PACIENTES): P
   if (!termino) {
     const { data, error } = await supabase
       .from('pacientes')
-      .select('*')
+      .select(COLUMNAS_PACIENTE_SIN_FOTO)
       .order('nombre')
       .limit(limite)
     if (error) throw new Error(`No se pudo cargar la lista de pacientes: ${error.message}`)
@@ -78,9 +116,9 @@ export async function listPacientes(busqueda = '', limite = LIMITE_PACIENTES): P
     // el escape de la otra. Con dos consultas, el término viaja SIEMPRE como
     // valor de un parámetro y nunca como sintaxis.
     const [porNombre, porDueno] = await Promise.all([
-      supabase.from('pacientes').select('*').ilike('nombre', patron).order('nombre').limit(limite),
+      supabase.from('pacientes').select(COLUMNAS_PACIENTE_SIN_FOTO).ilike('nombre', patron).order('nombre').limit(limite),
       idsDuenos.length
-        ? supabase.from('pacientes').select('*').in('cliente_id', idsDuenos).order('nombre').limit(limite)
+        ? supabase.from('pacientes').select(COLUMNAS_PACIENTE_SIN_FOTO).in('cliente_id', idsDuenos).order('nombre').limit(limite)
         : Promise.resolve({ data: [] as any[], error: null }),
     ])
 
@@ -128,24 +166,45 @@ export async function listPacientes(busqueda = '', limite = LIMITE_PACIENTES): P
       : Promise.resolve({ data: [] as any[] }),
   ])
 
-  const result = await Promise.all(pacientes.map(async (p: any) => {
-    const cliente = clientes?.find((c) => c.id === p.cliente_id) ?? null
-    const internacion_activa = await internacionActivaDe(p.id)
+  // Las internaciones abiertas de TODOS los pacientes del lote, en una consulta.
+  // Antes se preguntaba paciente por paciente: 200 filas eran 200 peticiones
+  // más, encadenadas al render de la lista.
+  const { data: internacionesAbiertas } = await supabase
+    .from('internaciones')
+    .select('id, paciente_id, fecha_ingreso, fecha_alta, motivo, jaula')
+    .in('paciente_id', pacienteIds)
+    .eq('estado', 'internado')
 
-    const citas_hoy = await Promise.all(
-      citasDeHoy
-        .filter((c: any) => c.paciente_id === p.id && formatClinicDate(c.fecha_hora) === todayStr)
-        .map(async (c: any) => {
-          return {
-            ...c,
-            paciente: { ...p, cliente, internacion_activa },
-            veterinario_nombre: usuarios?.find((u: any) => u.id === c.veterinario_id)?.nombre ?? 'Veterinario',
-            servicio_nombre: servicios?.find((s: any) => s.id === c.servicio_id)?.nombre ?? null,
-            origen: await consultaOrigenDe(c as any),
-          } as any
-        })
-    )
-    citas_hoy.sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora))
+  const internacionPorPaciente = new Map(
+    (internacionesAbiertas ?? []).map((i: any) => [
+      i.paciente_id,
+      {
+        id: i.id,
+        fecha_ingreso: i.fecha_ingreso,
+        dias: diasDeEstadia(i.fecha_ingreso, i.fecha_alta),
+        motivo: i.motivo,
+        jaula: i.jaula,
+      } as InternacionResumen,
+    ]),
+  )
+
+  // Y los orígenes de las reconsultas de hoy, también en lote.
+  const mapaOrigenes = await origenesDe(citasDeHoy as any[])
+
+  const result = pacientes.map((p: any) => {
+    const cliente = clientes?.find((c) => c.id === p.cliente_id) ?? null
+    const internacion_activa = internacionPorPaciente.get(p.id) ?? null
+
+    const citas_hoy = citasDeHoy
+      .filter((c: any) => c.paciente_id === p.id && formatClinicDate(c.fecha_hora) === todayStr)
+      .map((c: any) => ({
+        ...c,
+        paciente: { ...p, cliente, internacion_activa },
+        veterinario_nombre: usuarios?.find((u: any) => u.id === c.veterinario_id)?.nombre ?? 'Veterinario',
+        servicio_nombre: servicios?.find((s: any) => s.id === c.servicio_id)?.nombre ?? null,
+        origen: mapaOrigenes.get(c.id) ?? null,
+      }) as any)
+    citas_hoy.sort((a: any, b: any) => a.fecha_hora.localeCompare(b.fecha_hora))
 
     return {
       ...p,
@@ -153,7 +212,7 @@ export async function listPacientes(busqueda = '', limite = LIMITE_PACIENTES): P
       internacion_activa,
       citas_hoy,
     }
-  }))
+  })
 
   return result as any
 }
@@ -362,7 +421,16 @@ export async function actualizarClienteYPaciente(
       especie: input.especie,
       raza: input.raza,
       sexo: input.sexo,
-      foto: input.foto || null,
+      // `foto` SOLO se escribe si viene en el input.
+      //
+      // Antes era `foto: input.foto || null`, y eso convertía «no me la
+      // pasaron» en «bórrala». Mientras la foto viajaba en todas las lecturas
+      // no se notaba, pero en cuanto una pantalla deja de pedirla —que es lo
+      // que hace falta para que la lista de pacientes no descargue megas de
+      // base64— editar cualquier dato del paciente le habría borrado la foto
+      // en silencio. `undefined` es «no la toques»; `null` y '' siguen siendo
+      // «quítala», que es lo que manda el formulario cuando se elimina.
+      ...(input.foto !== undefined ? { foto: input.foto || null } : {}),
       fecha_nacimiento: input.fechaNacimiento || null,
       alergias: input.alergias?.trim() || null,
       antecedentes: input.antecedentes?.trim() || null,

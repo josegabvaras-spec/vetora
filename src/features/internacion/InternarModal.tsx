@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { FieldGroup, Input, Select, Textarea } from '../../components/ui/Field'
-import { useTable } from '../../mocks/useDb'
+import { useSuscripcionTabla, useTable } from '../../mocks/useDb'
 import { useAuth } from '../../context/AuthContext'
 import { internarPaciente } from '../../services/internacion'
+import { listPacientesParaSelector, type PacienteParaSelector } from '../../services/clientesPacientes'
 import { serviciosDeCategoria } from '../../services/servicios'
 import { formatBs } from '../../lib/currency'
 import { puedeAtender, veterinarioAcotado } from '../../lib/personal'
@@ -28,8 +29,20 @@ export function InternarModal({
   onInternado: () => void
 }) {
   const { usuario } = useAuth()
-  const pacientes = useTable('pacientes')
-  const clientes = useTable('clientes')
+  // Por servicio y no con `useTable`: aquel hace `select('*')` sobre la tabla
+  // entera, y `pacientes.foto` es la imagen en base64 (0006). Abrir este modal
+  // descargaba las fotos de toda la clínica para pintar nombres.
+  const revisionPacientes = useSuscripcionTabla('pacientes')
+  const [pacientes, setPacientes] = useState<PacienteParaSelector[]>([])
+  useEffect(() => {
+    let montado = true
+    listPacientesParaSelector()
+      .then((data) => { if (montado) setPacientes(data) })
+      .catch((err) => {
+        if (montado) setError(err instanceof Error ? err.message : 'No se pudieron cargar los pacientes')
+      })
+    return () => { montado = false }
+  }, [revisionPacientes])
   const usuarios = useTable('usuarios')
   const servicios = useTable('servicios')
   const veterinarios = usuarios.filter(puedeAtender)
@@ -123,7 +136,7 @@ export function InternarModal({
           <Select value={pacienteId} onChange={(e) => setPacienteId(e.target.value)} disabled={!!pacienteIdInicial}>
             {pacientes.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nombre} ({clientes.find((c) => c.id === p.cliente_id)?.nombre})
+                {p.nombre} ({p.cliente_nombre})
               </option>
             ))}
           </Select>

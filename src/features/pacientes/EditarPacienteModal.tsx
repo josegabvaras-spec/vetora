@@ -33,12 +33,27 @@ export function EditarPacienteModal({
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  /**
+   * La foto se manda **solo si cambió**.
+   *
+   * Las pantallas que listan pacientes ya no piden la columna `foto` —es base64
+   * y pesa megas—, así que aquí puede llegar vacía sin que eso signifique que el
+   * paciente no tenga ninguna. Mandarla igualmente convertía «no la tengo
+   * cargada» en «bórrala», y editar el peso de un paciente le borraba la foto.
+   * Comparar contra el valor de partida distingue los dos casos, y de paso
+   * quitarla sigue funcionando: pasa a ser distinta de la original.
+   */
+  const fotoOriginal = paciente.foto ?? ''
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setEnviando(true)
     try {
-      await actualizarClienteYPaciente(paciente.id, cliente.id, datosPaciente)
+      await actualizarClienteYPaciente(paciente.id, cliente.id, {
+        ...datosPaciente,
+        foto: datosPaciente.foto !== fotoOriginal ? datosPaciente.foto : undefined,
+      })
       onUpdated()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido al actualizar')

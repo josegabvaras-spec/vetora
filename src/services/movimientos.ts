@@ -1,7 +1,14 @@
 import { supabase } from '../lib/supabase'
 import { clinicDayIso, fromClinicTime } from '../lib/datetime'
-import { detalleDeCobro } from './caja'
+import { componerDetalleDeCobros } from './caja'
 import type { MovimientoUnificado, OrigenMovimiento } from '../types/views'
+
+/**
+ * Tope de la bitácora. Es un informe que se mira, no un export: con más de
+ * quinientas líneas nadie lo lee, y el respaldo de `/respaldo` es el camino
+ * para llevarse todo.
+ */
+const TOPE_MOVIMIENTOS = 500
 
 export interface FiltroMovimientos {
   /** Fechas en formato yyyy-MM-dd; se comparan contra la fecha de la clínica. */
@@ -44,7 +51,13 @@ export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<M
     return q
   }
 
-  const { data: cobros, error: errorCobros } = await acotar(supabase.from('cobros').select('*') as any)
+  // Tope explícito, como en `listInternaciones`. Sin él, un rango de fechas
+  // amplio se traía todos los cobros y componía el detalle de cada uno: el
+  // corte de 1000 filas de PostgREST llegaba igual, pero en silencio y sin
+  // garantizar cuáles se quedaban fuera.
+  const { data: cobros, error: errorCobros } = await acotar(
+    supabase.from('cobros').select('*').order('created_at', { ascending: false }).limit(TOPE_MOVIMIENTOS) as any,
+  )
   if (errorCobros) throw new Error(`No se pudo cargar la caja: ${errorCobros.message}`)
 
   const { data: movimientosInv, error: errorInv } = await acotar(
@@ -57,8 +70,13 @@ export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<M
   if (errorInv) throw new Error(`No se pudo cargar el inventario: ${errorInv.message}`)
 
 
-  const deCaja: MovimientoUnificado[] = await Promise.all((cobros || []).map(async (c: any) => {
-    const detalle = await detalleDeCobro(c as any)
+  // Una consulta por tabla para TODO el lote, en vez de cuatro o cinco por
+  // cobro. Con 300 cobros eso eran más de mil peticiones encadenadas.
+  const detalles = await componerDetalleDeCobros((cobros || []) as any[])
+  const detallePorCobro = new Map(detalles.map((d) => [d.id, d]))
+
+  const deCaja: MovimientoUnificado[] = (cobros || []).map((c: any) => {
+    const detalle = detallePorCobro.get(c.id)!
     return {
       id: c.id,
       origen: 'caja',
@@ -69,7 +87,7 @@ export async function listMovimientos(filtro: FiltroMovimientos = {}): Promise<M
       monto_bs: c.monto_bs,
       metodo_pago: c.metodo_pago as any,
     } as MovimientoUnificado
-  }))
+  })
 
   const deInventario: MovimientoUnificado[] = (movimientosInv || []).map((m: any) => {
     const porUsuario = m.usuario ? ` (por ${m.usuario.nombre})` : ''

@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase'
 import type { EstadoInternacion, Internacion, NotaInternacion } from '../types/database'
 import type { InternacionConDetalle, NotaInternacionConDetalle, ProductoUsado } from '../types/views'
 import { diasDeEstadia } from '../lib/internacion'
+import { COLUMNAS_PACIENTE_SIN_FOTO } from '../lib/paciente'
 import { registrarMovimiento } from './inventario'
 
 /** Lanza si la internación no existe o ya fue dada de alta (expediente cerrado). */
@@ -77,6 +78,105 @@ export async function detalleDeInternacion(internacion: Internacion): Promise<In
 }
 
 /**
+ * Compone un lote de internaciones con **una consulta por tabla**.
+ *
+ * `detalleDeInternacion` hace seis consultas por fila; con el tope de 500 del
+ * listado eran hasta tres mil peticiones desde el navegador. Mismo patrón que
+ * `componerDetalleDeCitas` y `componerDetalleDeCobros`.
+ *
+ * `detalleDeInternacion` se conserva para `getInternacion`, donde una sola fila
+ * no justifica montar los mapas.
+ */
+async function componerDetalleDeInternaciones(
+  internaciones: Internacion[],
+): Promise<InternacionConDetalle[]> {
+  if (internaciones.length === 0) return []
+
+  const unicos = (valores: (string | null | undefined)[]): string[] =>
+    [...new Set(valores.filter((v): v is string => !!v))]
+
+  const ids = internaciones.map((i) => i.id)
+
+  const [
+    { data: pacientes },
+    { data: usuarios },
+    { data: servicios },
+    { data: movimientos },
+    { data: notas },
+    { data: cobros },
+  ] = await Promise.all([
+    supabase
+      .from('pacientes')
+      // Sin `foto`: las tarjetas de internación no la pintan, y es base64.
+      .select(`${COLUMNAS_PACIENTE_SIN_FOTO}, cliente:clientes(*)`)
+      .in('id', unicos(internaciones.map((i) => i.paciente_id))),
+    supabase.from('usuarios').select('id, nombre').in('id', unicos(internaciones.map((i) => i.veterinario_id))),
+    supabase.from('servicios').select('id, nombre').in('id', unicos(internaciones.map((i) => i.servicio_dia_id))),
+    supabase
+      .from('movimientos_inventario')
+      .select('*, producto:productos(*)')
+      .in('internacion_id', ids)
+      .eq('tipo', 'egreso'),
+    supabase
+      .from('notas_internacion')
+      .select('*, veterinario:usuarios(*)')
+      .in('internacion_id', ids)
+      .order('created_at', { ascending: false }),
+    supabase.from('cobros').select('id, internacion_id').in('internacion_id', ids),
+  ])
+
+  const mapaPacientes = new Map((pacientes ?? []).map((x: any) => [x.id, x]))
+  const mapaUsuarios = new Map((usuarios ?? []).map((x: any) => [x.id, x]))
+  const mapaServicios = new Map((servicios ?? []).map((x: any) => [x.id, x]))
+  const cobradas = new Set((cobros ?? []).map((c: any) => c.internacion_id))
+
+  const agrupar = <T,>(filas: T[] | null, clave: (f: T) => string): Map<string, T[]> => {
+    const mapa = new Map<string, T[]>()
+    for (const fila of filas ?? []) {
+      const k = clave(fila)
+      const acumulado = mapa.get(k) ?? []
+      acumulado.push(fila)
+      mapa.set(k, acumulado)
+    }
+    return mapa
+  }
+
+  const movsPorInternacion = agrupar(movimientos as any[], (m: any) => m.internacion_id)
+  const notasPorInternacion = agrupar(notas as any[], (n: any) => n.internacion_id)
+
+  return internaciones.map((internacion) => {
+    const productosUsados: ProductoUsado[] = (movsPorInternacion.get(internacion.id) ?? []).map((m: any) => ({
+      movimiento_id: m.id,
+      producto_id: m.producto_id,
+      nombre: m.producto?.nombre ?? 'Producto',
+      cantidad: m.cantidad,
+      unidad_medida: m.producto?.unidad_medida ?? '',
+      precio_bs: m.producto?.precio_bs ?? 0,
+    }))
+
+    const dias = diasDeEstadia(internacion.fecha_ingreso, internacion.fecha_alta)
+
+    return {
+      ...internacion,
+      paciente: mapaPacientes.get(internacion.paciente_id) as any,
+      veterinario_nombre: mapaUsuarios.get(internacion.veterinario_id)?.nombre ?? 'Veterinario',
+      servicio_nombre: mapaServicios.get(internacion.servicio_dia_id)?.nombre ?? 'Día de internación',
+      notas: (notasPorInternacion.get(internacion.id) ?? []).map((n: any) => ({
+        ...n,
+        veterinario_nombre: n.veterinario?.nombre ?? 'Veterinario',
+      })),
+      productosUsados,
+      dias,
+      costo_estadia_bs: Number((dias * internacion.precio_dia_bs).toFixed(2)),
+      costo_productos_bs: Number(
+        productosUsados.reduce((n, x) => n + x.precio_bs * x.cantidad, 0).toFixed(2),
+      ),
+      cobrada: cobradas.has(internacion.id),
+    } as InternacionConDetalle
+  })
+}
+
+/**
  * `veterinarioId` acota el listado al responsable, igual que `sucursalId` acota
  * a la sucursal: sin él no filtra. Lo pasa quien llama, con
  * `veterinarioAcotado()` ([lib/personal.ts](../lib/personal.ts)).
@@ -102,7 +202,7 @@ export async function listInternaciones(
   const { data: internaciones } = await query
   if (!internaciones || internaciones.length === 0) return []
 
-  return Promise.all(internaciones.map((i: any) => detalleDeInternacion(i)))
+  return componerDetalleDeInternaciones(internaciones as Internacion[])
 }
 
 export async function getInternacion(id: string): Promise<InternacionConDetalle | null> {

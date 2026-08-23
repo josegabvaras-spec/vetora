@@ -156,6 +156,23 @@ async function detalleDeClinica(clinica: Clinica): Promise<ClinicaConDetalle> {
   }
 }
 
+/**
+ * Todas las clínicas con su detalle, en **cinco consultas** en vez de seis por
+ * clínica.
+ *
+ * `detalleDeClinica` está pensado para UNA: hace `limitesDe` (que a su vez son
+ * `getPlan` más dos `count`) y dos `count` más. Esta es la pantalla principal
+ * del dueño de la plataforma y la única cuyo coste crece con el número de
+ * clientes del SaaS: con 50 clínicas eran unas 300 peticiones al abrirla.
+ *
+ * Los `count` por clínica pasan a ser un recuento en memoria sobre los ids ya
+ * traídos. Solo se piden las columnas que hacen falta para contar, salvo
+ * `usuarios`, que va entero porque el modal de detalle recibe esta misma fila y
+ * pinta la lista.
+ *
+ * `getClinica` sigue usando `detalleDeClinica`: para una sola fila, montar los
+ * mapas no compensa.
+ */
 export async function listClinicas(): Promise<ClinicaConDetalle[]> {
   const { data: clinicas } = await supabase
     .from('clinicas')
@@ -163,8 +180,67 @@ export async function listClinicas(): Promise<ClinicaConDetalle[]> {
     .order('nombre')
 
   if (!clinicas || clinicas.length === 0) return []
-  const result = await Promise.all((clinicas as Clinica[]).map(detalleDeClinica))
-  return result
+  const filas = clinicas as Clinica[]
+
+  const [{ data: planes }, { data: sucursales }, { data: usuarios }, { data: pacientes }, { data: citas }] =
+    await Promise.all([
+      supabase.from('planes').select('*').in('id', [...new Set(filas.map((c) => c.plan_id))]),
+      supabase.from('sucursales').select('clinica_id'),
+      supabase.from('usuarios').select('*').order('nombre'),
+      supabase.from('pacientes').select('clinica_id'),
+      supabase.from('citas').select('clinica_id'),
+    ])
+
+  const contarPor = (filasTabla: { clinica_id: string | null }[] | null): Map<string, number> => {
+    const mapa = new Map<string, number>()
+    for (const f of filasTabla ?? []) {
+      if (!f.clinica_id) continue
+      mapa.set(f.clinica_id, (mapa.get(f.clinica_id) ?? 0) + 1)
+    }
+    return mapa
+  }
+
+  const mapaPlanes = new Map((planes ?? []).map((x: any) => [x.id, x]))
+  const porSucursales = contarPor(sucursales as any[])
+  // Las cuentas del portal (`rol = 'cliente'') no ocupan plaza del plan, igual
+  // que en `limitesDe`.
+  const porUsuarios = contarPor((usuarios ?? []).filter((u: any) => u.rol !== 'cliente') as any[])
+  const porPacientes = contarPor(pacientes as any[])
+  const porCitas = contarPor(citas as any[])
+
+  const usuariosPorClinica = new Map<string, Usuario[]>()
+  for (const u of (usuarios ?? []) as Usuario[]) {
+    if (!u.clinica_id) continue
+    const acumulado = usuariosPorClinica.get(u.clinica_id) ?? []
+    acumulado.push(u)
+    usuariosPorClinica.set(u.clinica_id, acumulado)
+  }
+
+  return filas.map((clinica) => {
+    const plan = mapaPlanes.get(clinica.plan_id)
+    if (!plan) throw new Error(`La clínica ${clinica.nombre} no tiene un plan válido asignado`)
+
+    const limites: LimitesClinica = {
+      plan,
+      sucursales: { usados: porSucursales.get(clinica.id) ?? 0, maximo: plan.max_sucursales },
+      usuarios: { usados: porUsuarios.get(clinica.id) ?? 0, maximo: plan.max_usuarios },
+      whatsapp: {
+        // El contador guardado puede ser del mes pasado; ver `consumir_cuota_whatsapp`.
+        usados: enviadosEsteMes(clinica.whatsapp_mensajes_enviados, clinica.whatsapp_periodo),
+        maximo: plan.whatsapp_limite,
+      },
+    }
+
+    return {
+      ...clinica,
+      plan_nombre: plan.nombre,
+      precio_lista_usd: plan.precio_mensual_usd,
+      limites,
+      total_pacientes: porPacientes.get(clinica.id) ?? 0,
+      total_citas: porCitas.get(clinica.id) ?? 0,
+      usuarios: usuariosPorClinica.get(clinica.id) ?? [],
+    } as ClinicaConDetalle
+  })
 }
 
 export async function getClinica(clinicaId: string): Promise<ClinicaConDetalle | null> {

@@ -151,23 +151,41 @@ Todos verificados uno por uno antes de tocarlos:
 
 ---
 
-## Deuda anotada (real, no urgente)
+## Rendimiento — CORREGIDO
 
-Encontrada por el agente `supabase-architect` y **no corregida a propósito**: es un refactor de
-rendimiento que toca servicios centrales y nadie lo pidió. Se anota para hacerlo con calma.
+La deuda que quedó anotada en la primera pasada ya está resuelta, y por el camino
+aparecieron **causas mayores que ningún agente había señalado**. Todas se arreglaron con el
+mismo patrón que el código ya usaba en `componerDetalleDeCitas`: traer el lote y resolver cada
+tabla relacionada con **un `.in(...)`**, en vez de una consulta por fila.
 
-- **`listMovimientos`** (`src/services/movimientos.ts`) trae `cobros` **sin `.limit()`** y llama a
-  `detalleDeCobro` por fila; cada uno son 3–5 viajes. Un informe de un mes con 300 cobros pasa de
-  **1200 peticiones** desde el navegador. Es el único N+1 sin techo.
-- **`detalleDeInternacion`** son 6 consultas por fila, y `listInternaciones` trae hasta 500.
-- **`listClinicas`** son ~6 consultas por clínica; es la única pantalla cuyo coste escala con el
-  número de clientes del SaaS.
+| Dónde | Antes | Ahora |
+|---|---|---|
+| Agenda (`AgendaPage`) | descargaba la tabla **entera** de citas solo como señal de cambio | `useSuscripcionTabla`: cero datos |
+| «Nueva cita» / «Internar» | `select('*')` sobre `pacientes` → **la foto base64 de toda la clínica** | tres columnas de texto |
+| Rejilla de horas libres | todas las citas de la clínica, filtradas en memoria | las de ese veterinario ese día |
+| Reconsultas en la agenda | 2 consultas **por cita** (120 en una semana de 60) | 2 en total |
+| Lista de pacientes | foto de cada uno + 1 consulta por paciente para la internación | sin fotos, 1 consulta |
+| Caja y Movimientos | 4–5 consultas **por cobro**, sin tope | 1 por tabla + tope de 500 |
+| Internación | 6 consultas **por fila**, hasta 500 filas | 1 por tabla |
+| Plataforma → Clínicas | ~6 consultas **por clínica** | 5 en total |
 
-Los tres se arreglan con el mismo patrón que ya usan `componerDetalleDeCitas` y
-`listConsultasAbiertas`: un `.in(...)` por tabla sobre los ids del lote, en vez de una consulta por
-fila. Además, `TABLAS_RESPALDO` (`lib/exportacion.ts`) no incluye vacunas, desparasitaciones,
-recetas ni consentimientos, así que el respaldo que la clínica se descarga está incompleto.
+Dos de estos eran además **fallos de corrección**, no solo de velocidad:
 
+- La **rejilla de horas libres** leía las citas con el corte de 1000 filas de PostgREST. En una
+  clínica con historial, la cita que ocupaba el hueco podía no venir en el lote y la rejilla
+  enseñaba **libre un horario ocupado**. Ahora el filtro lo hace la base.
+- Quitar la foto de las lecturas destapó una **trampa de pérdida de datos**:
+  `actualizarClienteYPaciente` hacía `foto: input.foto || null`, es decir, convertía «no me la
+  pasaron» en «bórrala». Editar el peso de un paciente le habría borrado la foto en silencio. Ahora
+  `foto` solo se escribe si viene, y el modal solo la manda si cambió.
+
+**Lo que no se midió:** todo lo anterior sale de contar viajes a la base leyendo el código, no de
+un perfilado con datos reales. La comprobación honesta es abrir la pestaña **Red** del navegador
+antes y después en la misma pantalla y comparar el número de peticiones.
+
+Sigue pendiente, y es de otra naturaleza: `TABLAS_RESPALDO` (`lib/exportacion.ts`) no incluye
+vacunas, desparasitaciones, recetas ni consentimientos, así que el respaldo que la clínica se
+descarga está **incompleto**. No es rendimiento; es una funcionalidad a medio terminar.
 ### Un falso positivo, para que no se repita
 
 El agente reportó que las cuatro funciones `auth_*` no tienen `set search_path`. **Sí lo tienen**:

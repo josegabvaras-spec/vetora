@@ -211,12 +211,27 @@ export async function cerrarTurno(turnoId: string, saldoDeclarado: number): Prom
   return cerrado as TurnoCaja
 }
 
-async function conceptoDeCita(cita: Cita): Promise<string> {
+/**
+ * Concepto de una cita cuando el nombre del servicio YA está resuelto.
+ *
+ * Se separa de `conceptoDeCita` para que el lote no tenga que preguntar por el
+ * servicio una vez por cobro: `componerDetalleDeCobros` los trae todos de una.
+ */
+function conceptoDeCitaConServicio(cita: Cita, servicioNombre?: string): string {
   const etiqueta = TIPO_LABEL[cita.tipo_cita as keyof typeof TIPO_LABEL]
   // servicio_id es opcional en la cita: sin él, el concepto es solo el tipo.
   if (!cita.servicio_id) return etiqueta
-  const { data: servicio } = await supabase.from('servicios').select('*').eq('id', cita.servicio_id).maybeSingle()
-  return servicio ? `${etiqueta} - ${servicio.nombre}` : etiqueta
+  return servicioNombre ? `${etiqueta} - ${servicioNombre}` : etiqueta
+}
+
+async function conceptoDeCita(cita: Cita): Promise<string> {
+  if (!cita.servicio_id) return conceptoDeCitaConServicio(cita)
+  const { data: servicio } = await supabase
+    .from('servicios')
+    .select('nombre')
+    .eq('id', cita.servicio_id)
+    .maybeSingle()
+  return conceptoDeCitaConServicio(cita, servicio?.nombre)
 }
 
 function conceptoDeInternacion(internacion: Internacion): string {
@@ -456,6 +471,120 @@ export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<C
   return cobro as Cobro
 }
 
+/**
+ * Lo mismo que `detalleDeCobro`, pero para un lote: **una consulta por tabla**
+ * en vez de cuatro o cinco por cobro.
+ *
+ * La pantalla de Caja y la bitácora de Movimientos componían el detalle fila a
+ * fila. Un informe de un mes con 300 cobros eran más de mil peticiones desde el
+ * navegador, encadenadas, con el usuario mirando una pantalla en blanco. Es el
+ * mismo patrón que `componerDetalleDeCitas`.
+ *
+ * `detalleDeCobro` se conserva para el recibo individual, donde un solo cobro
+ * no justifica montar los mapas.
+ */
+export async function componerDetalleDeCobros(cobros: Cobro[]): Promise<CobroConDetalle[]> {
+  if (cobros.length === 0) return []
+
+  const unicos = <T,>(valores: (T | null | undefined)[]): T[] =>
+    [...new Set(valores.filter((v): v is T => !!v))]
+
+  const citaIds = unicos(cobros.map((c) => c.cita_id))
+  const internacionIds = unicos(cobros.map((c) => c.internacion_id))
+
+  const [{ data: citas }, { data: internaciones }, { data: lineas }] = await Promise.all([
+    citaIds.length
+      ? supabase.from('citas').select('*').in('id', citaIds)
+      : Promise.resolve({ data: [] as any[] }),
+    internacionIds.length
+      ? supabase.from('internaciones').select('*').in('id', internacionIds)
+      : Promise.resolve({ data: [] as any[] }),
+    supabase.from('cobro_lineas').select('*').in('cobro_id', cobros.map((c) => c.id)),
+  ])
+
+  const mapaCitas = new Map((citas ?? []).map((c: any) => [c.id, c]))
+  const mapaInternaciones = new Map((internaciones ?? []).map((i: any) => [i.id, i]))
+
+  // Los servicios que nombran las cirugías, de una vez: `conceptoDeCita` los
+  // pedía uno a uno.
+  const servicioIds = unicos((citas ?? []).map((c: any) => c.servicio_id))
+  const { data: servicios } = servicioIds.length
+    ? await supabase.from('servicios').select('id, nombre').in('id', servicioIds)
+    : { data: [] as any[] }
+  const mapaServicios = new Map((servicios ?? []).map((s: any) => [s.id, s]))
+
+  // Pacientes y usuarios salen de lo ya resuelto arriba.
+  const pacienteIds = unicos([
+    ...(citas ?? []).map((c: any) => c.paciente_id),
+    ...(internaciones ?? []).map((i: any) => i.paciente_id),
+  ])
+  const usuarioIds = unicos([
+    ...(citas ?? []).map((c: any) => c.veterinario_id),
+    ...(internaciones ?? []).map((i: any) => i.veterinario_id),
+    ...cobros.map((c) => c.usuario_id),
+  ])
+
+  const [{ data: pacientes }, { data: usuarios }] = await Promise.all([
+    pacienteIds.length
+      ? supabase.from('pacientes').select('id, nombre, cliente:clientes(nombre)').in('id', pacienteIds)
+      : Promise.resolve({ data: [] as any[] }),
+    usuarioIds.length
+      ? supabase.from('usuarios').select('id, nombre').in('id', usuarioIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ])
+
+  const mapaPacientes = new Map((pacientes ?? []).map((p: any) => [p.id, p]))
+  const mapaUsuarios = new Map((usuarios ?? []).map((u: any) => [u.id, u]))
+
+  const lineasPorCobro = new Map<string, any[]>()
+  for (const l of lineas ?? []) {
+    const acumulado = lineasPorCobro.get((l as any).cobro_id) ?? []
+    acumulado.push(l)
+    lineasPorCobro.set((l as any).cobro_id, acumulado)
+  }
+
+  return cobros.map((cobro) => {
+    let pacienteId: string | undefined
+    let veterinarioId: string | undefined
+    let concepto = 'Venta de medicamentos / productos'
+    let fecha_atencion = cobro.created_at
+
+    const cita = cobro.cita_id ? mapaCitas.get(cobro.cita_id) : undefined
+    const internacion = cobro.internacion_id ? mapaInternaciones.get(cobro.internacion_id) : undefined
+
+    if (cita) {
+      pacienteId = cita.paciente_id
+      veterinarioId = cita.veterinario_id
+      concepto = conceptoDeCitaConServicio(cita, mapaServicios.get(cita.servicio_id)?.nombre)
+      fecha_atencion = cita.fecha_hora
+    } else if (internacion) {
+      pacienteId = internacion.paciente_id
+      veterinarioId = internacion.veterinario_id
+      concepto = conceptoDeInternacion(internacion as any)
+      fecha_atencion = internacion.fecha_alta ?? internacion.fecha_ingreso
+    }
+
+    const paciente = pacienteId ? mapaPacientes.get(pacienteId) : undefined
+
+    return {
+      ...cobro,
+      paciente_nombre: paciente?.nombre ?? cobro.cliente_nombre ?? 'Venta directa',
+      cliente_nombre: paciente?.cliente?.nombre ?? cobro.cliente_nombre ?? 'Cliente mostrador',
+      veterinario_nombre: mapaUsuarios.get(veterinarioId ?? cobro.usuario_id)?.nombre ?? 'Caja',
+      concepto_atencion: concepto,
+      fecha_atencion,
+      lineas: (lineasPorCobro.get(cobro.id) ?? []).map((l: any) => ({
+        concepto: l.concepto,
+        cantidad: l.cantidad,
+        precio_unitario_bs: l.precio_unitario_bs,
+        subtotal_bs: l.subtotal_bs,
+        servicio_id: l.servicio_id,
+        producto_id: l.producto_id,
+      })),
+    } as CobroConDetalle
+  })
+}
+
 export async function detalleDeCobro(cobro: Cobro): Promise<CobroConDetalle> {
   let pacienteId: string | undefined
   let veterinarioId: string | undefined
@@ -525,7 +654,7 @@ export async function listCobrosDelTurno(turnoId: string): Promise<CobroConDetal
     .order('created_at', { ascending: false })
 
   if (!cobros) return []
-  return Promise.all(cobros.map((c) => detalleDeCobro(c as any)))
+  return componerDetalleDeCobros(cobros as any[])
 }
 
 export async function getCobro(cobroId: string): Promise<CobroConDetalle | null> {

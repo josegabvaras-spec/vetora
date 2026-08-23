@@ -6,9 +6,10 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import { FieldGroup, Input, Select, Textarea } from '../../components/ui/Field'
-import { useTable } from '../../mocks/useDb'
+import { useSuscripcionTabla, useTable } from '../../mocks/useDb'
 import { useAuth } from '../../context/AuthContext'
-import { consultasControlables, crearCita } from '../../services/citas'
+import { citasDelDiaDe, consultasControlables, crearCita } from '../../services/citas'
+import { listPacientesParaSelector, type PacienteParaSelector } from '../../services/clientesPacientes'
 import { serviciosDeCategoria } from '../../services/servicios'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDateTime, TIMEZONE } from '../../lib/datetime'
@@ -26,10 +27,28 @@ interface NuevaCitaModalProps {
 
 export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }: NuevaCitaModalProps) {
   const { usuario } = useAuth()
-  const pacientes = useTable('pacientes')
-  const clientes = useTable('clientes')
+  // Pacientes por servicio y no con `useTable`: aquel hace `select('*')` sobre
+  // la tabla entera, y `pacientes.foto` es la imagen en base64 (0006). Abrir
+  // este modal descargaba las fotos de TODA la clínica para pintar una lista de
+  // nombres. `useSuscripcionTabla` conserva la reactividad sin traerse nada.
+  const revisionPacientes = useSuscripcionTabla('pacientes')
+  const [pacientes, setPacientes] = useState<PacienteParaSelector[]>([])
+  useEffect(() => {
+    let montado = true
+    listPacientesParaSelector()
+      .then((data) => { if (montado) setPacientes(data) })
+      .catch((err) => {
+        if (montado) setError(err instanceof Error ? err.message : 'No se pudieron cargar los pacientes')
+      })
+    return () => { montado = false }
+  }, [revisionPacientes])
   const usuarios = useTable('usuarios')
-  const citas = useTable('citas') as Cita[]
+  // Solo las citas de ESE veterinario en ESE día. Antes era `useTable('citas')`
+  // —la tabla entera— filtrada en memoria, y además de pesado era incorrecto:
+  // PostgREST corta en 1000 filas, así que la cita que ocupa el hueco podía no
+  // venir en el lote y la rejilla enseñaba libre un horario ocupado.
+  const revisionCitas = useSuscripcionTabla('citas')
+  const [citas, setCitas] = useState<Cita[]>([])
   const veterinarios = usuarios.filter(puedeAtender)
   // Una clínica recién dada de alta no tiene ni pacientes ni veterinarios. Sin
   // distinguir ese caso, los `<Select>` se dibujaban vacíos y el formulario
@@ -108,7 +127,17 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
         if (montado) setError(err instanceof Error ? err.message : 'No se pudieron cargar las consultas previas')
       })
     return () => { montado = false }
-  }, [pacienteId, citas])
+  }, [pacienteId, revisionCitas])
+  useEffect(() => {
+    let montado = true
+    citasDelDiaDe(veterinarioId, fecha)
+      .then((data) => { if (montado) setCitas(data) })
+      .catch((err) => {
+        if (montado) setError(err instanceof Error ? err.message : 'No se pudo comprobar la disponibilidad')
+      })
+    return () => { montado = false }
+  }, [veterinarioId, fecha, revisionCitas])
+
   const origenValido = consultasPrevias.some((c) => c.cita_id === citaOrigenId)
 
   const [cirugias, setCirugias] = useState<any[]>([])
@@ -203,10 +232,9 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
           ) : (
             <Select value={pacienteId} onChange={(e) => setPacienteId(e.target.value)}>
               {pacientes.map((p) => {
-                const cliente = clientes.find((c) => c.id === p.cliente_id)
                 return (
                   <option key={p.id} value={p.id}>
-                    {p.nombre} ({cliente?.nombre})
+                    {p.nombre} ({p.cliente_nombre})
                   </option>
                 )
               })}

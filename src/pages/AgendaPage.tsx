@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { useAuth } from '../context/AuthContext'
-import { useTable } from '../mocks/useDb'
+import { useSuscripcionTabla, useTable } from '../mocks/useDb'
 import { useMultiSucursal } from '../hooks/usePlanActivo'
 import { NuevaCitaModal } from '../features/agenda/NuevaCitaModal'
 import { CitaDetalleModal } from '../features/agenda/CitaDetalleModal'
@@ -48,7 +48,11 @@ function etiquetaDia(date: Date, opciones: Intl.DateTimeFormatOptions): string {
 
 export function AgendaPage() {
   const { usuario, sucursalActivaId } = useAuth()
-  useTable('citas') // fuerza re-render cuando cambian las citas del mock store
+  // Solo la señal de cambio, no los datos: `listCitas` de abajo ya pide —bien—
+  // únicamente los días que se pintan. Con `useTable('citas')` la agenda
+  // descargaba además la tabla ENTERA de citas (`select('*')` sin filtro, hasta
+  // el corte de 1000 filas) en cada vista, solo para tirarla.
+  const revisionCitas = useSuscripcionTabla('citas')
   // En un celular la semana son siete tarjetas apiladas: se arranca en el día y
   // queda a un toque cambiar. Solo es el valor inicial — la elección manda.
   const [vista, setVista] = useState<Vista>(() =>
@@ -125,7 +129,7 @@ export function AgendaPage() {
     // Al cambiar de día, semana o mes hay que volver a pedir: la consulta va
     // acotada a lo que se pinta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sucursalActivaId, rangoVisible, soloMisCitas])
+  }, [sucursalActivaId, rangoVisible, soloMisCitas, revisionCitas])
 
   function irA(delta: number) {
     const d = new Date(fechaRef)
