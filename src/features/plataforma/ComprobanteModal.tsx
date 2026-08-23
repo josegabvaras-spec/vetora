@@ -12,21 +12,19 @@ import { formatClinicDateTime, sumarMesesAFecha } from '../../lib/datetime'
  * Revisión de un comprobante de suscripción.
  *
  * Es la contrapartida de la pantalla de Facturación de la clínica: ella sube la
- * foto y aquí se decide. Aprobar hace dos cosas —marca el pago y corre la fecha
- * del próximo cobro—, y las dos viven en `services/plataforma.ts` porque son las
- * únicas policies que pueden tocar `clinicas`.
+ * foto y aquí se decide. Aprobar marca el pago y corre la fecha del próximo
+ * cobro **en una sola sentencia** (`aprobar_pago_suscripcion`, migración 0021):
+ * antes eran tres viajes y un fallo a medias dejaba el pago aprobado con la
+ * fecha sin mover, sin rastro y sin forma de reintentar.
  */
 export function ComprobanteModal({
   pago,
   revisorId,
-  proximoCobro,
   onClose,
   onRevisado,
 }: {
   pago: PagoConClinica
   revisorId: string
-  /** El `proximo_cobro` de hoy, solo para enseñar a qué fecha se moverá. */
-  proximoCobro?: string
   onClose: () => void
   onRevisado: () => void
 }) {
@@ -82,18 +80,19 @@ export function ComprobanteModal({
         </dl>
 
         {/* A qué fecha se moverá el cobro, antes de pulsar y no después. */}
-        {proximoCobro && (
+        {pago.proximo_cobro && (
           <p className="rounded-lg border border-teal-100 bg-teal-50/60 p-3 text-sm text-slate-700">
             Al aprobarlo, el próximo cobro pasa del{' '}
-            <span className="font-semibold">{proximoCobro.slice(8, 10)}/{proximoCobro.slice(5, 7)}/{proximoCobro.slice(0, 4)}</span>{' '}
+            <span className="font-semibold">{pago.proximo_cobro.slice(8, 10)}/{pago.proximo_cobro.slice(5, 7)}/{pago.proximo_cobro.slice(0, 4)}</span>{' '}
             al{' '}
             <span className="font-semibold text-teal-800">
               {(() => {
-                const d = sumarMesesAFecha(proximoCobro, pago.meses)
+                const d = sumarMesesAFecha(pago.proximo_cobro, pago.meses)
                 return `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
               })()}
             </span>
-            , y la clínica queda al día.
+            . Si esa fecha ya es futura, la clínica queda al día; si sigue atrasada, este pago no
+            salda toda la deuda y la cuenta permanece en mora.
           </p>
         )}
 
@@ -144,7 +143,7 @@ export function ComprobanteModal({
               <Button
                 variant="success"
                 disabled={ocupado}
-                onClick={() => ejecutar(() => aprobarPago(pago, revisorId))}
+                onClick={() => ejecutar(async () => { await aprobarPago(pago) })}
               >
                 <CheckCircle2 size={16} /> {ocupado ? 'Aprobando…' : 'Aprobar y renovar'}
               </Button>

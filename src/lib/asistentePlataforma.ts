@@ -1,4 +1,4 @@
-import { formatUsd, usdABs } from './currency'
+import { formatBs, formatUsd, usdABs } from './currency'
 import { formatClinicDate } from './datetime'
 
 /**
@@ -113,5 +113,5 @@ export function seAvisaPorWhatsapp(tarea: TareaPlataforma): boolean {
  * cifra que va a transferir.
  */
 export function detalleDeCobro(precioUsd: number, tipoCambio: number): string {
-  return `${formatUsd(precioUsd)} (Bs. ${usdABs(precioUsd, tipoCambio).toFixed(2)}) de suscripción mensual`
+  return `${formatUsd(precioUsd)} (${formatBs(usdABs(precioUsd, tipoCambio))}) de suscripción mensual`
 }

@@ -40,6 +40,21 @@ function texto(valor: unknown): string {
   return typeof valor === 'string' ? valor.trim() : ''
 }
 
+/**
+ * Últimos 8 dígitos de un teléfono, que en Bolivia son el número de móvil.
+ *
+ * Sirve para comparar lo que teclea quien se registra con lo que la clínica
+ * tenga guardado, que rara vez está en el mismo formato: `+591 71234567`,
+ * `71234567` y `591-7123-4567` tienen que casar entre sí.
+ *
+ * Devuelve cadena vacía si no hay 8 dígitos, y eso **no casa con nada** — es
+ * deliberado: una ficha sin WhatsApp no se puede reclamar.
+ */
+function movil(valor: string): string {
+  const digitos = valor.replace(/\D/g, '')
+  return digitos.length >= 8 ? digitos.slice(-8) : ''
+}
+
 Deno.serve(async (peticion) => {
   if (peticion.method === 'OPTIONS') return new Response('ok', { headers: cabeceras })
 
@@ -120,21 +135,40 @@ Deno.serve(async (peticion) => {
       return await deshacer('No se pudo crear la cuenta con esos datos', 409)
     }
 
-    // Vínculo con la ficha que la clínica ya tuviera. Se hace aquí y no en el
-    // navegador a propósito: dejar que alguien reclame una ficha tecleando un CI
-    // es apropiarse del expediente de otra persona. Solo se vincula si esa ficha
-    // no tiene ya dueño.
+    // Vínculo con la ficha que la clínica ya tuviera.
+    //
+    // ⚠️ Aquí se decide si alguien se queda con el expediente de otra persona:
+    // sus mascotas, su historial, sus recetas. Antes bastaba con acertar el CI,
+    // y un CI en Bolivia no es ningún secreto —está en cualquier documento— ni
+    // el `clinica_id` tampoco, que lo publica `clinicas_para_registro()`. El
+    // `is('usuario_id', null)` solo impedía robar una ficha YA reclamada; para
+    // las demás no se comprobaba nada.
+    //
+    // Ahora tienen que coincidir **el CI y el WhatsApp**. No es prueba de
+    // identidad —los dos son datos que un conocido podría saber—, pero sube el
+    // listón de «sé tu carnet» a «sé tu carnet y tu teléfono».
+    //
+    // Si no casan, NO se vincula: se cae al camino de crear una ficha nueva, que
+    // es seguro. La clínica las une después desde su panel. Perder el
+    // automático es barato; entregar un expediente ajeno, no.
+    //
+    // Lo correcto de verdad sería que la clínica apruebe la vinculación. Está
+    // anotado en SEGURIDAD.md como el paso siguiente.
     let clienteVinculado = false
-    if (ci) {
+    const movilQueTeclea = movil(whatsapp)
+
+    if (ci && movilQueTeclea) {
       const { data: ficha } = await admin
         .from('clientes')
-        .select('id, usuario_id')
+        .select('id, whatsapp')
         .eq('clinica_id', clinica.id)
         .eq('ci', ci)
         .is('usuario_id', null)
         .maybeSingle()
 
-      if (ficha) {
+      // La comparación se hace aquí y no en el `where` porque los formatos
+      // guardados varían: hay que normalizar los dos lados.
+      if (ficha && movil(ficha.whatsapp ?? '') === movilQueTeclea) {
         const { error } = await admin
           .from('clientes')
           .update({ usuario_id: usuarioId })

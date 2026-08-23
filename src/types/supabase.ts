@@ -1558,6 +1558,7 @@ export type Database = {
           nombre: string
         }[]
       }
+      aprobar_pago_suscripcion: { Args: { p_pago_id: string }; Returns: string }
       consumir_cuota_whatsapp: { Args: never; Returns: number }
       espacio_estudios_bytes: { Args: never; Returns: number }
       get_citas_end_time: { Args: { start_time: string }; Returns: string }

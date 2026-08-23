@@ -1,5 +1,5 @@
 import { motivoDelFallo, supabase } from '../lib/supabase'
-import { clinicDayIso, clinicMonth, desdeFechaSola, sumarMeses, sumarMesesAFecha } from '../lib/datetime'
+import { clinicDayIso, clinicMonth, desdeFechaSola, sumarMeses } from '../lib/datetime'
 import type { Clinica, EstadoClinica, PagoSuscripcion, Rol, Sucursal, Usuario } from '../types/database'
 import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma } from '../types/views'
 import { getPlan } from './planes'
@@ -680,6 +680,8 @@ export interface PagoConClinica extends PagoSuscripcion {
   clinica_nombre: string
   responsable: string
   whatsapp: string
+  /** Fecha de cobro de HOY, para enseñar a cuál se moverá al aprobar. */
+  proximo_cobro: string
 }
 
 /** Comprobantes esperando revisión, del más antiguo al más reciente. */
@@ -695,7 +697,7 @@ export async function listPagosPendientes(): Promise<PagoConClinica[]> {
 
   const { data: clinicas } = await supabase
     .from('clinicas')
-    .select('id, nombre, responsable, whatsapp')
+    .select('id, nombre, responsable, whatsapp, proximo_cobro')
     .in('id', [...new Set(pagos.map((p) => p.clinica_id))])
 
   const porId = new Map((clinicas ?? []).map((c) => [c.id, c]))
@@ -707,45 +709,34 @@ export async function listPagosPendientes(): Promise<PagoConClinica[]> {
       clinica_nombre: clinica?.nombre ?? 'Clínica',
       responsable: clinica?.responsable ?? '',
       whatsapp: clinica?.whatsapp ?? '',
+      proximo_cobro: clinica?.proximo_cobro ?? '',
     }
   })
 }
 
 /**
- * Aprueba el comprobante y avanza el cobro.
+ * Aprueba el comprobante y avanza el cobro, **en una sola sentencia**.
  *
- * Las dos cosas, en este orden: si marcar el pago falla —porque otra pestaña ya
- * lo revisó—, la fecha de cobro no se toca. Al revés se le habría regalado un
- * mes a la clínica por un doble clic.
+ * Todo el trabajo lo hace `aprobar_pago_suscripcion()` (migración 0021). Antes
+ * esto eran tres viajes desde el navegador —marcar el pago, leer la fecha,
+ * correrla— y un fallo en el segundo o el tercero dejaba el pago aprobado con
+ * la fecha sin mover. Lo peor no era el fallo, era que **desaparecía**:
+ * `listPagosPendientes()` filtra por `pendiente`, así que la tarea se iba del
+ * asistente, la clínica leía «Aprobado», seguía debiendo y nadie se enteraba.
+ * Reintentar tampoco valía: el segundo intento no encontraba fila pendiente.
  *
- * `.eq('estado', 'pendiente')` es lo que hace idempotente la aprobación: el
- * segundo intento no encuentra fila y `exigirFilaAfectada` lo dice, en vez de
- * volver a correr la fecha.
+ * Mismo criterio que `consumir_cuota_whatsapp()`: comprobar y escribir son la
+ * misma operación. El `where … and estado = 'pendiente'` de la función sigue
+ * haciendo que un doble clic no regale un mes.
  *
- * Si la clínica venía muy atrasada, un pago de un mes la deja al día pero con
- * la fecha aún en el pasado, y el asistente la vuelve a listar. Es correcto:
- * sigue debiendo.
+ * Devuelve la fecha nueva del próximo cobro. Si la clínica venía muy atrasada,
+ * un pago de un mes corre la fecha pero **no** la marca al día: sigue debiendo,
+ * y el asistente la vuelve a listar. Eso también lo decide la función.
  */
-export async function aprobarPago(pago: PagoSuscripcion, revisorId: string): Promise<void> {
-  const { data, error } = await supabase
-    .from('pagos_suscripcion')
-    .update({ estado: 'aprobado', revisado_por: revisorId, revisado_at: new Date().toISOString() })
-    .eq('id', pago.id)
-    .eq('estado', 'pendiente')
-    .select('id')
-
+export async function aprobarPago(pago: PagoSuscripcion): Promise<string> {
+  const { data, error } = await supabase.rpc('aprobar_pago_suscripcion', { p_pago_id: pago.id })
   if (error) throw new Error(`No se pudo aprobar el comprobante: ${error.message}`)
-  exigirFilaAfectada(data, 'aprobar el comprobante')
-
-  const { data: clinica } = await supabase
-    .from('clinicas')
-    .select('proximo_cobro')
-    .eq('id', pago.clinica_id)
-    .maybeSingle()
-
-  if (!clinica) throw new Error('El comprobante quedó aprobado, pero la clínica ya no existe')
-
-  await marcarCobroAlDia(pago.clinica_id, sumarMesesAFecha(clinica.proximo_cobro, pago.meses))
+  return data as string
 }
 
 /**

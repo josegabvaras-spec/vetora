@@ -87,12 +87,14 @@ alter table pagos_suscripcion enable row level security;
 
 -- La clínica ve lo suyo. Es cosa del admin: recepción y el veterinario no
 -- gestionan la suscripción.
+drop policy if exists pagos_clinica_select on pagos_suscripcion;
 create policy pagos_clinica_select on pagos_suscripcion for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_admin()));
 
 -- Y solo INSERTA. El `with check` es la barrera de verdad: sin él, el admin
 -- podía enviar el comprobante ya marcado como aprobado y saltarse la revisión
 -- entera. Nace pendiente y sin nada de la revisión rellenado.
+drop policy if exists pagos_clinica_insert on pagos_suscripcion;
 create policy pagos_clinica_insert on pagos_suscripcion for insert
   with check (
     clinica_id = (select auth_clinica_id())
@@ -107,6 +109,7 @@ create policy pagos_clinica_insert on pagos_suscripcion for insert
 -- consentimientos, un comprobante enviado no se retira ni se retoca. Si estaba
 -- mal, el superadmin lo rechaza con un motivo y se manda otro.
 
+drop policy if exists pagos_plataforma on pagos_suscripcion;
 create policy pagos_plataforma on pagos_suscripcion for all
   using (auth_es_plataforma())
   with check (auth_es_plataforma());

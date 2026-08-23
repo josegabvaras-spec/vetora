@@ -9,9 +9,13 @@ ataques contra la base de producción** — ver «Lo que no se pudo probar».
 | Severidad | Hallazgos | Estado |
 |---|---|---|
 | Crítico | 0 | — |
-| Alto | 1 | corregido (dependencia) |
-| Medio | 1 | corregido |
-| Bajo / Info | 2 | 1 verificado, 1 heredado pendiente |
+| Alto | 3 | corregidos |
+| Medio | 2 | corregidos |
+| Bajo / Info | 3 | 2 corregidos, 1 heredado pendiente (rotar la contraseña) |
+
+Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
+H-8. Cada uno se verificó a mano antes de corregirlo, y **uno de los reportados resultó falso** —
+está documentado más abajo, para que nadie lo "arregle" luego.
 
 El aislamiento entre clínicas (lo que de verdad importa en un SaaS multi-inquilino) **se
 sostiene en la lectura**: no se encontró ninguna policy que se salte `clinica_id`, ni un
@@ -69,6 +73,107 @@ sustituye** la prueba en vivo con dos sesiones (ver abajo).
   comprometida.
 - **Acción:** rotar la contraseña de Postgres. (Recordatorio, no corrección de código.)
 
+### H-5 · ALTO · Reclamar el expediente ajeno sabiendo un CI — CORREGIDO
+
+- **Dónde:** `supabase/functions/registro-portal/index.ts` (registro público del portal del dueño).
+- **Qué:** la cuenta nueva se vinculaba a una ficha de `clientes` existente **solo por el CI**. La
+  única defensa era `.is('usuario_id', null)`, que impide robar una ficha ya reclamada pero no
+  comprueba en absoluto que quien se registra sea esa persona.
+- **PoC:** el `clinica_id` es público (lo da `clinicas_para_registro()`, pensada para el desplegable
+  del formulario) y un CI boliviano está en cualquier documento. Un `POST` al endpoint con el CI de
+  un cliente que aún no se hubiera registrado entregaba su expediente: sus mascotas, su historial,
+  sus recetas y su carné de vacunas, que es justo lo que las policies del portal le dan al dueño.
+- **Corrección aplicada:** vincular exige ahora que coincidan **el CI *y* el WhatsApp**, comparados
+  por sus últimos 8 dígitos para que `+591 7…`, `7…` y `591-7…` casen entre sí. Si no coinciden —o
+  la ficha no tiene WhatsApp— **no se vincula**: se crea una ficha nueva, que es el camino seguro que
+  ya existía, y la clínica une las dos desde su panel.
+- **Honestidad sobre el alcance:** esto **no es prueba de identidad**. Sube el listón de «sé tu
+  carnet» a «sé tu carnet y tu teléfono», que para un MVP es proporcionado, pero la solución correcta
+  es que **la clínica apruebe la vinculación**. Queda como el paso siguiente, no improvisado aquí.
+- **Cómo confirmar:** registrarse con el CI correcto y un WhatsApp distinto **no** debe vincular la
+  ficha existente; con los dos correctos, sí.
+
+### H-6 · ALTO · Aprobar un pago podía quedarse a medias, sin rastro — CORREGIDO
+
+- **Dónde:** `src/services/plataforma.ts`, `aprobarPago`.
+- **Qué:** eran tres viajes desde el navegador —marcar el pago aprobado, leer la fecha de cobro,
+  avanzarla—. Un fallo en el segundo o el tercero dejaba el pago **aprobado** con la fecha **sin
+  mover**. Y entonces desaparecía: `listPagosPendientes()` filtra por `pendiente`, así que la tarea
+  se iba del asistente, la clínica leía «Aprobado», seguía debiendo, y nadie se enteraba. Reintentar
+  tampoco valía — el segundo intento no encontraba fila pendiente y devolvía «no tienes permiso».
+- **Corrección aplicada:** migración **0021**, función `aprobar_pago_suscripcion()` (`security
+  definer` con `set search_path`, y la comprobación de rol dentro) que marca el pago y corre
+  `proximo_cobro` **en una sola sentencia**. Mismo criterio que `consumir_cuota_whatsapp()`. El
+  `where … and estado = 'pendiente'` sigue haciendo que un doble clic no regale un mes.
+- **De regalo, un tercer defecto corregido:** `marcarCobroAlDia` ponía `estado_pago = 'al_dia'`
+  **incondicionalmente**, así que una clínica con tres meses de atraso que pagaba uno salía «al día»
+  con la fecha aún en el pasado — y desaparecía del contador de morosos. Ahora solo se marca al día
+  si la fecha nueva ya es futura.
+
+### H-7 · MEDIO · Dos comprobantes por la misma transferencia — CORREGIDO
+
+- **Dónde:** `src/features/facturacion/PanelFacturacion.tsx` y `src/services/facturacion.ts`.
+- **Qué:** el panel calculaba `hayComprobantePendiente` y pintaba el aviso «no hace falta que mandes
+  otro», pero el botón era `disabled={enviando || !archivo}` — el aviso era decorativo, y el
+  servicio no comprobaba nada. Dos envíos ⇒ dos tareas idénticas ⇒ el superadmin aprueba las dos ⇒
+  una sola transferencia acredita el doble de meses.
+- **Corrección aplicada**, en las tres capas que pide el proyecto: índice único parcial
+  `pagos_un_pendiente_por_clinica` en 0021 (la garantía dura), comprobación en `enviarComprobante`
+  (para dar un mensaje legible en vez del error de Postgres), y el botón deshabilitado.
+
+### H-8 · BAJO · Defectos menores — CORREGIDOS
+
+Todos verificados uno por uno antes de tocarlos:
+
+- `espacio_estudios_bytes()` contaba solo el bucket `estudios` e ignoraba `comprobantes`, que 0020
+  acababa de crear: el panel de salud subestimaba el almacenamiento justo en el bucket que el propio
+  superadmin hace crecer al aprobar comprobantes. Corregido en 0021.
+- Faltaba índice para `listConsultasAbiertas` (la pantalla de entrada del veterinario): el único
+  índice de `historial_clinico` lleva `paciente_id` en segunda posición y esa columna no está en el
+  predicado. Índice parcial `historial_borradores` en 0021.
+- **0020 no era re-ejecutable**: sus tres policies `pagos_*` no llevaban `drop policy if exists`, así
+  que un reintento tras un fallo a medias reventaba. Añadidas a 0020, que ahora es idempotente.
+- `getResumenSuscripcion` caía a `tipo_cambio = 0` en vez de a `TIPO_CAMBIO_POR_DEFECTO`: un fallo
+  de lectura le enseñaba al admin «Bs. 0.00», como si el plan fuera gratis.
+- El `<input type="file">` no se limpiaba tras enviar, así que seguía mostrando el archivo con el
+  botón ya deshabilitado y parecía que había dejado de responder.
+- La insignia «Al día» podía contradecir la fecha roja de al lado: ahora usa el mismo criterio que el
+  asistente (en mora **o** vencido).
+- El bloque «el próximo cobro pasa del X al Y» de `ComprobanteModal` era **código muerto** — nadie
+  pasaba el prop. Ahora `listPagosPendientes` trae `proximo_cobro` y la previsualización se ve
+  **antes** de pulsar, que era su razón de ser.
+- `Bs.` escrito a mano en `lib/asistentePlataforma.ts` en vez de `formatBs()` — el único sitio del
+  código de moneda que fijaba el símbolo a mano.
+- Un comentario de `enviarComprobante` afirmaba que el importe «se calcula en el servidor y no se
+  acepta del formulario». **Es falso**: no hay tal servidor, llega del navegador, y la policy no
+  valida el dinero. El control real es que el superadmin mira la foto. Comentario corregido para que
+  nadie se apoye en una garantía inexistente.
+
+---
+
+## Deuda anotada (real, no urgente)
+
+Encontrada por el agente `supabase-architect` y **no corregida a propósito**: es un refactor de
+rendimiento que toca servicios centrales y nadie lo pidió. Se anota para hacerlo con calma.
+
+- **`listMovimientos`** (`src/services/movimientos.ts`) trae `cobros` **sin `.limit()`** y llama a
+  `detalleDeCobro` por fila; cada uno son 3–5 viajes. Un informe de un mes con 300 cobros pasa de
+  **1200 peticiones** desde el navegador. Es el único N+1 sin techo.
+- **`detalleDeInternacion`** son 6 consultas por fila, y `listInternaciones` trae hasta 500.
+- **`listClinicas`** son ~6 consultas por clínica; es la única pantalla cuyo coste escala con el
+  número de clientes del SaaS.
+
+Los tres se arreglan con el mismo patrón que ya usan `componerDetalleDeCitas` y
+`listConsultasAbiertas`: un `.in(...)` por tabla sobre los ids del lote, en vez de una consulta por
+fila. Además, `TABLAS_RESPALDO` (`lib/exportacion.ts`) no incluye vacunas, desparasitaciones,
+recetas ni consentimientos, así que el respaldo que la clínica se descarga está incompleto.
+
+### Un falso positivo, para que no se repita
+
+El agente reportó que las cuatro funciones `auth_*` no tienen `set search_path`. **Sí lo tienen**:
+`0002_correcciones_criticas.sql` hace `alter function … set search_path` sobre las cuatro, y ninguna
+migración posterior las reemplaza. Leer solo `0001` da esa impresión equivocada — es exactamente el
+error contra el que avisa CLAUDE.md.
 ---
 
 ## Áreas verificadas (sin hallazgo)

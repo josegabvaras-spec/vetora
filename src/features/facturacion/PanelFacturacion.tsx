@@ -65,6 +65,11 @@ export function PanelFacturacion() {
 
   const [meses, setMeses] = useState(1)
   const [archivo, setArchivo] = useState<File | null>(null)
+  // El input de archivo no es controlado y `Input` no reenvia refs. Cambiar su
+  // clave lo remonta vacio, que es la forma de limpiarlo sin tocar la primitiva
+  // compartida: si no, tras enviar seguia mostrando el fichero con el boton ya
+  // deshabilitado, y parecia que habia dejado de responder.
+  const [claveArchivo, setClaveArchivo] = useState(0)
   const [referencia, setReferencia] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
@@ -106,6 +111,7 @@ export function PanelFacturacion() {
         referencia,
       })
       setArchivo(null)
+      setClaveArchivo((n) => n + 1)
       setReferencia('')
       setAviso('Comprobante enviado. Te avisaremos en cuanto quede aprobado.')
       await recargar()
@@ -174,8 +180,11 @@ export function PanelFacturacion() {
   if (errorCarga) return <AvisoError mensaje={errorCarga} />
   if (!resumen) return null
 
-  const enMora = resumen.estado_pago === 'en_mora'
   const vencido = resumen.proximo_cobro.slice(0, 10) < clinicDayIso()
+  // Mismo criterio que `listTareasPlataforma`: el estado guardado no se
+  // recalcula solo, asi que una fecha pasada YA es mora aunque la columna
+  // diga 'al_dia'. Sin esto la insignia decia «Al dia» junto a una fecha roja.
+  const enMora = resumen.estado_pago === 'en_mora' || vencido
   const totalUsd = Number((resumen.precio_acordado_usd * meses).toFixed(2))
   const pendiente = hayComprobantePendiente(pagos)
 
@@ -300,6 +309,7 @@ export function PanelFacturacion() {
                 type="file"
                 accept="image/*"
                 onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+                key={claveArchivo}
                 required
               />
             </FieldGroup>
@@ -312,7 +322,7 @@ export function PanelFacturacion() {
               </p>
             )}
 
-            <Button type="submit" disabled={enviando || !archivo} className="w-full">
+            <Button type="submit" disabled={enviando || !archivo || pendiente} className="w-full">
               <Upload size={16} /> {enviando ? 'Enviando…' : 'Enviar comprobante'}
             </Button>
           </form>

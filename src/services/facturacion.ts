@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { redimensionarImagen } from '../lib/imagen'
 import { usdABs } from '../lib/currency'
+import { TIPO_CAMBIO_POR_DEFECTO } from './configuracion'
 import type { EstadoClinica, EstadoPago, PagoSuscripcion, Plan } from '../types/database'
 
 /**
@@ -74,7 +75,11 @@ export async function getResumenSuscripcion(): Promise<ResumenSuscripcion> {
     clinica_nombre: clinica.nombre,
     plan: plan as Plan,
     precio_acordado_usd: Number(clinica.precio_acordado_usd),
-    tipo_cambio_usd: Number(config?.tipo_cambio_usd ?? 0),
+    // `?? 0` era un error: multiplicaba por cero y le enseñaba al admin
+    // «Bs. 0.00» como si el plan fuera gratis. Es exactamente lo que
+    // `TIPO_CAMBIO_POR_DEFECTO` existe para evitar, y es lo que hace el resto
+    // del código; aquí se había escapado.
+    tipo_cambio_usd: Number(config?.tipo_cambio_usd ?? TIPO_CAMBIO_POR_DEFECTO),
     proximo_cobro: clinica.proximo_cobro,
     estado_pago: clinica.estado_pago as EstadoPago,
     estado: clinica.estado as EstadoClinica,
@@ -140,15 +145,27 @@ export interface NuevoComprobanteInput {
 /**
  * Sube la foto y registra el comprobante.
  *
- * El total se calcula **en el servidor de la aplicación y no se acepta del
- * formulario**: dejar que el navegador mandara el importe permitiría declarar
- * que se pagaron 12 meses por un dólar. Aun así, quien decide es el
- * superadministrador al ver la imagen — esto solo evita que la cifra se
- * contradiga sola.
+ * **El importe que llega aquí no es una garantía de nada.** Se calcula a partir
+ * del precio y el tipo de cambio, pero los dos vienen del navegador, y la
+ * policy `pagos_clinica_insert` valida `clinica_id`, `estado` y los campos de
+ * revisión — no el dinero. Una petición fabricada puede declarar doce meses por
+ * un dólar. **El control real es que el superadministrador mira la foto antes
+ * de aprobar**, y por eso el importe se enseña junto a la imagen en
+ * `ComprobanteModal`. Que nadie se apoye en esta cifra como si estuviera
+ * verificada.
  */
 export async function enviarComprobante(input: NuevoComprobanteInput): Promise<PagoSuscripcion> {
   if (!input.archivo.type.startsWith('image/')) {
     throw new Error('El comprobante debe ser una imagen (foto o captura)')
+  }
+
+  // Un comprobante a la vez. La garantía dura es el índice único parcial de
+  // 0021 (`pagos_un_pendiente_por_clinica`); esto es el aviso temprano, para
+  // que el admin lea una frase y no el error de duplicado de Postgres. Sin las
+  // dos capas, dos envíos por la misma transferencia daban dos tareas idénticas
+  // y aprobar las dos acreditaba el doble de meses.
+  if (hayComprobantePendiente(await listPagosDeClinica())) {
+    throw new Error('Ya tienes un comprobante en revisión. Espera a que lo aprobemos antes de enviar otro.')
   }
   if (!Number.isInteger(input.meses) || input.meses < 1) {
     throw new Error('Indica cuántos meses estás pagando')
