@@ -199,6 +199,17 @@ Además:
 
   Ese primer `RolRoute` es la barrera de frontend equivalente a `auth_es_personal()`: sin él, una cuenta `cliente` del portal entraría en las mismas pantallas que el personal. El propio portal vive aparte, bajo `/portal-cliente` (`PortalClienteLayout`, sin `RolRoute` porque su propio layout y sus policies de solo-lectura ya acotan lo que se ve).
 
+## El tour de bienvenida
+
+Recorrido guiado sobre la propia interfaz (migración 0022): la pantalla se oscurece y el elemento explicado queda iluminado. Lo montan [AppLayout](src/components/layout/AppLayout.tsx) y [PortalClienteLayout](src/components/layout/PortalClienteLayout.tsx) con `OnboardingProvider`, cada uno con sus pasos. El superadmin no lo lleva.
+
+- **El estado vive en `onboarding_usuario`, NO en `usuarios`, y es una decisión de seguridad.** La RLS es por fila, no por columna: una policy `for update using (id = auth.uid())` sobre `usuarios` —que es lo que haría falta para guardar ahí dos columnas— le dejaría a cualquiera cambiarse su propio `rol` a `admin`. La tabla aparte no tiene nada que valga la pena falsificar.
+- **El motor es propio** ([features/onboarding/Tour.tsx](src/features/onboarding/Tour.tsx)), sin dependencia nueva. El foco de luz es un `div` con `box-shadow: 0 0 0 9999px`: oscurece todo lo demás sin máscaras SVG y anima solo.
+- **Los pasos son datos** ([lib/onboarding.ts](src/lib/onboarding.ts)), separados del motor. `VERSION_ONBOARDING` es del código: subirla vuelve a mostrarlo a todos sin tocar la base.
+- **Un paso cuyo elemento no exista se salta.** No es defensivo: el menú cambia según el rol (`enlacesVisibles`), así que recepción y el veterinario no ven los mismos pasos. Los anclajes son atributos `data-tour` sobre elementos que ya existían.
+- **Nunca puede bloquear la aplicación.** Cerrar —termine o no— marca el tour como visto, y ningún fallo suyo deja la pantalla oscurecida sin salida. Repetirlo está en «Mi cuenta», y en el portal en el botón `?` de la cabecera: no hay menú «Ayuda» donde ponerlo.
+- **No hay modo oscuro** en Vetora; el tour usa la misma paleta clara que el resto.
+
 ## Sesión y acceso
 
 `AuthContext` restaura la sesión con `supabase.auth.getSession()` y carga la fila de `usuarios` **antes del primer render** (las páginas consultan servicios al montarse); mientras tanto no pinta nada. El login es `supabase.auth.signInWithPassword()` en [services/cuentas.ts](src/services/cuentas.ts): **la aplicación nunca ve una contraseña**. `motivoDeBloqueo()` se evalúa al entrar y en cada render protegido: suspender una clínica expulsa las sesiones ya abiertas.

@@ -236,6 +236,35 @@ export type Database = {
         }
         Relationships: []
       }
+      onboarding_usuario: {
+        Row: {
+          usuario_id: string
+          completado: boolean
+          version: number
+          actualizado_at: string
+        }
+        Insert: {
+          usuario_id: string
+          completado?: boolean
+          version?: number
+          actualizado_at?: string
+        }
+        Update: {
+          usuario_id?: string
+          completado?: boolean
+          version?: number
+          actualizado_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_usuario_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: true
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pagos_suscripcion: {
         Row: {
           id: string

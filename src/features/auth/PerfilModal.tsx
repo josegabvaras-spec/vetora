@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { clsx } from 'clsx'
-import { MailCheck } from 'lucide-react'
+import { GraduationCap, MailCheck } from 'lucide-react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Seccion } from '../../components/ui/Seccion'
@@ -9,6 +9,7 @@ import { solicitarRecuperacion } from '../../services/cuentas'
 import { Badge } from '../../components/ui/Badge'
 import { useTable } from '../../mocks/useDb'
 import { PanelFacturacion } from '../facturacion/PanelFacturacion'
+import { useTourManual } from '../onboarding/OnboardingProvider'
 
 const ROL_LABEL: Record<string, string> = {
   admin: 'Administrador',
@@ -22,6 +23,7 @@ export function PerfilModal({ onClose }: { onClose: () => void }) {
   const { usuario } = useAuth()
   const sucursales = useTable('sucursales')
 
+  const { abrirTour } = useTourManual()
   const [pestana, setPestana] = useState<Pestana>('cuenta')
   const [enviado, setEnviado] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -108,6 +110,27 @@ export function PerfilModal({ onClose }: { onClose: () => void }) {
                 <Badge tone="teal">{ROL_LABEL[usuario.rol]}</Badge>
                 <Badge tone="slate">{sucursalNombre}</Badge>
               </div>
+            </div>
+          </Seccion>
+
+          {/* Aquí, y no en un menú «Ayuda», porque no existe: repetir el
+              tutorial es una gestión de la cuenta, como los datos y la clave. */}
+          <Seccion titulo="Tutorial">
+            <p className="text-sm text-slate-600">
+              ¿Quieres repasar cómo funciona Vetora? Te lo enseñamos otra vez sobre la propia pantalla.
+            </p>
+            <div className="mt-3 flex justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  // Cerrar primero: el tour resalta lo que hay DETRÁS del modal.
+                  onClose()
+                  abrirTour()
+                }}
+              >
+                <GraduationCap size={16} /> Ver el tutorial otra vez
+              </Button>
             </div>
           </Seccion>
 

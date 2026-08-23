@@ -172,7 +172,7 @@ export function AgendaPage() {
                   : 'Citas de tu sucursal'}
           </p>
         </div>
-        <Button onClick={() => setModalNueva(true)} className="w-full shadow-lg shadow-teal-500/20 sm:w-auto">
+        <Button data-tour="agenda-nueva-cita" onClick={() => setModalNueva(true)} className="w-full shadow-lg shadow-teal-500/20 sm:w-auto">
           <Plus size={18} strokeWidth={2.5} /> Nueva Cita
         </Button>
       </div>
@@ -211,7 +211,7 @@ export function AgendaPage() {
           </div>
         </div>
 
-        <div className="flex w-full rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 shadow-inner shadow-slate-200/50 backdrop-blur-sm sm:w-auto">
+        <div data-tour="agenda-vistas" className="flex w-full rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 shadow-inner shadow-slate-200/50 backdrop-blur-sm sm:w-auto">
           {(['dia', 'semana', 'mes'] as Vista[]).map((v) => (
             <button
               key={v}

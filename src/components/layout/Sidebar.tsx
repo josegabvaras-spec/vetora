@@ -82,7 +82,7 @@ export function Sidebar({
       </div>
 
       {/* Navegación */}
-      <nav className="flex-1 space-y-1.5 overflow-y-auto px-4 py-5 sm:py-6">
+      <nav data-tour="menu" className="flex-1 space-y-1.5 overflow-y-auto px-4 py-5 sm:py-6">
         {visibles.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}

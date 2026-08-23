@@ -24,6 +24,7 @@ export function MobileNav({ onAbrirMenu }: { onAbrirMenu: () => void }) {
     // Por debajo del velo del menú lateral (`z-40`): con la misma capa, y al ir
     // después en el árbol, la barra quedaría iluminada sobre el fondo oscuro.
     <nav
+      data-tour="nav-movil"
       aria-label="Accesos directos"
       className="fixed bottom-0 left-0 z-30 w-full border-t border-slate-200/60 bg-white/90 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_24px_rgba(0,0,0,0.04)] backdrop-blur-xl md:hidden"
     >

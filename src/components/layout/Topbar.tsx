@@ -177,6 +177,7 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
             <Badge tone="teal">{ROL_LABEL[usuario.rol]}</Badge>
           </div>
           <button
+            data-tour="perfil"
             onClick={() => setMostrarPerfil(true)}
             title={`${usuario.nombre} · ${ROL_LABEL[usuario.rol]}`}
             className="flex h-10 w-10 shrink-0 cursor-pointer select-none items-center justify-center rounded-xl border border-teal-500/20 bg-gradient-to-tr from-teal-500/10 to-teal-600/10 font-display text-xs font-bold text-teal-700 shadow-xs transition-colors hover:from-teal-500/20 hover:to-teal-600/20 focus:outline-none focus:ring-2 focus:ring-teal-500/40"

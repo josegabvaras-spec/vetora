@@ -4,6 +4,9 @@ import { LogOut, PawPrint } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Clinica } from '../../types/database'
+import { OnboardingProvider } from '../../features/onboarding/OnboardingProvider'
+import { AyudaPortal } from '../../features/onboarding/AyudaPortal'
+import { PASOS_PORTAL } from '../../lib/onboarding'
 
 export function PortalClienteLayout() {
   const { usuario, logout } = useAuth()
@@ -25,6 +28,7 @@ export function PortalClienteLayout() {
   }
 
   return (
+    <OnboardingProvider pasos={PASOS_PORTAL}>
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -44,7 +48,11 @@ export function PortalClienteLayout() {
               <span className="text-sm text-slate-600 hidden sm:inline-block">
                 Hola, {usuario.nombre}
               </span>
+              {/* No hay menú «Ayuda» en el portal: este botón ES el sitio
+                  desde donde se repite el tutorial. */}
+              <AyudaPortal />
               <button
+                data-tour="portal-salir"
                 onClick={logout}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                 title="Cerrar sesión"
@@ -60,5 +68,6 @@ export function PortalClienteLayout() {
         <Outlet />
       </main>
     </div>
+    </OnboardingProvider>
   )
 }
