@@ -1,3 +1,5 @@
+import type { Rol } from '../types/database'
+
 /**
  * El tour de bienvenida, como datos.
  *
@@ -13,7 +15,7 @@
  * Al añadir una función importante, sube el número: todos lo verán una vez más.
  * No hace falta tocar la base ni borrar filas.
  */
-export const VERSION_ONBOARDING = 1
+export const VERSION_ONBOARDING = 2
 
 /**
  * Dónde aplica un paso.
@@ -38,6 +40,14 @@ export interface PasoTour {
   requiereMenu?: boolean
   /** Texto del botón que avanza. Por defecto, «Siguiente». */
   etiquetaSiguiente?: string
+  /**
+   * Mismo patrón que `EnlaceClinico.roles` del Sidebar: vacío o ausente =
+   * visible para todos. Existe porque no todos los pasos son útiles para los
+   * tres roles clínicos por igual — Servicios o el uso de Inventario en una
+   * consulta son cosas que le tocan a quien gestiona la clínica, no al
+   * veterinario. Se filtra ANTES que el formato, en `Tour.tsx`.
+   */
+  roles?: Rol[]
 }
 
 /** Recorrido del personal de la clínica: admin, veterinario y recepción. */
@@ -69,6 +79,42 @@ export const PASOS_CLINICA: PasoTour[] = [
     texto:
       'Desde esta barra llegas de un toque a lo que más se usa en el día, y con el botón «Menú» abres el resto de secciones.',
     formato: 'solo-movil',
+  },
+  // Los cuatro siguientes son solo para quien gestiona la clínica, no para el
+  // veterinario: explican de dónde sale el stock que se descuenta en consulta,
+  // por qué hace falta un paciente antes de poder agendar, qué hace el
+  // asistente, y de dónde salen los precios que se cobran en caja.
+  {
+    ancla: 'menu-pacientes',
+    titulo: 'Pacientes',
+    texto:
+      'Antes de agendar una cita o abrir una consulta, el paciente tiene que existir. Da de alta al dueño y a su mascota aquí — es el primer paso de todo lo demás.',
+    roles: ['admin', 'recepcion'],
+    requiereMenu: true,
+  },
+  {
+    ancla: 'menu-inventario',
+    titulo: 'Inventario',
+    texto:
+      'Aquí registras el stock de productos y medicamentos. Es lo que permite que, al usarse un medicamento en una consulta, el sistema descuente la cantidad exacta del frasco — mantenlo cargado y al día.',
+    roles: ['admin', 'recepcion'],
+    requiereMenu: true,
+  },
+  {
+    ancla: 'menu-asistente',
+    titulo: 'El asistente',
+    texto:
+      'Te avisa qué toca hoy: recordatorios de citas próximas, refuerzos de vacuna vencidos y consultas que quedaron sin cobrar. Redacta el mensaje y tú decides si lo envías.',
+    roles: ['admin', 'recepcion'],
+    requiereMenu: true,
+  },
+  {
+    ancla: 'menu-caja',
+    titulo: 'Caja',
+    texto:
+      'Aquí cobras las consultas y las ventas. Los precios que ves salen de Servicios, donde el administrador los define — sin eso cargado, no hay qué cobrar.',
+    roles: ['admin', 'recepcion'],
+    requiereMenu: true,
   },
   {
     ancla: 'perfil',
@@ -140,4 +186,15 @@ export function pasosParaFormato(pasos: PasoTour[], esEscritorio: boolean): Paso
     if (p.formato === 'solo-escritorio') return esEscritorio
     return true
   })
+}
+
+/**
+ * Deja solo los pasos que le tocan a este rol.
+ *
+ * Mismo criterio que `enlacesVisibles()` del Sidebar: sin `roles`, el paso es
+ * para todos. Se aplica ANTES que `pasosParaFormato`, para que un paso que ni
+ * siquiera es del rol no llegue a intentar medirse.
+ */
+export function pasosParaRol(pasos: PasoTour[], rol: Rol | undefined): PasoTour[] {
+  return pasos.filter((p) => !p.roles || (rol !== undefined && p.roles.includes(rol)))
 }

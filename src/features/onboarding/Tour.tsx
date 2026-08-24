@@ -2,8 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
+import { useAuth } from '../../context/AuthContext'
 import { useEsEscritorio } from '../../hooks/useMediaQuery'
-import { pasosParaFormato, type PasoTour } from '../../lib/onboarding'
+import { pasosParaFormato, pasosParaRol, type PasoTour } from '../../lib/onboarding'
 
 /**
  * Motor del tour guiado.
@@ -72,7 +73,11 @@ export function Tour({
   cerrarMenu?: () => void
 }) {
   const esEscritorio = useEsEscritorio()
-  const aplicables = pasosParaFormato(pasos, esEscritorio)
+  const { usuario } = useAuth()
+  // Por rol primero: un paso que ni siquiera es de este rol no debe llegar a
+  // intentar medirse. El portal no tiene pasos con `roles`, así que ahí este
+  // filtro no cambia nada.
+  const aplicables = pasosParaFormato(pasosParaRol(pasos, usuario?.rol), esEscritorio)
 
   const [indice, setIndice] = useState(0)
   const [recuadro, setRecuadro] = useState<Recuadro | null>(null)

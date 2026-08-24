@@ -90,6 +90,11 @@ export function Sidebar({
           <NavLink
             key={to}
             to={to}
+            // Ancla del tour de bienvenida: un paso puede señalar «menu-caja»,
+            // «menu-pacientes», etc. sin que el tour tenga que saber en qué
+            // orden vive cada enlace. Va en TODOS por igual —no cuesta nada— y
+            // así un paso nuevo no necesita volver a tocar este archivo.
+            data-tour={`menu-${to.slice(1)}`}
             onClick={onCerrar}
             className={({ isActive }) =>
               clsx(
