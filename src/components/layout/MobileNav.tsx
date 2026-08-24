@@ -10,11 +10,18 @@ const MAX_PESTANAS = 3
 export function MobileNav({ onAbrirMenu }: { onAbrirMenu: () => void }) {
   const { usuario } = useAuth()
   const enlaces = enlacesVisibles(usuario?.rol)
-  // Priorizar Caja, Agenda y Pacientes
-  const prioritarios = ['/caja', '/agenda', '/pacientes']
+  // Caja, Agenda y Asistente.
+  //
+  // El Asistente entró en lugar de Pacientes porque es la pantalla desde la que
+  // se navega: enseña las consultas por atender, las citas de hoy y lo que toca
+  // avisar, y desde ahí se llega al paciente concreto en un toque. Buscar al
+  // paciente por su nombre es el camino largo, y sigue estando en el menú.
+  const prioritarios = ['/caja', '/agenda', '/asistente']
   const navItems = enlaces.filter(e => prioritarios.includes(e.to))
-  
-  // Si por rol no tiene acceso a Caja, rellenar hasta MAX_PESTANAS con otras opciones
+
+  // Si por rol falta alguna (el veterinario no ve Caja), se rellena hasta
+  // MAX_PESTANAS con lo siguiente del menú — que para él es justamente
+  // Pacientes, así que no lo pierde: solo deja de ocupar el sitio del Asistente.
   if (navItems.length < MAX_PESTANAS) {
     const extras = enlaces.filter(e => !prioritarios.includes(e.to)).slice(0, MAX_PESTANAS - navItems.length)
     navItems.push(...extras)
