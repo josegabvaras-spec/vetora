@@ -28,6 +28,15 @@ const HOLGURA = 8
 /** Margen mínimo entre el globo y el borde de la pantalla. */
 const MARGEN = 12
 const ANCHO_GLOBO = 320
+/**
+ * Cuánto se reintenta buscar el elemento antes de darlo por ausente.
+ *
+ * El cajón del menú en celular tarda 300 ms en abrirse
+ * (`PanelLateral.tsx`, `transition-[transform,visibility] duration-300`).
+ * El doble de margen cubre además lo que tarde React en confirmar la
+ * apertura en dispositivos más lentos.
+ */
+const TIEMPO_MAXIMO_ESPERA_MS = 600
 
 interface Recuadro {
   top: number
@@ -122,30 +131,52 @@ export function Tour({
     }
 
     let cancelado = false
+    let idFrame = 0
+    const desde = performance.now()
 
-    // Dos fotogramas de margen: si este paso abrió el cajón del menú, hay que
-    // dejar que termine su transición antes de medir, o el foco quedaría sobre
-    // la posición de partida.
-    const id = requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        if (cancelado) return
+    /**
+     * Reintenta fotograma a fotograma, no una vez a los dos fotogramas.
+     *
+     * Antes se comprobaba UNA sola vez, a los ~32 ms (dos `requestAnimationFrame`
+     * seguidos). Eso bastaba para un paso normal, pero cuando el paso ACABA DE
+     * PEDIR que se abra el cajón del menú (`requiereMenu`), su transición dura
+     * 300 ms — diez veces más. El tour medía antes de que el cajón terminara de
+     * abrirse, no encontraba el elemento todavía visible, y lo daba por
+     * ausente: saltaba el paso que él mismo acababa de abrir. Con varios pasos
+     * seguidos pidiendo el menú (Pacientes, Inventario, Asistente, Caja), el
+     * patrón se repetía y el tour avanzaba de dos en dos.
+     */
+    function intentar() {
+      if (cancelado) return
 
-        const elemento = buscarAncla(paso.ancla!)
-        if (!elemento) {
-          const siguiente = indice + direccion.current
-          if (siguiente >= 0 && siguiente < aplicables.length) setIndice(siguiente)
-          else cerrar()
-          return
-        }
-
+      const elemento = buscarAncla(paso!.ancla!)
+      if (elemento) {
         elemento.scrollIntoView({ block: 'center', behavior: 'smooth' })
         setRecuadro(recuadroDe(elemento))
-      }),
-    )
+        return
+      }
+
+      // Todavía no aparece. Con medio segundo hay de sobra para la transición
+      // de 300 ms del cajón más lo que tarde React en confirmar la apertura;
+      // seguir insistiendo.
+      if (performance.now() - desde < TIEMPO_MAXIMO_ESPERA_MS) {
+        idFrame = requestAnimationFrame(intentar)
+        return
+      }
+
+      // Pasado ese margen, de verdad no está: este rol no tiene esa sección. Se
+      // avanza en la misma dirección en la que se venía, para que «Atrás» no
+      // se quede atascado rebotando contra un paso ausente.
+      const siguiente = indice + direccion.current
+      if (siguiente >= 0 && siguiente < aplicables.length) setIndice(siguiente)
+      else cerrar()
+    }
+
+    idFrame = requestAnimationFrame(intentar)
 
     return () => {
       cancelado = true
-      cancelAnimationFrame(id)
+      cancelAnimationFrame(idFrame)
     }
   }, [paso, indice, aplicables.length, cerrar, necesitaMenu])
 
