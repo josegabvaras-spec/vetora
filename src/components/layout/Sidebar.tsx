@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, BellRing, X } from 'lucide-react'
+import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, Bot, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { PanelLateral } from './PanelLateral'
 import type { Rol } from '../../types/database'
@@ -29,7 +29,10 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
   {
     to: '/asistente',
     label: 'Asistente',
-    icon: BellRing,
+    // Un robot, no una campana: la campana decía «notificaciones», y esto es el
+    // asistente. El icono sale de aquí para el menú lateral y para la barra
+    // inferior del celular, que leen la misma lista.
+    icon: Bot,
     // Un enlace, dos pantallas: `AsistenteSegunRol` decide cuál según el rol.
     roles: ['recepcion', 'admin', 'veterinario'],
   },
