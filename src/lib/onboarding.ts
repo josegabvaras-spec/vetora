@@ -15,7 +15,7 @@ import type { Rol } from '../types/database'
  * Al añadir una función importante, sube el número: todos lo verán una vez más.
  * No hace falta tocar la base ni borrar filas.
  */
-export const VERSION_ONBOARDING = 2
+export const VERSION_ONBOARDING = 3
 
 /**
  * Dónde aplica un paso.
@@ -80,23 +80,42 @@ export const PASOS_CLINICA: PasoTour[] = [
       'Desde esta barra llegas de un toque a lo que más se usa en el día, y con el botón «Menú» abres el resto de secciones.',
     formato: 'solo-movil',
   },
-  // Los cuatro siguientes son solo para quien gestiona la clínica, no para el
-  // veterinario: explican de dónde sale el stock que se descuenta en consulta,
-  // por qué hace falta un paciente antes de poder agendar, qué hace el
-  // asistente, y de dónde salen los precios que se cobran en caja.
+  // Los siguientes son solo para quien gestiona la clínica, no para el
+  // veterinario. Y van EN ESTE ORDEN a propósito: es la cadena de dependencias
+  // real de una clínica que estrena Vetora. No se puede descontar un
+  // medicamento que no está en inventario, ni cobrar un servicio sin tarifa, ni
+  // abrir una consulta sin un paciente dado de alta. El tour cuenta ese orden
+  // de trabajo, no el recorrido visual de la pantalla.
+  //
+  // NO numeres estos títulos («1. Inventario», «2. Servicios»…): recepción no
+  // ve el paso de Servicios, así que un número fijo le saltaría del 1 al 3 y
+  // parecería que el tour se comió un paso. La secuencia se transmite en el
+  // texto, y el contador «N de M» del globo ya lleva la cuenta de verdad.
   {
-    ancla: 'menu-pacientes',
-    titulo: 'Pacientes',
+    ancla: 'menu-inventario',
+    titulo: 'Empieza por el Inventario',
     texto:
-      'Antes de agendar una cita o abrir una consulta, el paciente tiene que existir. Da de alta al dueño y a su mascota aquí — es el primer paso de todo lo demás.',
+      'Es el punto de partida. Carga aquí los medicamentos, productos y todo lo que se use en consulta: es de donde el sistema descuenta la cantidad exacta cuando el veterinario los aplica. Sin esto cargado, no hay de dónde descontar.',
     roles: ['admin', 'recepcion'],
     requiereMenu: true,
   },
   {
-    ancla: 'menu-inventario',
-    titulo: 'Inventario',
+    // Solo admin: `/servicios` es admin-only en `ENLACES_CLINICOS`, así que el
+    // ancla `menu-servicios` ni existe para recepción. Sin este filtro el paso
+    // caería en el camino de «elemento ausente», que espera 600 ms antes de
+    // rendirse — recepción vería una pausa muerta en mitad del tour.
+    ancla: 'menu-servicios',
+    titulo: 'Ajusta los Servicios',
     texto:
-      'Aquí registras el stock de productos y medicamentos. Es lo que permite que, al usarse un medicamento en una consulta, el sistema descuente la cantidad exacta del frasco — mantenlo cargado y al día.',
+      'Aquí defines las tarifas de cada servicio: consultas, cirugías, vacunación, internación. Es el precio que después aparece en Caja al momento de cobrar.',
+    roles: ['admin'],
+    requiereMenu: true,
+  },
+  {
+    ancla: 'menu-pacientes',
+    titulo: 'Registra los Pacientes',
+    texto:
+      'Da de alta al dueño y a su mascota aquí. Es requisito: sin el paciente en la base de datos no se le puede agendar una cita ni abrirle una consulta.',
     roles: ['admin', 'recepcion'],
     requiereMenu: true,
   },
@@ -122,18 +141,12 @@ export const PASOS_CLINICA: PasoTour[] = [
     texto:
       'Aquí ves tus datos, cambias tu contraseña y —si eres administrador— gestionas la facturación de la clínica. También puedes volver a ver este tutorial.',
   },
-  {
-    ancla: 'agenda-vistas',
-    titulo: 'Tu agenda',
-    texto:
-      'La agenda se ve por día, por semana o por mes. Cambia aquí según lo que necesites mirar.',
-  },
-  {
-    ancla: 'agenda-nueva-cita',
-    titulo: 'Agendar una cita',
-    texto:
-      'Con este botón registras una cita nueva. Al elegir veterinario y fecha, el sistema te muestra qué horarios tiene libres.',
-  },
+  // Aquí vivían dos pasos que explicaban los controles de la agenda (el
+  // selector día/semana/mes y el botón de Nueva Cita). Se quitaron para que el
+  // tour sea una guía de PUESTA EN MARCHA y no un recorrido de la pantalla: la
+  // agenda se entiende sola al usarla, pero el orden Inventario → Servicios →
+  // Pacientes no es evidente y es lo que bloquea a una clínica que empieza.
+  // Sus anclas `data-tour` siguen en AgendaPage por si se quieren recuperar.
   {
     titulo: '🎉 ¡Listo!',
     texto:
