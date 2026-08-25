@@ -91,7 +91,11 @@ export async function crearInvitacion(usuarioId: string): Promise<Invitacion> {
 }
 
 export function enlaceDeAcceso(token: string): string {
-  const base = typeof window === 'undefined' ? 'https://vetora.app' : window.location.origin
+  // `window.location.origin` es lo que manda: así el enlace apunta siempre al
+  // dominio desde el que se generó, sin tener que tocar código al cambiarlo.
+  // La cadena de reserva solo existe por si esto llegara a ejecutarse fuera de
+  // un navegador; hoy no ocurre en ningún camino de la aplicación.
+  const base = typeof window === 'undefined' ? 'https://vetora.online' : window.location.origin
   return `${base}/acceso/${token}`
 }
 
