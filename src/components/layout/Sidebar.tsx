@@ -4,7 +4,7 @@ import { clsx } from 'clsx'
 import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, Bot, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { PanelLateral } from './PanelLateral'
-import type { Rol } from '../../types/database'
+import type { ModuloVetora, Rol } from '../../types/database'
 
 export interface EnlaceClinico {
   to: string
@@ -14,6 +14,15 @@ export interface EnlaceClinico {
   etiquetaCorta?: string
   /** Vacío o ausente = visible para todos. */
   roles?: Rol[]
+  /**
+   * Módulo del plan del que depende esta sección (migración 0024). Ausente =
+   * no depende de ninguno, así que se ve con cualquier plan.
+   *
+   * `/agenda` se deja a propósito SIN módulo: es el destino al que rebota
+   * `ModuloRoute` y al que manda `InicioSegunRol`, así que gatearla crearía un
+   * bucle de redirecciones.
+   */
+  modulo?: ModuloVetora
 }
 
 /**
@@ -23,7 +32,7 @@ export interface EnlaceClinico {
  * las primeras entradas visibles son las que llegan a la barra inferior.
  */
 export const ENLACES_CLINICOS: EnlaceClinico[] = [
-  { to: '/caja', label: 'Caja', icon: Wallet, roles: ['recepcion', 'admin'] },
+  { to: '/caja', label: 'Caja', icon: Wallet, roles: ['recepcion', 'admin'], modulo: 'caja' },
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/pacientes', label: 'Pacientes', icon: PawPrint },
   {
@@ -35,18 +44,34 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
     icon: Bot,
     // Un enlace, dos pantallas: `AsistenteSegunRol` decide cuál según el rol.
     roles: ['recepcion', 'admin', 'veterinario'],
+    modulo: 'asistente_ia',
   },
-  { to: '/internacion', label: 'Internación', icon: BedDouble, etiquetaCorta: 'Internac.' },
-  { to: '/inventario', label: 'Inventario', icon: Boxes },
-  { to: '/metricas', label: 'Métricas', icon: BarChart3, roles: ['admin'] },
+  { to: '/internacion', label: 'Internación', icon: BedDouble, etiquetaCorta: 'Internac.', modulo: 'internacion' },
+  { to: '/inventario', label: 'Inventario', icon: Boxes, modulo: 'inventario' },
+  { to: '/metricas', label: 'Métricas', icon: BarChart3, roles: ['admin'], modulo: 'metricas' },
   { to: '/respaldo', label: 'Respaldo', icon: Download, roles: ['recepcion', 'admin'] },
   { to: '/servicios', label: 'Servicios', icon: Tags, roles: ['admin'] },
-  { to: '/movimientos', label: 'Movimientos', icon: ArrowLeftRight, roles: ['admin'] },
+  { to: '/movimientos', label: 'Movimientos', icon: ArrowLeftRight, roles: ['admin'], modulo: 'caja' },
 ]
 
-/** Las pantallas que el rol tiene permitidas, en el orden del menú. */
-export function enlacesVisibles(rol: Rol | undefined): EnlaceClinico[] {
-  return ENLACES_CLINICOS.filter((l) => !l.roles || (rol !== undefined && l.roles.includes(rol)))
+/**
+ * Las pantallas que se ven, en el orden del menú.
+ *
+ * Dos filtros, no uno: el **rol** dice qué le toca a esta persona, y los
+ * **módulos** qué contrató la clínica (0024). Una recepcionista de una
+ * peluquería no ve Internación ni porque su rol lo permita, si el plan no
+ * trae ese módulo.
+ *
+ * `modulos` es opcional para no romper a quien la llame sin ese dato: sin
+ * lista, no se filtra por módulo. Los dos llamadores reales
+ * (`Sidebar` y `MobileNav`) sí la pasan.
+ */
+export function enlacesVisibles(rol: Rol | undefined, modulos?: ModuloVetora[]): EnlaceClinico[] {
+  return ENLACES_CLINICOS.filter((l) => {
+    const rolOk = !l.roles || (rol !== undefined && l.roles.includes(rol))
+    const moduloOk = !l.modulo || !modulos || modulos.includes(l.modulo)
+    return rolOk && moduloOk
+  })
 }
 
 /**
@@ -63,8 +88,8 @@ export function Sidebar({
   onCerrar: () => void
   pie?: ReactNode
 }) {
-  const { usuario } = useAuth()
-  const visibles = enlacesVisibles(usuario?.rol)
+  const { usuario, modulosHabilitados } = useAuth()
+  const visibles = enlacesVisibles(usuario?.rol, modulosHabilitados)
 
   return (
     <PanelLateral

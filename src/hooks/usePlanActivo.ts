@@ -5,7 +5,7 @@ import type { Plan } from '../types/database'
 export function usePlanActivo(): Plan | undefined {
   const clinica = useTable('clinicas')[0]
   const planes = useTable('planes')
-  return planes.find((p) => p.id === clinica?.plan_id)
+  return planes.find((p) => p.id === clinica?.plan_id) as Plan | undefined
 }
 
 /**

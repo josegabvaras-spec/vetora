@@ -5,6 +5,7 @@ import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import { FieldGroup, Input, Textarea } from '../../components/ui/Field'
+import type { ModuloVetora } from '../../types/database'
 import {
   updatePlan,
   setPlanActivo,
@@ -387,8 +388,29 @@ function PlanModal({
   const [whatsapp, setWhatsapp] = useState(plan ? String(plan.whatsapp_limite) : '200')
   const [sucursales, setSucursales] = useState(plan ? String(plan.max_sucursales) : '1')
   const [usuarios, setUsuarios] = useState(plan ? String(plan.max_usuarios) : '5')
+  const [modulos, setModulos] = useState<ModuloVetora[]>(
+    (plan?.modulos_habilitados as ModuloVetora[] | undefined) ?? ['agenda', 'caja', 'inventario', 'portal_cliente', 'whatsapp']
+  )
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const TODOS_MODULOS: { key: ModuloVetora; label: string }[] = [
+    { key: 'agenda', label: 'Agenda' },
+    { key: 'caja', label: 'Caja' },
+    { key: 'inventario', label: 'Inventario' },
+    { key: 'historial_clinico', label: 'Historial Clínico (SOAP)' },
+    { key: 'internacion', label: 'Internación' },
+    { key: 'asistente_ia', label: 'Asistente IA' },
+    { key: 'portal_cliente', label: 'Portal del Cliente' },
+    { key: 'whatsapp', label: 'WhatsApp' },
+    { key: 'metricas', label: 'Métricas' },
+  ]
+
+  function toggleModulo(modulo: ModuloVetora) {
+    setModulos((prev) =>
+      prev.includes(modulo) ? prev.filter((m) => m !== modulo) : [...prev, modulo]
+    )
+  }
 
   const precioNumero = Number(precio)
 
@@ -402,6 +424,7 @@ function PlanModal({
       whatsapp_limite: Number(whatsapp),
       max_sucursales: Number(sucursales),
       max_usuarios: Number(usuarios),
+      modulos_habilitados: modulos,
     }
     try {
       if (plan) await updatePlan(plan.id, datos)
@@ -450,6 +473,25 @@ function PlanModal({
             <Input type="number" min="1" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
           </FieldGroup>
         </div>
+
+        <FieldGroup label="Módulos habilitados">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {TODOS_MODULOS.map(({ key, label }) => (
+              <label key={key} className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs hover:border-teal-400 hover:bg-teal-50/30">
+                <input
+                  type="checkbox"
+                  checked={modulos.includes(key)}
+                  onChange={() => toggleModulo(key)}
+                  className="accent-teal-600"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Solo los módulos marcados estarán disponibles para las clínicas con este plan.
+          </p>
+        </FieldGroup>
 
         <p className="text-xs text-slate-500">
           Estos límites bloquean de verdad: una clínica no podrá crear más sucursales, usuarios ni enviar más

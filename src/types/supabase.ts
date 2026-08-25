@@ -164,6 +164,7 @@ export type Database = {
           precio_acordado_usd: number
           proximo_cobro: string
           responsable: string
+          tipo_negocio: string
           whatsapp: string
           whatsapp_mensajes_enviados: number
           whatsapp_periodo: string
@@ -181,6 +182,7 @@ export type Database = {
           precio_acordado_usd?: number
           proximo_cobro?: string
           responsable?: string
+          tipo_negocio?: string
           whatsapp?: string
           whatsapp_mensajes_enviados?: number
           whatsapp_periodo?: string
@@ -198,6 +200,7 @@ export type Database = {
           precio_acordado_usd?: number
           proximo_cobro?: string
           responsable?: string
+          tipo_negocio?: string
           whatsapp?: string
           whatsapp_mensajes_enviados?: number
           whatsapp_periodo?: string
@@ -1174,6 +1177,7 @@ export type Database = {
           id: string
           max_sucursales: number
           max_usuarios: number
+          modulos_habilitados: string[]
           nombre: string
           precio_mensual_usd: number
           whatsapp_limite: number
@@ -1184,6 +1188,7 @@ export type Database = {
           id?: string
           max_sucursales: number
           max_usuarios: number
+          modulos_habilitados?: string[]
           nombre: string
           precio_mensual_usd?: number
           whatsapp_limite: number
@@ -1194,6 +1199,7 @@ export type Database = {
           id?: string
           max_sucursales?: number
           max_usuarios?: number
+          modulos_habilitados?: string[]
           nombre?: string
           precio_mensual_usd?: number
           whatsapp_limite?: number

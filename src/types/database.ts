@@ -25,6 +25,32 @@ export type EstadoPago = 'al_dia' | 'en_mora'
 export type EstadoComprobante = 'pendiente' | 'aprobado' | 'rechazado'
 
 /**
+ * Segmento de negocio del establecimiento (migración 0023).
+ * Determina qué módulos se muestran y qué flujo es el principal.
+ */
+export type TipoNegocio =
+  | 'veterinaria'           // Clínica médica completa (predeterminado)
+  | 'peluqueria_canina'     // Estética y cuidado cosmético, sin historial clínico
+  | 'petshop'               // Venta directa de productos, sin módulos clínicos
+  | 'mixto_vet_peluqueria'  // Veterinaria completa + peluquería integrada
+  | 'mixto_petshop_peluqueria' // PetShop + peluquería sin módulos clínicos
+
+/**
+ * Módulos que puede habilitar un plan (migración 0024).
+ * Cada valor corresponde a una sección de la UI y sus servicios de datos.
+ */
+export type ModuloVetora =
+  | 'agenda'             // Calendario y gestión de citas
+  | 'caja'               // Cobros, turnos de caja y recibos
+  | 'inventario'         // Control de stock (medicamentos, insumos, productos)
+  | 'historial_clinico'  // Ficha SOAP, recetas, consentimientos
+  | 'internacion'        // Hospitalización de pacientes (requiere historial_clinico)
+  | 'asistente_ia'       // Copiloto de IA (Anthropic API)
+  | 'portal_cliente'     // Acceso de los dueños a fichas de sus mascotas
+  | 'whatsapp'           // Recordatorios y avisos automáticos por WhatsApp
+  | 'metricas'           // Reportes de ingresos, citas y rendimiento
+
+/**
  * Comprobante de pago de la suscripción.
  *
  * No hay pasarela: la clínica paga escaneando el QR de la plataforma y sube la
@@ -88,6 +114,12 @@ export interface Plan {
   whatsapp_limite: number
   max_sucursales: number
   max_usuarios: number
+  /**
+   * Módulos habilitados para este plan (migración 0024). Controla qué secciones
+   * de la UI y qué servicios de datos puede usar la clínica suscripta.
+   * Los planes de veterinaria existentes tienen todos los módulos por defecto.
+   */
+  modulos_habilitados: ModuloVetora[]
   /** Se desactivan en vez de borrarse: hay clínicas contratadas en ellos. */
   activo: boolean
   created_at: string
@@ -110,6 +142,12 @@ export interface Clinica {
    * contador para saber cuánto se lleva gastado de verdad.
    */
   whatsapp_periodo: string
+  /**
+   * Segmento de negocio del establecimiento (migración 0023).
+   * Determina qué módulos se muestran y qué flujo es el principal del sistema.
+   * Valor por defecto: 'veterinaria' (todas las clínicas existentes).
+   */
+  tipo_negocio: TipoNegocio
   estado: EstadoClinica
 
   /**

@@ -1,7 +1,20 @@
 import { supabase } from '../lib/supabase'
-import type { Database } from '../types/supabase'
+import type { ModuloVetora, Plan } from '../types/database'
 
-type Plan = Database['public']['Tables']['planes']['Row']
+/**
+ * El servicio devuelve el tipo de DOMINIO (`types/database.ts`), no la fila
+ * generada.
+ *
+ * En la base, `modulos_habilitados` es `text[]` y el tipo generado lo refleja
+ * como `string[]`; el de dominio lo estrecha a `ModuloVetora[]`. Sin convertir
+ * aquí, cada consumidor acababa haciendo su propio `as unknown as Plan` —ya
+ * había uno en `limitesDe`—, que es justo la señal de que el SQL y los tipos no
+ * están alineados. La conversión va UNA vez, en el borde donde la fila cruda se
+ * vuelve dominio.
+ */
+function aPlan(fila: unknown): Plan {
+  return fila as Plan
+}
 
 /**
  * Devuelve `undefined` solo si el plan no existe.
@@ -13,14 +26,14 @@ type Plan = Database['public']['Tables']['planes']['Row']
 export async function getPlan(planId: string): Promise<Plan | undefined> {
   const { data, error } = await supabase.from('planes').select('*').eq('id', planId).maybeSingle()
   if (error) throw new Error(`No se pudo leer el plan: ${error.message}`)
-  return data ?? undefined
+  return data ? aPlan(data) : undefined
 }
 
 export async function listPlanes(soloActivos = false): Promise<Plan[]> {
   let query = supabase.from('planes').select('*').order('precio_mensual_usd', { ascending: true })
   if (soloActivos) query = query.eq('activo', true)
   const { data } = await query
-  return data ?? []
+  return (data ?? []).map(aPlan)
 }
 
 export interface DatosPlan {
@@ -29,6 +42,11 @@ export interface DatosPlan {
   whatsapp_limite: number
   max_sucursales: number
   max_usuarios: number
+  /**
+   * Módulos habilitados para el plan. Controla las secciones de la UI que
+   * verá la clínica suscripta. Por defecto incluye todos para veterinarias.
+   */
+  modulos_habilitados: ModuloVetora[]
 }
 
 export async function createPlan(datos: DatosPlan): Promise<Plan> {
@@ -38,13 +56,13 @@ export async function createPlan(datos: DatosPlan): Promise<Plan> {
   }).select().single()
 
   if (error || !data) throw new Error('Error al crear plan')
-  return data
+  return aPlan(data)
 }
 
 export async function updatePlan(id: string, datos: DatosPlan): Promise<Plan> {
   const { data, error } = await supabase.from('planes').update(datos).eq('id', id).select().single()
   if (error || !data) throw new Error('Error al actualizar plan')
-  return data
+  return aPlan(data)
 }
 
 export async function setPlanActivo(id: string, activo: boolean): Promise<Plan> {
@@ -56,7 +74,7 @@ export async function setPlanActivo(id: string, activo: boolean): Promise<Plan> 
   }
   const { data, error } = await supabase.from('planes').update({ activo }).eq('id', id).select().single()
   if (error || !data) throw new Error('Error al cambiar estado del plan')
-  return data
+  return aPlan(data)
 }
 
 export async function usoEnClinicas(planId: string): Promise<number> {

@@ -35,8 +35,9 @@ import { ultimasInvitacionesDe } from '../../services/invitaciones'
 import { EnviarAccesoModal } from './EnviarAccesoModal'
 import { getConfiguracion, TIPO_CAMBIO_POR_DEFECTO } from '../../services/configuracion'
 import { formatBs, formatUsd, usdABs } from '../../lib/currency'
+import { TIPO_NEGOCIO_LABEL, TIPOS_NEGOCIO } from '../../lib/negocio'
 import { formatClinicDate, sumarMesesAFecha } from '../../lib/datetime'
-import type { Invitacion, Plan, Rol, Usuario } from '../../types/database'
+import type { Invitacion, Plan, Rol, TipoNegocio, Usuario } from '../../types/database'
 import type { ClinicaConDetalle } from '../../types/views'
 
 const ROL_LABEL: Record<string, string> = {
@@ -71,6 +72,7 @@ export function ClinicaDetalleModal({
   const [responsable, setResponsable] = useState(clinica.responsable)
   const [whatsapp, setWhatsapp] = useState(clinica.whatsapp)
   const [ciudad, setCiudad] = useState(clinica.ciudad)
+  const [tipoNegocio, setTipoNegocio] = useState<TipoNegocio>(clinica.tipo_negocio ?? 'veterinaria')
   const [planId, setPlanId] = useState(clinica.plan_id)
   const [precio, setPrecio] = useState(String(clinica.precio_acordado_usd))
   const [proximoCobro, setProximoCobro] = useState(clinica.proximo_cobro)
@@ -94,7 +96,7 @@ export function ClinicaDetalleModal({
     // Sin el `catch`, un fallo dejaba el selector de plan vacío y parecía que
     // la plataforma no tenía ninguno dado de alta.
     listPlanes()
-      .then(setPlanes)
+      .then((ps) => setPlanes(ps as Plan[]))
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los planes'))
     getConfiguracion()
       .then((cfg) => setTipoCambio(cfg.tipo_cambio_usd))
@@ -184,6 +186,7 @@ export function ClinicaDetalleModal({
       plan_id: planId,
       precio_acordado_usd: Number(precio),
       proximo_cobro: proximoCobro,
+      tipo_negocio: tipoNegocio,
     }
     await ejecutar(() => actualizarClinica(clinica.id, datos))
     setGuardando(false)
@@ -254,6 +257,17 @@ export function ClinicaDetalleModal({
             </FieldGroup>
             <FieldGroup label="WhatsApp">
               <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+            </FieldGroup>
+            {/* Editable a propósito: una clínica dada de alta como veterinaria
+                por error tiene que poder pasar a peluquería sin recrearla. */}
+            <FieldGroup label="Tipo de negocio">
+              <Select value={tipoNegocio} onChange={(e) => setTipoNegocio(e.target.value as TipoNegocio)}>
+                {TIPOS_NEGOCIO.map((t) => (
+                  <option key={t} value={t}>
+                    {TIPO_NEGOCIO_LABEL[t]}
+                  </option>
+                ))}
+              </Select>
             </FieldGroup>
           </div>
 

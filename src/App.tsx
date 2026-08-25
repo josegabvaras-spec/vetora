@@ -16,6 +16,7 @@ import { ConsultaImprimirPage } from './pages/ConsultaImprimirPage'
 import { RecetarioImprimirPage } from './pages/RecetarioImprimirPage'
 import { InformeImprimirPage } from './pages/InformeImprimirPage'
 import { RolRoute } from './components/layout/RolRoute'
+import { ModuloRoute } from './components/layout/ModuloRoute'
 import { CajaPage } from './pages/CajaPage'
 import { MovimientosPage } from './pages/MovimientosPage'
 import { ServiciosPage } from './pages/ServiciosPage'
@@ -85,11 +86,20 @@ export default function App() {
                   una cuenta del portal («cliente») entraba en las mismas
                   pantallas que el veterinario. */}
               <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion']} />}>
+                {/* Sin módulo: la agenda es el destino al que rebota
+                    `ModuloRoute`, y los pacientes son la base de cualquiera de
+                    los tipos de negocio (una peluquería también atiende a un
+                    perro concreto). */}
                 <Route path="/agenda" element={<AgendaPage />} />
                 <Route path="/pacientes" element={<PacientesListPage />} />
                 <Route path="/pacientes/:id" element={<FichaPacientePage />} />
-                <Route path="/internacion" element={<InternacionPage />} />
-                <Route path="/inventario" element={<InventarioPage />} />
+
+                <Route element={<ModuloRoute modulo="internacion" />}>
+                  <Route path="/internacion" element={<InternacionPage />} />
+                </Route>
+                <Route element={<ModuloRoute modulo="inventario" />}>
+                  <Route path="/inventario" element={<InventarioPage />} />
+                </Route>
               </Route>
 
               {/* El asistente lo abre todo el personal, pero enseña dos cosas
@@ -97,18 +107,29 @@ export default function App() {
                   recepción y administración los avisos al cliente y el informe
                   del día. Ver AsistenteSegunRol. */}
               <Route element={<RolRoute roles={['recepcion', 'admin', 'veterinario']} />}>
-                <Route path="/asistente" element={<AsistenteSegunRol />} />
+                <Route element={<ModuloRoute modulo="asistente_ia" />}>
+                  <Route path="/asistente" element={<AsistenteSegunRol />} />
+                </Route>
               </Route>
 
               {/* Caja para recepción y administración; los movimientos, solo administración */}
               <Route element={<RolRoute roles={['recepcion', 'admin']} />}>
-                <Route path="/caja" element={<CajaPage />} />
+                <Route element={<ModuloRoute modulo="caja" />}>
+                  <Route path="/caja" element={<CajaPage />} />
+                </Route>
+                {/* El respaldo no depende del plan: sus datos son suyos. */}
                 <Route path="/respaldo" element={<RespaldoPage />} />
               </Route>
               <Route element={<RolRoute roles={['admin']} />}>
+                {/* Servicios tampoco: sin tarifas no se cobra en ningún tipo
+                    de negocio. */}
                 <Route path="/servicios" element={<ServiciosPage />} />
-                <Route path="/movimientos" element={<MovimientosPage />} />
-                <Route path="/metricas" element={<MetricasPage />} />
+                <Route element={<ModuloRoute modulo="caja" />}>
+                  <Route path="/movimientos" element={<MovimientosPage />} />
+                </Route>
+                <Route element={<ModuloRoute modulo="metricas" />}>
+                  <Route path="/metricas" element={<MetricasPage />} />
+                </Route>
               </Route>
 
               <Route path="/" element={<InicioSegunRol />} />

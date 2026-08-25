@@ -8,8 +8,8 @@ import { enlacesVisibles } from './Sidebar'
 const MAX_PESTANAS = 3
 
 export function MobileNav({ onAbrirMenu }: { onAbrirMenu: () => void }) {
-  const { usuario } = useAuth()
-  const enlaces = enlacesVisibles(usuario?.rol)
+  const { usuario, modulosHabilitados } = useAuth()
+  const enlaces = enlacesVisibles(usuario?.rol, modulosHabilitados)
   // Caja, Agenda y Asistente.
   //
   // El Asistente entró en lugar de Pacientes porque es la pantalla desde la que

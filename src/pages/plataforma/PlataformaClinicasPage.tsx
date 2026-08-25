@@ -13,7 +13,9 @@ import { crearClinica, listClinicas, type AltaClinicaInput } from '../../service
 import { listPlanes } from '../../services/planes'
 import { getConfiguracion, TIPO_CAMBIO_POR_DEFECTO } from '../../services/configuracion'
 import { formatBs, formatUsd, usdABs } from '../../lib/currency'
+import { TIPO_NEGOCIO_LABEL, TIPOS_NEGOCIO } from '../../lib/negocio'
 import { clinicDayIso, formatClinicDate, sumarMesesAFecha } from '../../lib/datetime'
+import type { Plan, TipoNegocio, Usuario } from '../../types/database'
 
 /**
  * Un mes después del día de la clínica, en 'yyyy-MM-dd'.
@@ -25,7 +27,6 @@ import { clinicDayIso, formatClinicDate, sumarMesesAFecha } from '../../lib/date
 function unMesDespuesDeHoy(): string {
   return sumarMesesAFecha(clinicDayIso(), 1)
 }
-import type { Plan, Usuario } from '../../types/database'
 import type { ClinicaConDetalle, UsoLimite } from '../../types/views'
 
 const ESTADO_TONE = { activa: 'emerald', suspendida: 'rose', demo: 'slate' } as const
@@ -194,13 +195,14 @@ function NuevaClinicaModal({
   const [adminNombre, setAdminNombre] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [adminWhatsapp, setAdminWhatsapp] = useState('')
+  const [tipoNegocio, setTipoNegocio] = useState<TipoNegocio>('veterinaria')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     listPlanes(true)
       .then((activos) => {
-        setPlanes(activos)
+        setPlanes(activos as Plan[])
         if (activos[0]) {
           setPlanId(activos[0].id)
           setPrecio(String(activos[0].precio_mensual_usd))
@@ -231,6 +233,7 @@ function NuevaClinicaModal({
       plan_id: planId,
       precio_acordado_usd: Number(precio),
       proximo_cobro: proximoCobro,
+      tipo_negocio: tipoNegocio,
       sucursalNombre,
       sucursalDireccion,
       adminNombre,
@@ -304,6 +307,15 @@ function NuevaClinicaModal({
                 placeholder="+591 7…"
                 required
               />
+            </FieldGroup>
+            <FieldGroup label="Tipo de negocio">
+              <Select value={tipoNegocio} onChange={(e) => setTipoNegocio(e.target.value as TipoNegocio)} required>
+                {TIPOS_NEGOCIO.map((t) => (
+                  <option key={t} value={t}>
+                    {TIPO_NEGOCIO_LABEL[t]}
+                  </option>
+                ))}
+              </Select>
             </FieldGroup>
           </div>
         </Seccion>

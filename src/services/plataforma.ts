@@ -1,6 +1,6 @@
 import { motivoDelFallo, supabase } from '../lib/supabase'
 import { clinicDayIso, clinicMonth, desdeFechaSola, sumarMeses } from '../lib/datetime'
-import type { Clinica, EstadoClinica, PagoSuscripcion, Rol, Sucursal, Usuario } from '../types/database'
+import type { Clinica, EstadoClinica, PagoSuscripcion, Rol, Sucursal, TipoNegocio, Usuario } from '../types/database'
 import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma } from '../types/views'
 import { getPlan } from './planes'
 import { exigirEmailLibre } from './cuentas'
@@ -345,6 +345,11 @@ export interface DatosClinica {
   plan_id: string
   precio_acordado_usd: number
   proximo_cobro: string
+  /**
+   * Segmento de negocio del establecimiento (migración 0023).
+   * Determina qué módulos se muestran y qué flujo es el principal del sistema.
+   */
+  tipo_negocio: TipoNegocio
 }
 
 /** Mínimo para que `wa.me` pueda abrir un chat: un número reconocible. */
@@ -424,6 +429,7 @@ export async function crearClinica(input: AltaClinicaInput): Promise<AltaClinica
       fecha_alta: hoy,
       proximo_cobro: input.proximo_cobro || hoy,
       estado_pago: 'al_dia',
+      tipo_negocio: input.tipo_negocio ?? 'veterinaria',
     })
     .select()
     .single()
@@ -520,6 +526,10 @@ export async function actualizarClinica(clinicaId: string, datos: DatosClinica):
       plan_id: datos.plan_id,
       precio_acordado_usd: datos.precio_acordado_usd,
       proximo_cobro: datos.proximo_cobro,
+      // Se persiste para poder CORREGIRLO: una clínica dada de alta como
+      // veterinaria por error tiene que poder pasar a peluquería sin recrearla.
+      // El modal ya lo enviaba, pero este update lo ignoraba.
+      tipo_negocio: datos.tipo_negocio,
     })
     .eq('id', clinicaId)
     .select('id')
