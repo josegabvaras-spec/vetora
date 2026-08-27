@@ -239,6 +239,9 @@ export function JornadaClinica({
       celda: (c) =>
         c.estado === 'cancelada' ? (
           <span className="text-xs text-slate-400">Cancelada</span>
+        ) : c.tipo_cita === 'peluqueria' ? (
+          // Peluquería no abre historial clínico: no es una consulta médica.
+          <span className="text-xs text-slate-400">—</span>
         ) : (
           <Button
             size="sm"

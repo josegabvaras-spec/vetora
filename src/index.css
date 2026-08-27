@@ -197,3 +197,78 @@ a, button, select, input, textarea {
     radial-gradient(at 80% 0%, hsla(170,100%,94%,1) 0px, transparent 50%),
     radial-gradient(at 0% 100%, hsla(180,100%,96%,1) 0px, transparent 50%);
 }
+
+/* ── Portal del Cliente (dueño de mascota) ── */
+
+/* Fondo degradado suave para el header del portal */
+.portal-header-bg {
+  background: linear-gradient(135deg, #e0f7ef 0%, #f0fdf4 30%, #ecfdf5 50%, #d1fae5 100%);
+}
+
+/* Iconos flotantes sobre las tarjetas del dashboard */
+@keyframes portalFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.portal-float {
+  animation: portalFloat 3s ease-in-out infinite;
+}
+.portal-float-delay {
+  animation: portalFloat 3s ease-in-out 0.5s infinite;
+}
+.portal-float-delay-2 {
+  animation: portalFloat 3s ease-in-out 1s infinite;
+}
+
+/* Efecto hover premium para las tarjetas del dashboard */
+@keyframes portalCardPulse {
+  0% { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+  50% { box-shadow: 0 8px 30px rgba(0,0,0,0.10); }
+  100% { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+}
+
+.portal-card {
+  border-radius: 1.25rem;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  cursor: pointer;
+}
+.portal-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+}
+.portal-card:active {
+  transform: scale(0.98);
+}
+
+/* Barra de navegación inferior del portal */
+.portal-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.04);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Huellas de pata decorativas */
+.paw-print {
+  opacity: 0.08;
+  color: #059669;
+}
+
+/* Tarjeta con imagen de fondo recortada */
+.portal-card-img {
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.4s ease;
+}
+.portal-card:hover .portal-card-img {
+  transform: scale(1.05);
+}

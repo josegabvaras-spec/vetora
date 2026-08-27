@@ -404,6 +404,7 @@ function PlanModal({
     { key: 'portal_cliente', label: 'Portal del Cliente' },
     { key: 'whatsapp', label: 'WhatsApp' },
     { key: 'metricas', label: 'Métricas' },
+    { key: 'catalogo', label: 'Catálogo' },
   ]
 
   function toggleModulo(modulo: ModuloVetora) {

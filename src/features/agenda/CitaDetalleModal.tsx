@@ -124,7 +124,8 @@ export function CitaDetalleModal({ cita, onClose, onChanged }: { cita: CitaConDe
           </div>
         )}
 
-        {cita.estado !== 'cancelada' && (
+        {/* Peluquería no abre historial clínico: no es una consulta médica. */}
+        {cita.estado !== 'cancelada' && cita.tipo_cita !== 'peluqueria' && (
           <div className="rounded-lg border border-teal-100 bg-teal-50/60 p-4">
             <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <Stethoscope size={16} className="text-teal-600" />
@@ -147,7 +148,8 @@ export function CitaDetalleModal({ cita, onClose, onChanged }: { cita: CitaConDe
           </div>
         )}
 
-        {cita.estado !== 'cancelada' && (
+        {/* Peluquería no interna pacientes: es trabajo clínico. */}
+        {cita.estado !== 'cancelada' && cita.tipo_cita !== 'peluqueria' && (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <BedDouble size={16} className="text-teal-600" />

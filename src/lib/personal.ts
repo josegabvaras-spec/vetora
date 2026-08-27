@@ -42,3 +42,28 @@ export function veterinarioAcotado(
 ): string | undefined {
   return usuario?.rol === 'veterinario' ? usuario.id : undefined
 }
+
+/**
+ * Quién puede figurar como responsable de una cita de peluquería.
+ *
+ * `veterinario` y `admin` cuentan a propósito: una clínica mixta puede no
+ * tener personal dedicado y que sea el propio veterinario o el admin quien
+ * atienda. `recepcion` queda fuera, mismo motivo que en `puedeAtender`:
+ * agenda, no atiende.
+ */
+export function puedeHacerPeluqueria(usuario: { rol: string; activo: boolean }): boolean {
+  return (
+    (usuario.rol === 'peluquero' || usuario.rol === 'veterinario' || usuario.rol === 'admin') &&
+    usuario.activo
+  )
+}
+
+/**
+ * Peluquero al que se acota lo que este usuario ve y agenda, o `undefined`
+ * si ve el trabajo de toda la sucursal. Mismo criterio que `veterinarioAcotado`.
+ */
+export function peluqueroAcotado(
+  usuario: { id: string; rol: string } | null | undefined,
+): string | undefined {
+  return usuario?.rol === 'peluquero' ? usuario.id : undefined
+}

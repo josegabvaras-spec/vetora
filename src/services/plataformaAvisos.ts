@@ -147,7 +147,7 @@ export async function listUsuariosSinAcceso(): Promise<UsuarioSinAcceso[]> {
     .from('usuarios')
     .select('*')
     // El rol `cliente` es del portal y no se da de alta por invitación.
-    .in('rol', ['admin', 'veterinario', 'recepcion'])
+    .in('rol', ['admin', 'veterinario', 'recepcion', 'peluquero'])
     .order('created_at', { ascending: false })
 
   if (error) throw new Error(`No se pudieron cargar los usuarios: ${error.message}`)

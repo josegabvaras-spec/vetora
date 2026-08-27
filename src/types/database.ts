@@ -15,7 +15,7 @@ import type {
 } from '../lib/anamnesis'
 
 /** `superadmin` es el dueño de la plataforma: no pertenece a ninguna clínica. */
-export type Rol = 'superadmin' | 'admin' | 'veterinario' | 'recepcion' | 'cliente'
+export type Rol = 'superadmin' | 'admin' | 'veterinario' | 'recepcion' | 'cliente' | 'peluquero'
 
 export type EstadoClinica = 'activa' | 'suspendida' | 'demo'
 
@@ -49,6 +49,7 @@ export type ModuloVetora =
   | 'portal_cliente'     // Acceso de los dueños a fichas de sus mascotas
   | 'whatsapp'           // Recordatorios y avisos automáticos por WhatsApp
   | 'metricas'           // Reportes de ingresos, citas y rendimiento
+  | 'catalogo'           // Vitrina de productos, visible en la Tienda del portal
 
 /**
  * Comprobante de pago de la suscripción.
@@ -180,6 +181,28 @@ export interface Servicio {
   precio_bs: number
   /** Se desactivan en vez de borrarse: los cobros antiguos los siguen referenciando. */
   activo: boolean
+  created_at: string
+}
+
+/**
+ * Vitrina comercial de la clínica (migración 0027): lo que se ve en la Tienda
+ * del portal del cliente, de cualquier clínica activa, no solo la propia.
+ *
+ * No es inventario — `Producto` es kardex por sucursal con dosificación
+ * fraccionada; esto es a nivel de CLÍNICA, sin stock, pensado para mostrarse.
+ */
+export interface CatalogoProducto {
+  id: string
+  clinica_id: string
+  nombre: string
+  descripcion: string
+  /** Texto libre: cada tipo de negocio agrupa sus productos de forma distinta. */
+  categoria: string
+  precio_bs: number
+  /** Ruta en el bucket público `catalogo`, no la URL — puede no tener foto todavía. */
+  foto_ruta: string | null
+  /** Se oculta de la Tienda sin borrarse, igual que `Servicio.activo`. */
+  disponible: boolean
   created_at: string
 }
 

@@ -550,6 +550,38 @@ export async function cambiarEstadoClinica(clinicaId: string, estado: EstadoClin
   exigirFilaAfectada(data, 'cambiar el estado de la clínica')
 }
 
+export interface ResultadoBorrado {
+  cuentasBorradas: number
+  cuentasFallidas: number
+}
+
+/**
+ * Borra una clínica por completo: sus datos clínicos y de negocio (por
+ * cascada de FK), los archivos que tuviera en Storage, y las cuentas de Auth
+ * de su personal. A diferencia de `cambiarEstadoClinica`, **no hay vuelta
+ * atrás**.
+ *
+ * Pasa por la Edge Function `eliminar-clinica` porque limpiar `auth.users` y
+ * los buckets privados de otra clínica exige `service_role`, que el
+ * navegador nunca tiene — el superadmin no puede hacerlo con su propia sesión.
+ */
+export async function borrarClinica(clinicaId: string): Promise<ResultadoBorrado> {
+  const { data, error } = await supabase.functions.invoke<{
+    ok?: boolean
+    cuentas_borradas?: number
+    cuentas_fallidas?: number
+    error?: string
+  }>('eliminar-clinica', { body: { clinica_id: clinicaId } })
+
+  if (error) throw new Error((await motivoDelFallo(error)) ?? 'No se pudo borrar la clínica')
+  if (!data || data.error) throw new Error(data?.error ?? 'No se pudo borrar la clínica')
+
+  return {
+    cuentasBorradas: data.cuentas_borradas ?? 0,
+    cuentasFallidas: data.cuentas_fallidas ?? 0,
+  }
+}
+
 /** Registra el cobro del mes: pone la cuenta al día y corre el próximo cobro. */
 export async function marcarCobroAlDia(clinicaId: string, proximoCobro: string): Promise<void> {
   await exigirClinica(clinicaId)

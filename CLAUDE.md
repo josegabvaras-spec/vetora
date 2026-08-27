@@ -39,7 +39,7 @@ Cuando toques una regla de negocio, tiene que quedar en los **tres** sitios: el 
 
 ## El asistente de avisos (IA)
 
-`/asistente` es **una ruta y dos pantallas**: [AsistenteSegunRol](src/components/layout/AsistenteSegunRol.tsx) despacha por rol, igual que `InicioSegunRol` despacha el destino de entrada. Lo que sigue describe la de recepción y administración. La jornada clínica (más abajo) es la del veterinario, y el admin la lleva además como una sección propia: ni WhatsApp ni IA.
+`/asistente` es **una ruta y dos pantallas**: [AsistenteSegunRol](src/components/layout/AsistenteSegunRol.tsx) despacha por rol, igual que `InicioSegunRol` despacha el destino de entrada. Lo que sigue describe la de recepción y administración. La jornada clínica (más abajo) es la de quien atiende directamente al paciente —veterinario o peluquero—, y el admin la lleva además como una sección propia: ni WhatsApp ni IA.
 
 Cierra la Épica 4 del PRD: qué toca avisar hoy y con qué texto. **Es interno y one-way** — el PRD §2 excluye del MVP el chatbot conversacional y el agendamiento automático, así que la IA redacta y propone, pero quien envía es una persona.
 
@@ -69,20 +69,33 @@ supabase/functions/asistente/                           Deno + claude-opus-5
 
 [JornadaClinica](src/features/asistente/JornadaClinica.tsx) es la **cola de trabajo clínico**: las consultas abiertas que esperan, las citas de hoy y los internados. Existe para cerrar un camino que estaba a ciegas — recepción abre la consulta desde la cita, y el borrador quedaba colgado del paciente sin ninguna pantalla que los enseñara juntos.
 
-La ven **dos roles**, y `veterinarioId` es lo único que los distingue:
+La ven **tres roles**, y `veterinarioId` (el prop, no el rol) es lo único que los distingue:
 
-| | veterinario ([AsistenteVeterinarioPage](src/pages/AsistenteVeterinarioPage.tsx)) | admin (sección «Jornada» de [AsistentePage](src/pages/AsistentePage.tsx)) |
+| | veterinario / peluquero ([AsistenteJornadaPage](src/pages/AsistenteJornadaPage.tsx)) | admin (sección «Jornada» de [AsistentePage](src/pages/AsistentePage.tsx)) |
 |---|---|---|
-| `veterinarioId` | `veterinarioAcotado(usuario)` | sin pasar → toda la clínica |
+| `veterinarioId` | `veterinarioAcotado(usuario) ?? peluqueroAcotado(usuario)` | sin pasar → toda la clínica |
 | Rótulos | «Tus citas de hoy» | «Citas de hoy» |
 | Columna «Veterinario» | no | sí |
 
 Al admin **no se le acota a propósito**, por lo mismo que en la agenda: coordina la clínica, y en el Plan Consultorio es el único que atiende (`puedeAtender` ya lo cuenta como veterinario), así que «toda la clínica» y «lo suyo» son la misma lista. Los rótulos y la columna se derivan de ese único prop; no hay un segundo que pueda quedar descuadrado. **Recepción no la lleva**: no atiende consultas.
 
+El peluquero comparte la misma pantalla y el mismo componente que el veterinario —no una copia— porque el mecanismo es idéntico: acotar `veterinarioId` a uno mismo. `JornadaClinica` no filtra por `tipo_cita`, así que un veterinario o un admin que también atienda peluquería (migración `0025`, `puedeHacerPeluqueria()` en [lib/personal.ts](src/lib/personal.ts)) ya ve esas citas mezcladas con las suyas, con su propio badge. Lo que sí filtra por tipo es la acción de la fila: una cita `peluqueria` no abre historial clínico (ni en [CitaDetalleModal](src/features/agenda/CitaDetalleModal.tsx) ni en la propia `JornadaClinica`) porque no es una consulta médica.
+
 - **Sin WhatsApp y sin IA, a propósito.** El cupo de mensajes del plan se gasta por un solo lado, el de recepción; y esto es una cola derivada de la base, no un redactor de textos (mismo criterio que [lib/asistentePlataforma.ts](src/lib/asistentePlataforma.ts)).
 - **Todo se deriva, igual que `listProgramados`.** Una fila desaparece sola cuando deja de ser cierta: se cerró la consulta, se firmó el consentimiento, se escribió la evolución. No hay nada que marcar como hecho.
 - `listConsultasAbiertas()` ([services/historial.ts](src/services/historial.ts)) es lo único que hubo que escribir: `CitaConDetalle.historial_id` dice que hay historial pero no si sigue abierto, y un borrador de ayer sin cerrar tiene que seguir apareciendo. `historial_clinico` **no tiene `sucursal_id`** — la sucursal se resuelve por la cita.
-- Las otras dos secciones salen de `listCitas` y `listInternaciones` con el `veterinarioId` que ya aceptan.
+- Las otras dos secciones salen de `listCitas` y `listInternaciones` con el `veterinarioId` que ya aceptan. Para el peluquero quedan naturalmente vacías: nunca tiene historiales ni internaciones a su nombre, porque no tiene acceso a `/pacientes` (ver el reparto de `RolRoute` más abajo).
+
+## El catálogo y la Tienda
+
+`/catalogo` (migración `0027`) es la vitrina comercial de la clínica —veterinaria, peluquería o petshop, sin distinción por `tipo_negocio`—, y la Tienda es su reverso: una sección del portal del cliente donde el dueño de mascota ve catálogos de **cualquier** clínica activa con el módulo, no solo la suya. Es la primera vez que el sistema expone, a propósito, datos de una clínica a alguien que no es su cliente — todo lo demás del portal está acotado por `clientes.usuario_id = auth.uid()`.
+
+- **`catalogo_productos` no es `productos`.** Ese es kardex por sucursal (sku, presentación, stock fraccionado), sin foto ni descripción, y el rol `cliente` no tiene ningún acceso ahí a propósito. `catalogo_productos` es a nivel de **clínica**, sin stock: un escaparate, no inventario.
+- **Gating comercial por `ModuloVetora`, como el resto** — `/catalogo` va detrás de `ModuloRoute modulo="catalogo"`, solo para `admin` (mismo criterio que `/servicios`: fija precios públicos del negocio). Pero la policy de lectura pública (`catalogo_productos_portal`) es **la única del proyecto que mira `modulos_habilitados`**: si el plan pierde el módulo, sus productos desaparecen de la Tienda sin que nadie los borre — es la única tabla cuyo propósito entero es mostrarse a quien no es de la clínica.
+- **`clinicas_con_catalogo()`** es una función `security definer`, mismo patrón que `clinicas_para_registro()` (registro público, §Sesión y acceso): `clinicas_select` (`id = auth_clinica_id() or auth_es_plataforma()`) no deja leer la fila de otra clínica, ni siquiera incrustada en un `select('*, clinicas(...)')`. La función expone solo las columnas seguras (`nombre`, `logo_url`, `ciudad`, `tipo_negocio`, `whatsapp`) — nunca `responsable`, cuota de WhatsApp, estado de pago ni plan contratado. `grant execute` va a `authenticated`, no a `anon`: la Tienda solo se ve con sesión iniciada en el portal.
+- **Fotos: bucket `catalogo`, `public: true`** — el primero público del repo (`estudios` y `comprobantes` son privados con URL firmada de una hora, que no sirve para un grid cacheable). Se sirve con `getPublicUrl()`.
+- **WhatsApp: `enlaceWhatsapp()`, nunca `enviarMensajeWhatsapp()`.** El botón «Consultar por WhatsApp» de un producto es un link `wa.me` puro hacia `clinicas.whatsapp`, compuesto en el cliente sin tocar Supabase. `enviarMensajeWhatsapp` gasta la cuota mensual del plan (pensada para avisos que decide mandar el personal) — una consulta que decide un comprador no puede salir de esa misma cuota.
+- Borrar una clínica (`eliminar-clinica`, más abajo) también vacía el bucket `catalogo`, igual que `estudios`/`comprobantes`; y `PlataformaPlanesPage` necesita `'catalogo'` en su lista de checkboxes para que el superadmin pueda activarlo en algún plan — ninguna de las dos cosas es automática por el solo hecho de que el tipo `ModuloVetora` tenga el valor nuevo.
 
 ## Aislamiento multi-inquilino
 
@@ -192,12 +205,15 @@ Además:
 
   | `RolRoute` | Rutas |
   |---|---|
-  | `['admin', 'veterinario', 'recepcion']` | `/agenda`, `/pacientes`, `/pacientes/:id`, `/internacion`, `/inventario`, `/asistente` |
+  | `['admin', 'veterinario', 'recepcion', 'peluquero']` | `/agenda`, `/asistente` |
+  | `['admin', 'veterinario', 'recepcion']` | `/pacientes`, `/pacientes/:id`, `/internacion`, `/inventario` |
   | `['recepcion', 'admin']` | `/caja`, `/respaldo` |
   | `['admin']` | `/servicios`, `/movimientos`, `/metricas` |
   | `['superadmin']` | `/plataforma`, `/plataforma/clinicas`, `/plataforma/planes` |
 
-  Ese primer `RolRoute` es la barrera de frontend equivalente a `auth_es_personal()`: sin él, una cuenta `cliente` del portal entraría en las mismas pantallas que el personal. El propio portal vive aparte, bajo `/portal-cliente` (`PortalClienteLayout`, sin `RolRoute` porque su propio layout y sus policies de solo-lectura ya acotan lo que se ve).
+  Estos `RolRoute` son la barrera de frontend equivalente a `auth_es_personal()`: sin ellos, una cuenta `cliente` del portal entraría en las mismas pantallas que el personal. El propio portal vive aparte, bajo `/portal-cliente` (`PortalClienteLayout`, sin `RolRoute` porque su propio layout y sus policies de solo-lectura ya acotan lo que se ve).
+
+  `/agenda` y `/pacientes` se separaron en dos `RolRoute` distintos (migración `0025`) porque el peluquero entra al primero pero no al segundo: no escribe historial clínico ni receta, y hoy esa pantalla no distingue quién escribe — cualquier rol con acceso puede hacerlo, sin ningún bloqueo (ni siquiera `recepcion`). No darle la ruta evita construir ese bloqueo de cero. ⚠️ `/agenda` tiene que llevar SIEMPRE a `peluquero` (y a cualquier rol de personal nuevo que se añada): `RolRoute` rebota ahí cuando el rol no encaja, e `InicioSegunRol` también manda ahí por defecto — sin él en la lista, el rol queda en un bucle de redirección infinito.
 
 ## El tour de bienvenida
 
@@ -220,6 +236,8 @@ Recorrido guiado sobre la propia interfaz (migración 0022): la pantalla se oscu
 
 El `admin` queda fuera **a propósito** aunque atienda (`puedeAtender` lo cuenta como veterinario para el Plan Consultorio): coordina la clínica y necesita la vista completa. Y esto **no es una barrera de seguridad** — la RLS no distingue veterinarios, así que el expediente del paciente (historial, recetas, esquema sanitario) se sigue viendo entero, que es lo correcto para atender sin riesgo. Lo acotado es «mi trabajo de hoy». No lo repliques en las pantallas del expediente.
 
+`peluqueroAcotado(usuario)` (migración `0025`) es la misma función, un rol distinto: mismo criterio, mismo hueco intencional para el admin. Solo se usa donde el peluquero tiene ruta —`AgendaPage` y `AsistenteJornadaPage`, siempre combinada con `veterinarioAcotado(usuario) ?? peluqueroAcotado(usuario)`—, nunca en `InternarModal` ni `listInternaciones`: el peluquero no interna pacientes y no tiene acceso a `/internacion`.
+
 Las altas de usuario generan una `Invitacion` (token de un solo uso, con caducidad) que se envía por WhatsApp y se canjea en `/acceso/:token`, donde la persona crea su contraseña.
 
 **Ese canje vive entero en la Edge Function `acceso`** ([supabase/functions/acceso/](supabase/functions/acceso/)), y no por capricho: quien abre el enlace **todavía no tiene sesión**, así que para la RLS es un anónimo y no puede leer ni su propia invitación. Fijar la contraseña de otra cuenta es además `auth.admin.updateUserById`, que exige `service_role` — la única función que la usa. El **token es la credencial**: sus defensas son la caducidad, el uso único y el reclamo atómico (`update … .is('usado_at', null)`), que además libera el token si el cambio de contraseña falla después. Al volver, el frontend inicia sesión de verdad con la contraseña recién puesta; sin eso la RLS seguiría viendo un anónimo y la aplicación saldría vacía.
@@ -237,6 +255,8 @@ El proyecto tiene **«Confirm email» activado** en Supabase Auth, y eso decide 
 `signUp` desde el navegador falla de tres maneras a la vez con esa opción activa, y las tres están documentadas en la cabecera de [supabase/functions/crear-cuenta/](supabase/functions/crear-cuenta/): manda un correo de confirmación que sobra, **oculta que el correo ya existe** (devuelve un usuario falso con un uuid inventado, que al insertarse en `usuarios.id` —FK a `auth.users`— revienta con un 23503 con la clínica ya creada), y sustituye la sesión de quien opera. Si añades un alta, replica el patrón; no reintroduzcas `signUp`.
 
 `crear-cuenta` **exige que quien llama sea un superadmin activo** (valida el JWT y lee el rol con el cliente admin): crea credenciales, así que no puede ser pública. Su acción `borrar` solo toca cuentas **sin fila en `usuarios`** — es el rollback de un perfil que no llegó a crearse, no un «borrar cualquier cuenta»; las cuentas con perfil se desactivan (`activo = false`), que para eso firman historiales y cobros.
+
+**Borrar una clínica entera es aparte, en `eliminar-clinica`** (para cuando el cliente da de baja el servicio, no para el rollback de un alta). Mismo guard de superadmin, pero hace tres cosas que `crear-cuenta` no hace: vacía los buckets privados (`estudios`, `comprobantes`) de esa clínica, borra la fila de `clinicas` —que en cascada de FK se lleva sola las ~20 tablas del inquilino—, y solo entonces borra la cuenta de `auth.users` de cada uno de sus usuarios (borrar `usuarios` por cascada no toca `auth.users`; la flecha corre al revés). Es irreversible a propósito, distinto de `cambiarEstadoClinica` (suspender), que no borra nada.
 
 ## Respaldo y métricas
 

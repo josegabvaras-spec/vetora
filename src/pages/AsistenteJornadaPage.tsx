@@ -1,16 +1,17 @@
 import { useAuth } from '../context/AuthContext'
 import { JornadaClinica } from '../features/asistente/JornadaClinica'
-import { veterinarioAcotado } from '../lib/personal'
+import { peluqueroAcotado, veterinarioAcotado } from '../lib/personal'
 
 /**
- * Asistente del veterinario: lo que le toca a ÉL hoy.
+ * Asistente de quien atiende directamente al paciente —veterinario o
+ * peluquero—: lo que le toca a ÉL hoy.
  *
  * Toda la pantalla es la jornada, así que aquí solo queda la cabecera. El
  * contenido vive en [JornadaClinica](../features/asistente/JornadaClinica.tsx),
- * que comparte con el administrador — con la diferencia de que a él sí lo acota
- * `veterinarioAcotado()` y solo ve lo suyo.
+ * que comparte con el administrador — con la diferencia de que a este sí lo
+ * acota `veterinarioAcotado()`/`peluqueroAcotado()` y solo ve lo suyo.
  */
-export function AsistenteVeterinarioPage() {
+export function AsistenteJornadaPage() {
   const { usuario, sucursalActivaId } = useAuth()
 
   return (
@@ -26,7 +27,7 @@ export function AsistenteVeterinarioPage() {
       </div>
 
       <JornadaClinica
-        veterinarioId={veterinarioAcotado(usuario)}
+        veterinarioId={veterinarioAcotado(usuario) ?? peluqueroAcotado(usuario)}
         sucursalId={sucursalActivaId || undefined}
       />
     </div>

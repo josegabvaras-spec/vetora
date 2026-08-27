@@ -15,7 +15,7 @@ import { formatBs } from '../../lib/currency'
 import { formatClinicDateTime, TIMEZONE } from '../../lib/datetime'
 import { calcularDisponibilidad, contarDisponibles } from '../../lib/agenda'
 import { requiereConsultaOrigen, requiereProcedimiento, TIPO_LABEL, TIPOS_CITA } from '../../lib/citas'
-import { puedeAtender, veterinarioAcotado } from '../../lib/personal'
+import { peluqueroAcotado, puedeAtender, puedeHacerPeluqueria, veterinarioAcotado } from '../../lib/personal'
 import type { TipoCita, Cita } from '../../types/database'
 
 interface NuevaCitaModalProps {
@@ -27,6 +27,7 @@ interface NuevaCitaModalProps {
 
 export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }: NuevaCitaModalProps) {
   const { usuario } = useAuth()
+  const esPeluquero = usuario?.rol === 'peluquero'
   // Pacientes por servicio y no con `useTable`: aquel hace `select('*')` sobre
   // la tabla entera, y `pacientes.foto` es la imagen en base64 (0006). Abrir
   // este modal descargaba las fotos de TODA la clínica para pintar una lista de
@@ -49,27 +50,33 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   // venir en el lote y la rejilla enseñaba libre un horario ocupado.
   const revisionCitas = useSuscripcionTabla('citas')
   const [citas, setCitas] = useState<Cita[]>([])
-  const veterinarios = usuarios.filter(puedeAtender)
-  // Una clínica recién dada de alta no tiene ni pacientes ni veterinarios. Sin
-  // distinguir ese caso, los `<Select>` se dibujaban vacíos y el formulario
+
+  // Se declara ANTES de `profesionales`: quién puede figurar como responsable
+  // depende de qué tipo de cita está elegido (peluquería admite peluqueros,
+  // el resto no).
+  const [tipoCita, setTipoCita] = useState<TipoCita>(esPeluquero ? 'peluqueria' : 'consulta')
+
+  const profesionales = tipoCita === 'peluqueria' ? usuarios.filter(puedeHacerPeluqueria) : usuarios.filter(puedeAtender)
+  // Una clínica recién dada de alta no tiene ni pacientes ni profesionales. Sin
+  // distinguir ese caso, los <Select> se dibujaban vacíos y el formulario
   // pedía "selecciona paciente y veterinario" sin nada que seleccionar.
   const sinPacientes = pacientes.length === 0
-  const sinVeterinarios = veterinarios.length === 0
-  // Con un solo veterinario no hay a quién elegir, pero su nombre SÍ se enseña:
+  const sinProfesionales = profesionales.length === 0
+  // Con un solo profesional no hay a quién elegir, pero su nombre SÍ se enseña:
   // en el Plan Consultorio atiende el propio admin y quien agenda suele ser
   // recepción, que necesita ver a nombre de quién queda la cita. Ocultar el
   // campo entero dejaba la agenda sin decir nunca quién atiende.
   // Con NINGUNO hay que decirlo, no esconderlo: `<= 1` tapaba también ese caso,
-  // dejando el formulario pidiendo un veterinario sin campo donde elegirlo.
-  const unSoloVeterinario = veterinarios.length === 1
+  // dejando el formulario pidiendo un profesional sin campo donde elegirlo.
+  const unSoloProfesional = profesionales.length === 1
 
   // Estos dos valores se DERIVAN, no se inicializan.
   //
   // `useTable` devuelve la tabla vacía en el primer render (la consulta ocurre
   // después del commit) y un inicializador perezoso corre una sola vez, con lo
-  // cual `veterinarios[0]` era siempre `undefined`. El fallback caía entonces
+  // cual `profesionales[0]` era siempre `undefined`. El fallback caía entonces
   // en `usuario.id`: si abría el modal recepción, la cita quedaba asignada a la
-  // propia recepcionista — y con un solo veterinario en la clínica el `<Select>`
+  // propia recepcionista — y con un solo profesional en la clínica el `<Select>`
   // ni se dibuja, así que nadie lo corregía. Encima la rejilla de horas se
   // calculaba con ese id equivocado y enseñaba todo libre.
   //
@@ -78,23 +85,22 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
   const [pacienteElegido, setPacienteElegido] = useState<string | null>(null)
   const [veterinarioElegido, setVeterinarioElegido] = useState<string | null>(null)
 
-  // Un veterinario agenda a su propio nombre y nada más. Su agenda solo enseña
-  // lo suyo, así que una cita asignada a un colega desaparecería en el mismo
-  // instante de crearla — que es exactamente como se ve un guardado que falló.
-  // Recepción y admin siguen eligiendo a quien quieran.
-  const fijadoASiMismo = veterinarioAcotado(usuario)
+  // Un veterinario o un peluquero agenda a su propio nombre y nada más. Su
+  // agenda solo enseña lo suyo, así que una cita asignada a un colega
+  // desaparecería en el mismo instante de crearla — que es exactamente como se
+  // ve un guardado que falló. Recepción y admin siguen eligiendo a quien quieran.
+  const fijadoASiMismo = veterinarioAcotado(usuario) ?? peluqueroAcotado(usuario)
 
   const pacienteId = pacienteElegido ?? pacientes[0]?.id ?? ''
   const veterinarioId =
     fijadoASiMismo ??
     veterinarioElegido ??
-    (usuario && puedeAtender(usuario) ? usuario.id : veterinarios[0]?.id ?? '')
+    (usuario && profesionales.some((p) => p.id === usuario.id) ? usuario.id : profesionales[0]?.id ?? '')
 
   const setPacienteId = setPacienteElegido
   const setVeterinarioId = setVeterinarioElegido
   const [fecha, setFecha] = useState(fechaInicial ?? formatInTimeZone(new Date(), TIMEZONE, 'yyyy-MM-dd'))
   const [horaSeleccionada, setHoraSeleccionada] = useState<string | null>(null)
-  const [tipoCita, setTipoCita] = useState<TipoCita>('consulta')
   const [citaOrigenId, setCitaOrigenId] = useState('')
   const [servicioId, setServicioId] = useState('')
   const [notas, setNotas] = useState('')
@@ -181,9 +187,11 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
       setError(
         sinPacientes
           ? 'Registra un paciente antes de agendar una cita'
-          : sinVeterinarios
-            ? 'Da de alta a un veterinario antes de agendar una cita'
-            : 'Selecciona paciente y veterinario',
+          : sinProfesionales
+            ? tipoCita === 'peluqueria'
+              ? 'Da de alta a un peluquero antes de agendar una cita de peluquería'
+              : 'Da de alta a un veterinario antes de agendar una cita'
+            : 'Selecciona paciente y profesional responsable',
       )
       return
     }
@@ -242,30 +250,31 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
           )}
         </FieldGroup>
 
-        {/* En celular la fecha y el veterinario van uno debajo del otro: dos
+        {/* En celular la fecha y el profesional van uno debajo del otro: dos
             columnas dejan el campo de fecha en ~150 px y el selector nativo no cabe. */}
-        <div className={clsx(!sinVeterinarios && 'grid gap-4 sm:grid-cols-2')}>
+        <div className={clsx(!sinProfesionales && 'grid gap-4 sm:grid-cols-2')}>
           <FieldGroup label="Fecha">
             <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
           </FieldGroup>
-          <FieldGroup label="Veterinario">
-            {sinVeterinarios ? (
+          <FieldGroup label={tipoCita === 'peluqueria' ? 'Peluquero/a responsable' : 'Veterinario'}>
+            {sinProfesionales ? (
               <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-                No hay ningún veterinario activo en la clínica. El administrador debe darlo de alta antes de que se
-                pueda agendar.
+                {tipoCita === 'peluqueria'
+                  ? 'No hay ningún peluquero activo. Da de alta a uno desde Plataforma antes de agendar.'
+                  : 'No hay ningún veterinario activo en la clínica. El administrador debe darlo de alta antes de que se pueda agendar.'}
               </p>
-            ) : fijadoASiMismo || unSoloVeterinario ? (
+            ) : fijadoASiMismo || unSoloProfesional ? (
               // Sin desplegable, pero visible: es a quien se le asigna la cita.
               // Dos motivos distintos para el mismo recuadro — o solo hay un
-              // veterinario en la clínica, o quien agenda es un veterinario y la
+              // profesional en la clínica, o quien agenda es ese profesional y la
               // cita es suya por definición.
               <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-                {fijadoASiMismo ? usuario?.nombre : veterinarios[0]?.nombre}
+                {fijadoASiMismo ? usuario?.nombre : profesionales[0]?.nombre}
               </p>
             ) : (
               <Select value={veterinarioId} onChange={(e) => setVeterinarioId(e.target.value)}>
-                {veterinarios.map((v) => (
+                {profesionales.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.nombre}
                   </option>
@@ -275,7 +284,7 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
           </FieldGroup>
         </div>
 
-        {/* Espacios disponibles del veterinario para la fecha elegida */}
+        {/* Espacios disponibles del profesional para la fecha elegida */}
         <div>
           <div className="mb-2 flex items-baseline justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Espacios disponibles</span>
@@ -287,7 +296,8 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
           {libres === 0 ? (
             <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <CalendarX2 size={18} className="mt-0.5 shrink-0" />
-              La agenda de este veterinario está completa para el día seleccionado. Elige otra fecha u otro veterinario.
+              La agenda de este profesional está completa para el día seleccionado. Elige otra fecha u otro
+              profesional.
             </p>
           ) : (
             <div className="space-y-3 rounded-lg border border-slate-200 p-3">
@@ -337,22 +347,34 @@ export function NuevaCitaModal({ sucursalId, onClose, onCreated, fechaInicial }:
         </div>
 
         <FieldGroup label="Tipo de cita">
-          <Select
-            value={tipoCita}
-            onChange={(e) => {
-              const nuevo = e.target.value as TipoCita
-              setTipoCita(nuevo)
-              // El procedimiento solo aplica a cirugías: al cambiar de tipo se
-              // limpia para no agendar una vacuna con una cirugía adjunta.
-              if (!requiereProcedimiento(nuevo)) setServicioId('')
-            }}
-          >
-            {TIPOS_CITA.map((t) => (
-              <option key={t} value={t}>
-                {TIPO_LABEL[t]}
-              </option>
-            ))}
-          </Select>
+          {esPeluquero ? (
+            // Un peluquero solo agenda peluquería: sin desplegable, para que no
+            // quede la duda de si podría elegir un tipo clínico que no le toca.
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+              {TIPO_LABEL.peluqueria}
+            </p>
+          ) : (
+            <Select
+              value={tipoCita}
+              onChange={(e) => {
+                const nuevo = e.target.value as TipoCita
+                setTipoCita(nuevo)
+                // El procedimiento solo aplica a cirugías: al cambiar de tipo se
+                // limpia para no agendar una vacuna con una cirugía adjunta.
+                if (!requiereProcedimiento(nuevo)) setServicioId('')
+                // Quién puede ser responsable depende del tipo (peluquería admite
+                // peluqueros, el resto no): una elección explícita de un tipo
+                // podía dejar de calificar en el otro y quedaba huérfana.
+                setVeterinarioElegido(null)
+              }}
+            >
+              {TIPOS_CITA.map((t) => (
+                <option key={t} value={t}>
+                  {TIPO_LABEL[t]}
+                </option>
+              ))}
+            </Select>
+          )}
         </FieldGroup>
 
         {requiereConsultaOrigen(tipoCita) &&

@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Vetora - Análisis de Costos y Modelo de Negocio</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+    @page {
+      size: A4 portrait;
+      margin: 12mm 15mm 15mm 15mm;
+      @bottom-right {
+        content: counter(page) " / " counter(pages);
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 8pt;
+        color: #94a3b8;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1e293b;
+      background: #ffffff;
+      font-size: 9.5pt;
+      line-height: 1.5;
+    }
+
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 14px;
+      border-bottom: 2px solid #e2e8f0;
+      margin-bottom: 18px;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-logo .icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #0d9488, #0284c7);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 16pt;
+    }
+
+    .brand-logo h1 {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+
+    .doc-meta {
+      text-align: right;
+      font-size: 8pt;
+      color: #64748b;
+    }
+
+    .doc-meta strong {
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    .doc-title-block {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      padding: 16px 20px;
+      border-radius: 10px;
+      margin-bottom: 18px;
+    }
+
+    .doc-title-block h2 {
+      font-size: 14pt;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #38bdf8;
+    }
+
+    .doc-title-block p {
+      font-size: 8.5pt;
+      color: #cbd5e1;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .kpi-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+
+    .kpi-card.highlight {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+
+    .kpi-label {
+      font-size: 7.5pt;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    .kpi-value {
+      font-size: 13pt;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .kpi-card.highlight .kpi-value {
+      color: #16a34a;
+    }
+
+    .kpi-sub {
+      font-size: 7pt;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+
+    h3 {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    h3::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 14px;
+      background: #0284c7;
+      border-radius: 2px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+      font-size: 8.5pt;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 700;
+      text-align: left;
+      padding: 7px 10px;
+      border-top: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+      font-size: 8pt;
+    }
+
+    td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .font-bold {
+      font-weight: 700;
+    }
+
+    .text-emerald {
+      color: #16a34a;
+      font-weight: 700;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 7pt;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-primary { background: #e0f2fe; color: #0369a1; }
+    .badge-success { background: #dcfce7; color: #15803d; }
+    .badge-warning { background: #fef3c7; color: #b45309; }
+    .badge-purple { background: #f3e8ff; color: #7e22ce; }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .avoid-break {
+      page-break-inside: avoid;
+    }
+
+    .section-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .pricing-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 12px;
+      background: #ffffff;
+      text-align: center;
+    }
+
+    .pricing-box.featured {
+      border: 2px solid #0284c7;
+      background: #f0f9ff;
+      position: relative;
+    }
+
+    .pricing-box .tier-name {
+      font-size: 10pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+
+    .pricing-box .tier-price {
+      font-size: 16pt;
+      font-weight: 800;
+      color: #0284c7;
+      margin-bottom: 2px;
+    }
+
+    .pricing-box.featured .tier-price {
+      color: #0369a1;
+    }
+
+    .pricing-box .tier-annual {
+      font-size: 7.5pt;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .pricing-box ul {
+      list-style: none;
+      text-align: left;
+      font-size: 7.5pt;
+      color: #475569;
+      line-height: 1.6;
+    }
+
+    .pricing-box ul li {
+      margin-bottom: 3px;
+    }
+
+    .pricing-box ul li::before {
+      content: '✓ ';
+      color: #16a34a;
+      font-weight: 800;
+    }
+
+    .highlight-box {
+      background: #f8fafc;
+      border-left: 4px solid #0284c7;
+      padding: 10px 12px;
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 14px;
+      font-size: 8pt;
+      color: #334155;
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 7.5pt;
+      color: #94a3b8;
+      margin-top: 14px;
+      padding-top: 8px;
+      border-top: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ENCABEZADO -->
+  <div class="header-container">
+    <div class="brand-logo">
+      <div class="icon">V</div>
+      <div>
+        <h1>VETORA</h1>
+        <div style="font-size: 7.5pt; color: #64748b; font-weight: 600;">CLINICAL & PET CARE MANAGEMENT SAAS</div>
+      </div>
+    </div>
+    <div class="doc-meta">
+      <div><strong>Documento:</strong> Estudio de Costos y Modelo de Negocio</div>
+      <div><strong>Fecha:</strong> Agosto 2026 | <strong>Versión:</strong> 1.2</div>
+      <div><strong>Moneda base:</strong> USD ($)</div>
+    </div>
+  </div>
+
+  <!-- TITULO PRINCIPAL -->
+  <div class="doc-title-block">
+    <h2>Informe de Costos de Operación, Inteligencia Artificial y Proyección de Rentabilidad</h2>
+    <p>Análisis de viabilidad técnica y financiera sobre stack moderno: Supabase Pro, Vercel Pro, Claude Code Pro, Dominio Web, Anthropic API (IA) y WhatsApp Business Cloud API.</p>
+  </div>
+
+  <!-- METRICAS CLAVE -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Costo Fijo Mensual</div>
+      <div class="kpi-value">$66.25</div>
+      <div class="kpi-sub">Total infraestructura base</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Costo IA por Clínica</div>
+      <div class="kpi-value">$0.28</div>
+      <div class="kpi-sub">100 consultas clínicas / mes</div>
+    </div>
+    <div class="kpi-card highlight">
+      <div class="kpi-label">Punto de Equilibrio</div>
+      <div class="kpi-value">1 - 2 Clientes</div>
+      <div class="kpi-sub">Riesgo operativo nulo</div>
+    </div>
+    <div class="kpi-card highlight">
+      <div class="kpi-label">Margen Neto Promedio</div>
+      <div class="kpi-value">75% - 87%</div>
+      <div class="kpi-sub">A partir de 10 clientes</div>
+    </div>
+  </div>
+
+  <!-- SECCION 1: COSTOS FIJOS -->
+  <div class="avoid-break">
+    <h3>1. Desglose de Costos Fijos de Operación (Infraestructura)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Servicio / Proveedor</th>
+          <th>Función en Vetora</th>
+          <th class="text-center">Plan</th>
+          <th class="text-right">Mensual (USD)</th>
+          <th class="text-right">Anual (USD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Supabase</strong></td>
+          <td>PostgreSQL DB, Auth, Storage (100GB), Backups diarios automáticos</td>
+          <td class="text-center"><span class="badge badge-primary">Pro</span></td>
+          <td class="text-right font-bold">$25.00</td>
+          <td class="text-right">$300.00</td>
+        </tr>
+        <tr>
+          <td><strong>Vercel</strong></td>
+          <td>Hosting Frontend (Edge CDN), SSL automático, 1TB ancho de banda</td>
+          <td class="text-center"><span class="badge badge-primary">Pro</span></td>
+          <td class="text-right font-bold">$20.00</td>
+          <td class="text-right">$240.00</td>
+        </tr>
+        <tr>
+          <td><strong>Claude Pro (Claude Code)</strong></td>
+          <td>Herramienta de desarrollo, soporte continuo, mantenimiento y código</td>
+          <td class="text-center"><span class="badge badge-purple">Pro Plan</span></td>
+          <td class="text-right font-bold">$20.00</td>
+          <td class="text-right">$240.00</td>
+        </tr>
+        <tr>
+          <td><strong>Dominio Web</strong></td>
+          <td>Dominio personalizado propio (.com / .cl / .la)</td>
+          <td class="text-center"><span class="badge badge-warning">Anual</span></td>
+          <td class="text-right font-bold">~$1.25</td>
+          <td class="text-right">$15.00</td>
+        </tr>
+        <tr>
+          <td><strong>Email Transaccional (Resend)</strong></td>
+          <td>Notificaciones por correo, confirmaciones de cita (hasta 3.000/mes)</td>
+          <td class="text-center"><span class="badge badge-success">Free Tier</span></td>
+          <td class="text-right font-bold">$0.00</td>
+          <td class="text-right">$0.00</td>
+        </tr>
+        <tr style="background: #f1f5f9; font-weight: 700;">
+          <td colspan="3"><strong>TOTAL COSTOS FIJOS OPERATIVOS</strong></td>
+          <td class="text-right text-emerald" style="font-size: 10pt;">$66.25 / mes</td>
+          <td class="text-right text-emerald" style="font-size: 10pt;">$795.00 / año</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECCION 2: COSTOS VARIABLES IA Y WHATSAPP -->
+  <div class="avoid-break">
+    <h3>2. Costos Variables Unitarios (Por Clínica Activa)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Módulo Adicional</th>
+          <th>Métrica de Consumo</th>
+          <th>Costo Unitario</th>
+          <th class="text-right">Costo / Clínica (100 usos)</th>
+          <th class="text-right">Impacto en Plan</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>IA Asistente (Claude Haiku)</strong></td>
+          <td>Generación de Fichas SOAP, recetas médicas y dosis</td>
+          <td>$0.0028 / consulta</td>
+          <td class="text-right font-bold">$0.28 / mes</td>
+          <td class="text-right text-emerald">0.7% del Plan Pro</td>
+        </tr>
+        <tr>
+          <td><strong>IA Avanzada (Claude Sonnet)</strong></td>
+          <td>Razonamiento clínico profundo y antecedentes complejos</td>
+          <td>$0.0056 / consulta</td>
+          <td class="text-right font-bold">$0.56 / mes</td>
+          <td class="text-right text-emerald">1.4% del Plan Pro</td>
+        </tr>
+        <tr>
+          <td><strong>WhatsApp Cloud API (Meta Oficial)</strong></td>
+          <td>Recordatorios de citas automatizados para dueños</td>
+          <td>~$0.025 / mensaje</td>
+          <td class="text-right font-bold">$2.50 / mes</td>
+          <td class="text-right text-emerald">6.2% del Plan Pro</td>
+        </tr>
+        <tr>
+          <td><strong>WhatsApp Gateway QR (Evolution API)</strong></td>
+          <td>Servidor VPS propio con mensajes ilimitados</td>
+          <td>$7.00 / mes total</td>
+          <td class="text-right font-bold">&lt; $0.70 / mes</td>
+          <td class="text-right text-emerald">Fijo para todas</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SALTO DE PÁGINA PARA LA SEGUNDA PARTE -->
+  <div class="page-break"></div>
+
+  <!-- SECCION 3: CATÁLOGO DE PLANES -->
+  <div class="avoid-break">
+    <h3>3. Catálogo de Planes y Oferta Comercial Sugerida</h3>
+    <p style="font-size: 8pt; color: #64748b; margin-bottom: 10px;">Estructura de precios optimizada para penetración rápida y maximización de margen en el segmento veterinario.</p>
+    
+    <div class="pricing-grid">
+      <!-- PLAN BASICO -->
+      <div class="pricing-box">
+        <div class="tier-name">Plan Básico</div>
+        <div class="tier-price">$20 <span style="font-size: 8pt; font-weight: 500; color: #64748b;">USD/mes</span></div>
+        <div class="tier-annual">Pago Anual: <strong>$200 USD</strong> (2 meses gratis)</div>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 8px 0;">
+        <ul>
+          <li>1 a 2 Usuarios / Médicos</li>
+          <li>Agenda & Calendario interactivo</li>
+          <li>Fichas Médicas e Historial</li>
+          <li>Módulo de Peluquería básica</li>
+          <li>Soporte estándar por email</li>
+          <li><span style="color: #94a3b8;">Sin Asistente de IA</span></li>
+          <li><span style="color: #94a3b8;">Sin WhatsApp automático</span></li>
+        </ul>
+      </div>
+
+      <!-- PLAN PRO -->
+      <div class="pricing-box featured">
+        <div style="position: absolute; top: -9px; left: 50%; transform: translateX(-50%); background: #0284c7; color: white; font-size: 6.5pt; font-weight: 800; padding: 2px 8px; border-radius: 10px; text-transform: uppercase;">MÁS POPULAR ⭐</div>
+        <div class="tier-name" style="color: #0369a1;">Plan Pro</div>
+        <div class="tier-price">$40 <span style="font-size: 8pt; font-weight: 500; color: #64748b;">USD/mes</span></div>
+        <div class="tier-annual">Pago Anual: <strong>$400 USD</strong> (2 meses gratis)</div>
+        <hr style="border: none; border-top: 1px solid #bae6fd; margin: 8px 0;">
+        <ul>
+          <li>Hasta 6 Usuarios / Roles</li>
+          <li>Todo lo del Plan Básico</li>
+          <li><strong>Portal del Cliente</strong></li>
+          <li><strong>Control de Inventario Avanzado</strong></li>
+          <li><strong>Asistente IA (200 fichas/mes)</strong></li>
+          <li><strong>WhatsApp (100 avisos/mes)</strong></li>
+          <li>Soporte prioritario WhatsApp</li>
+        </ul>
+      </div>
+
+      <!-- PLAN CLINICA -->
+      <div class="pricing-box">
+        <div class="tier-name">Plan Clínica / Hospital</div>
+        <div class="tier-price">$80 <span style="font-size: 8pt; font-weight: 500; color: #64748b;">USD/mes</span></div>
+        <div class="tier-annual">Pago Anual: <strong>$800 USD</strong> (2 meses gratis)</div>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 8px 0;">
+        <ul>
+          <li><strong>Usuarios Ilimitados</strong></li>
+          <li>Multi-sucursal / Sedes</li>
+          <li>Almacenamiento extendido (Rayos X)</li>
+          <li><strong>Asistente IA Ilimitado</strong></li>
+          <li><strong>WhatsApp (500 avisos/mes)</strong></li>
+          <li>Onboarding y migración de datos</li>
+          <li>SLA de Soporte 99.9% 24/7</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCION 4: SIMULACION FINANCIERA -->
+  <div class="avoid-break">
+    <h3>4. Proyección Financiera y Escenarios de Rentabilidad Real</h3>
+    <p style="font-size: 8pt; color: #64748b; margin-bottom: 8px;">Cálculos netos deduciendo Costos Fijos ($66.25), Consumo IA ($0.28/c), WhatsApp ($2.50/c) y Pasarela (~3.5%):</p>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Escenario / Clientes</th>
+          <th>Distribución Estimada</th>
+          <th class="text-right">Ingreso Mensual</th>
+          <th class="text-right">Costos Totales</th>
+          <th class="text-right">Ganancia Mensual</th>
+          <th class="text-right">Ganancia Anual</th>
+          <th class="text-center">Margen Neto</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1 Cliente (Clínica)</strong></td>
+          <td>1 Clínica ($80)</td>
+          <td class="text-right">$80.00</td>
+          <td class="text-right">$71.83</td>
+          <td class="text-right text-emerald">+$8.17</td>
+          <td class="text-right">+$98.04</td>
+          <td class="text-center"><span class="badge badge-warning">10.2%</span></td>
+        </tr>
+        <tr>
+          <td><strong>5 Clientes</strong></td>
+          <td>2 Básicos + 2 Pro + 1 Clínica</td>
+          <td class="text-right">$200.00</td>
+          <td class="text-right">$81.59</td>
+          <td class="text-right text-emerald">+$118.41</td>
+          <td class="text-right">+$1,420.92</td>
+          <td class="text-center"><span class="badge badge-primary">59.2%</span></td>
+        </tr>
+        <tr style="background: #f0fdf4;">
+          <td><strong>10 Clientes (Meta Inicial)</strong></td>
+          <td>4 Básicos + 4 Pro + 2 Clínica</td>
+          <td class="text-right font-bold">$400.00</td>
+          <td class="text-right">$96.93</td>
+          <td class="text-right text-emerald font-bold">+$303.07</td>
+          <td class="text-right font-bold">+$3,636.84</td>
+          <td class="text-center"><span class="badge badge-success">75.8%</span></td>
+        </tr>
+        <tr>
+          <td><strong>25 Clientes</strong></td>
+          <td>8 Básicos + 12 Pro + 5 Clínica</td>
+          <td class="text-right font-bold">$1,040.00</td>
+          <td class="text-right">$158.66</td>
+          <td class="text-right text-emerald font-bold">+$881.34</td>
+          <td class="text-right font-bold">+$10,576.08</td>
+          <td class="text-center"><span class="badge badge-success">84.7%</span></td>
+        </tr>
+        <tr style="background: #f8fafc;">
+          <td><strong>50 Clientes (Consolidado)</strong></td>
+          <td>15 Básicos + 25 Pro + 10 Clínica</td>
+          <td class="text-right font-bold" style="font-size: 9.5pt; color: #0284c7;">$2,100.00</td>
+          <td class="text-right">$270.80</td>
+          <td class="text-right text-emerald font-bold" style="font-size: 9.5pt;">+$1,829.20</td>
+          <td class="text-right font-bold" style="font-size: 9.5pt; color: #16a34a;">+$21,950.40</td>
+          <td class="text-center"><span class="badge badge-success">87.1%</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECCION 5: ESTRATEGIA RECOMENDADA -->
+  <div class="avoid-break">
+    <div class="highlight-box">
+      <strong>🎯 Estrategia Comercial de Alto Impacto:</strong>
+      <ol style="margin-top: 4px; padding-left: 16px; line-height: 1.5;">
+        <li><strong>Período de prueba de 14 días con IA activada:</strong> Permite que el veterinario experimente el ahorro de 2 horas diarias redactando fichas por voz con IA.</li>
+        <li><strong>Incentivo al Pago Anual:</strong> Ofrecer 2 meses gratis al pagar el año de contado genera un flujo de caja inmediato de <strong>$400 USD</strong> o <strong>$800 USD</strong> por cliente, financiando meses completos de infraestructura.</li>
+        <li><strong>Upsell del Plan Pro:</strong> El precio de $40 USD se percibe sumamente accesible e incluye los dos factores diferenciales más demandados: <strong>Inteligencia Artificial</strong> y <strong>WhatsApp automático</strong>.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    Vetora SaaS Platform © 2026 • Documento Confidencial de Planificación Financiera y Operativa
+  </div>
+
+</body>
+</html>

@@ -12,7 +12,7 @@ import { CitaDetalleModal } from '../features/agenda/CitaDetalleModal'
 import { clinicMonth, formatClinicDate, formatClinicTime, TIMEZONE } from '../lib/datetime'
 import { ESTADO_LABEL, ESTADO_TONE, TIPO_LABEL, TIPO_TONE } from '../lib/citas'
 import { listCitas } from '../services/citas'
-import { veterinarioAcotado } from '../lib/personal'
+import { peluqueroAcotado, veterinarioAcotado } from '../lib/personal'
 import { CONSULTA_MD } from '../hooks/useMediaQuery'
 import type { CitaConDetalle } from '../types/views'
 import { clsx } from 'clsx'
@@ -67,8 +67,8 @@ export function AgendaPage() {
   const sucursalId = sucursalActivaId || sucursales[0]?.id
   const multiSucursal = useMultiSucursal()
 
-  // Un veterinario ve solo sus citas; admin y recepción, las de la sucursal.
-  const soloMisCitas = veterinarioAcotado(usuario)
+  // Un veterinario o un peluquero ve solo sus citas; admin y recepción, las de la sucursal.
+  const soloMisCitas = veterinarioAcotado(usuario) ?? peluqueroAcotado(usuario)
 
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   async function recargar() {

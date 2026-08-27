@@ -1,72 +1,117 @@
-import { Outlet, Navigate } from 'react-router-dom'
+import { Outlet, Navigate, NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { LogOut, PawPrint } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
-import type { Clinica } from '../../types/database'
+import { clsx } from 'clsx'
+import { Home, PawPrint, CalendarCheck, Store, User } from 'lucide-react'
 import { OnboardingProvider } from '../../features/onboarding/OnboardingProvider'
-import { AyudaPortal } from '../../features/onboarding/AyudaPortal'
 import { PASOS_PORTAL } from '../../lib/onboarding'
 
-export function PortalClienteLayout() {
-  const { usuario, logout } = useAuth()
-  const [clinica, setClinica] = useState<Clinica | null>(null)
+const TABS = [
+  { to: '/portal-cliente/dashboard', label: 'Inicio', icon: Home },
+  { to: '/portal-cliente/mascotas', label: 'Mascotas', icon: PawPrint },
+  { to: '/portal-cliente/citas', label: 'Citas', icon: CalendarCheck },
+  { to: '/portal-cliente/tienda', label: 'Tienda', icon: Store },
+  { to: '/portal-cliente/perfil', label: 'Perfil', icon: User },
+] as const
 
-  useEffect(() => {
-    async function load() {
-      if (usuario?.clinica_id) {
-        const { data } = await supabase.from('clinicas').select('*').eq('id', usuario.clinica_id).single()
-        if (data) setClinica(data as any)
-      }
-    }
-    load()
-  }, [usuario])
+export function PortalClienteLayout() {
+  const { usuario } = useAuth()
+  const location = useLocation()
 
   // Solo clientes permitidos
   if (usuario?.rol !== 'cliente') {
     return <Navigate to="/" replace />
   }
 
+  /** El dashboard y las sub-rutas de tienda no muestran el header grande. */
+  const esDashboard = location.pathname === '/portal-cliente/dashboard'
+
   return (
     <OnboardingProvider pasos={PASOS_PORTAL}>
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-3">
-              {clinica?.logo_url ? (
-                <img src={clinica.logo_url} alt={clinica.nombre} className="h-8 w-8 rounded-md object-cover" />
-              ) : (
-                <div className="h-8 w-8 rounded-md bg-indigo-100 flex items-center justify-center">
-                  <PawPrint className="h-5 w-5 text-indigo-600" />
-                </div>
-              )}
-              <span className="font-semibold text-slate-900">{clinica?.nombre || 'Portal de Clientes'}</span>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-slate-600 hidden sm:inline-block">
-                Hola, {usuario.nombre}
-              </span>
-              {/* No hay menú «Ayuda» en el portal: este botón ES el sitio
-                  desde donde se repite el tutorial. */}
-              <AyudaPortal />
-              <button
-                data-tour="portal-salir"
-                onClick={logout}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                title="Cerrar sesión"
-              >
-                <LogOut className="h-5 w-5" />
-              </button>
-            </div>
+    <div className="min-h-screen bg-gradient-to-b from-green-50/60 via-white to-emerald-50/30">
+      {/* ── Header con logo de Vetora ── */}
+      {esDashboard && (
+        <header className="portal-header-bg relative overflow-hidden pt-[env(safe-area-inset-top)]">
+          {/* Huellas de pata decorativas */}
+          <div className="paw-print absolute top-3 left-4 -rotate-12">
+            <PawPrint size={28} strokeWidth={2.5} />
           </div>
-        </div>
-      </header>
+          <div className="paw-print absolute top-6 right-6 rotate-12">
+            <PawPrint size={24} strokeWidth={2.5} />
+          </div>
+          <div className="paw-print absolute bottom-2 left-1/4 rotate-[25deg]">
+            <PawPrint size={20} strokeWidth={2.5} />
+          </div>
+          <div className="paw-print absolute top-2 right-1/4 -rotate-[20deg]">
+            <PawPrint size={18} strokeWidth={2.5} />
+          </div>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Outlet />
+          <div className="flex flex-col items-center justify-center py-6 px-4 relative z-10">
+            <img
+              src="/vetoraicono.png"
+              alt="Vetora"
+              className="h-14 w-14 mb-1 drop-shadow-md"
+            />
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight font-display">
+              Vetora
+            </h1>
+            <p className="text-[11px] font-medium text-emerald-700/70 uppercase tracking-widest mt-0.5">
+              Plataforma de Gestión Veterinaria Digital
+            </p>
+          </div>
+        </header>
+      )}
+
+      {/* ── Contenido principal ── */}
+      <main className="pb-24 min-h-[60dvh]">
+        <div className={clsx(
+          'mx-auto px-4 sm:px-6',
+          esDashboard ? 'max-w-lg pt-4' : 'max-w-5xl py-6'
+        )}>
+          <Outlet />
+        </div>
       </main>
+
+      {/* ── Barra de navegación inferior ── */}
+      <nav className="portal-bottom-nav" aria-label="Navegación del portal">
+        <div className="flex h-16 items-center justify-around px-2 max-w-lg mx-auto">
+          {TABS.map(({ to, label, icon: Icon }) => {
+            const isActive = location.pathname === to
+              || (to === '/portal-cliente/tienda' && location.pathname.startsWith('/portal-cliente/tienda'))
+              || (to === '/portal-cliente/mascotas' && location.pathname.startsWith('/portal-cliente/paciente'))
+
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                className="flex flex-1 flex-col items-center justify-center gap-0.5 py-1"
+              >
+                <div
+                  className={clsx(
+                    'flex h-8 w-12 items-center justify-center rounded-full transition-all duration-300',
+                    isActive
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-transparent text-slate-400'
+                  )}
+                >
+                  <Icon
+                    size={22}
+                    strokeWidth={isActive ? 2.5 : 1.8}
+                    className={clsx(isActive && 'scale-110 transition-transform')}
+                  />
+                </div>
+                <span
+                  className={clsx(
+                    'text-[10px] font-semibold tracking-wide',
+                    isActive ? 'text-emerald-700' : 'text-slate-500'
+                  )}
+                >
+                  {label}
+                </span>
+              </NavLink>
+            )
+          })}
+        </div>
+      </nav>
     </div>
     </OnboardingProvider>
   )

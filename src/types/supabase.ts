@@ -1336,6 +1336,50 @@ export type Database = {
           },
         ]
       }
+      catalogo_productos: {
+        Row: {
+          id: string
+          clinica_id: string
+          nombre: string
+          descripcion: string
+          categoria: string
+          precio_bs: number
+          foto_ruta: string | null
+          disponible: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          nombre: string
+          descripcion?: string
+          categoria?: string
+          precio_bs?: number
+          foto_ruta?: string | null
+          disponible?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          nombre?: string
+          descripcion?: string
+          categoria?: string
+          precio_bs?: number
+          foto_ruta?: string | null
+          disponible?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalogo_productos_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       servicios: {
         Row: {
           activo: boolean
@@ -1591,6 +1635,17 @@ export type Database = {
         Returns: {
           id: string
           nombre: string
+        }[]
+      }
+      clinicas_con_catalogo: {
+        Args: never
+        Returns: {
+          id: string
+          nombre: string
+          logo_url: string | null
+          ciudad: string
+          tipo_negocio: string
+          whatsapp: string
         }[]
       }
       aprobar_pago_suscripcion: { Args: { p_pago_id: string }; Returns: string }

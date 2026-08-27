@@ -33,10 +33,16 @@ import { PlataformaAsistentePage } from './pages/plataforma/PlataformaAsistenteP
 import { PlataformaClinicasPage } from './pages/plataforma/PlataformaClinicasPage'
 import { PlataformaPlanesPage } from './pages/plataforma/PlataformaPlanesPage'
 import { InicioSegunRol } from './components/layout/InicioSegunRol'
+import { CatalogoPage } from './pages/CatalogoPage'
 
 import { PortalClienteLayout } from './components/layout/PortalClienteLayout'
 import { PortalDashboardPage } from './pages/portal-cliente/PortalDashboardPage'
 import { PortalPacientePage } from './pages/portal-cliente/PortalPacientePage'
+import { PortalTiendaPage } from './pages/portal-cliente/PortalTiendaPage'
+import { PortalTiendaClinicaPage } from './pages/portal-cliente/PortalTiendaClinicaPage'
+import { PortalMascotasPage } from './pages/portal-cliente/PortalMascotasPage'
+import { PortalCitasPage } from './pages/portal-cliente/PortalCitasPage'
+import { PortalPerfilPage } from './pages/portal-cliente/PortalPerfilPage'
 import { RegistroClientePage } from './pages/RegistroClientePage'
 
 export default function App() {
@@ -48,7 +54,14 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/portal-cliente" element={<PortalClienteLayout />}>
               <Route path="dashboard" element={<PortalDashboardPage />} />
+              <Route path="mascotas" element={<PortalMascotasPage />} />
+              <Route path="citas" element={<PortalCitasPage />} />
+              <Route path="perfil" element={<PortalPerfilPage />} />
               <Route path="paciente/:pacienteId" element={<PortalPacientePage />} />
+              {/* Sin ModuloRoute: no es un módulo de la propia clínica del
+                  dueño, es contenido de OTRAS clínicas. */}
+              <Route path="tienda" element={<PortalTiendaPage />} />
+              <Route path="tienda/:clinicaId" element={<PortalTiendaClinicaPage />} />
             </Route>
           </Route>
 
@@ -82,15 +95,20 @@ export default function App() {
             </Route>
 
             <Route element={<AppLayout />}>
-              {/* Área clínica: es del personal de la clínica. Sin este RolRoute,
-                  una cuenta del portal («cliente») entraba en las mismas
-                  pantallas que el veterinario. */}
-              <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion']} />}>
-                {/* Sin módulo: la agenda es el destino al que rebota
-                    `ModuloRoute`, y los pacientes son la base de cualquiera de
-                    los tipos de negocio (una peluquería también atiende a un
-                    perro concreto). */}
+              {/* Sin módulo: la agenda es el destino al que rebota
+                  `ModuloRoute` (y `RolRoute`, y `InicioSegunRol` por defecto) —
+                  por eso `peluquero` va aquí sin excepción: sin él, quedaría en
+                  un bucle infinito de redirección. */}
+              <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion', 'peluquero']} />}>
                 <Route path="/agenda" element={<AgendaPage />} />
+              </Route>
+
+              {/* Ficha del paciente: historial médico, vacunas, recetario. Sin
+                  este RolRoute, una cuenta del portal («cliente») entraba en las
+                  mismas pantallas que el personal. El peluquero queda fuera a
+                  propósito: no escribe historial clínico ni receta, y ve el
+                  nombre del paciente/dueño porque ya viene con cada cita. */}
+              <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion']} />}>
                 <Route path="/pacientes" element={<PacientesListPage />} />
                 <Route path="/pacientes/:id" element={<FichaPacientePage />} />
 
@@ -102,11 +120,12 @@ export default function App() {
                 </Route>
               </Route>
 
-              {/* El asistente lo abre todo el personal, pero enseña dos cosas
-                  distintas: al veterinario su cola de trabajo clínico, y a
-                  recepción y administración los avisos al cliente y el informe
-                  del día. Ver AsistenteSegunRol. */}
-              <Route element={<RolRoute roles={['recepcion', 'admin', 'veterinario']} />}>
+              {/* El asistente lo abre todo el personal que atiende directamente
+                  (veterinario, peluquero) más recepción/admin, pero enseña dos
+                  cosas distintas: a quien atiende, su cola de trabajo del día;
+                  a recepción y administración, los avisos al cliente y el
+                  informe del día. Ver AsistenteSegunRol. */}
+              <Route element={<RolRoute roles={['recepcion', 'admin', 'veterinario', 'peluquero']} />}>
                 <Route element={<ModuloRoute modulo="asistente_ia" />}>
                   <Route path="/asistente" element={<AsistenteSegunRol />} />
                 </Route>
@@ -129,6 +148,9 @@ export default function App() {
                 </Route>
                 <Route element={<ModuloRoute modulo="metricas" />}>
                   <Route path="/metricas" element={<MetricasPage />} />
+                </Route>
+                <Route element={<ModuloRoute modulo="catalogo" />}>
+                  <Route path="/catalogo" element={<CatalogoPage />} />
                 </Route>
               </Route>
 

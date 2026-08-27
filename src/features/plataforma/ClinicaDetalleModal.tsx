@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  AlertTriangle,
   Ban,
   Building2,
   CheckCircle2,
@@ -8,6 +9,7 @@ import {
   MessageCircle,
   Plus,
   RotateCcw,
+  Trash2,
   Upload,
   Users,
 } from 'lucide-react'
@@ -20,6 +22,7 @@ import { useTable } from '../../mocks/useDb'
 import {
   actualizarClinica,
   alternarActivoUsuario,
+  borrarClinica,
   cambiarEstadoClinica,
   crearSucursal,
   crearUsuario,
@@ -44,6 +47,7 @@ const ROL_LABEL: Record<string, string> = {
   admin: 'Administrador',
   veterinario: 'Veterinario',
   recepcion: 'Recepción',
+  peluquero: 'Peluquero',
 }
 
 
@@ -106,6 +110,34 @@ export function ClinicaDetalleModal({
   const [respaldando, setRespaldando] = useState(false)
   const [errorRespaldo, setErrorRespaldo] = useState<string | null>(null)
   const [avisoRespaldo, setAvisoRespaldo] = useState<string | null>(null)
+
+  // Zona de peligro: borrado permanente de la clínica.
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
+  const [textoConfirmacion, setTextoConfirmacion] = useState('')
+  const [borrando, setBorrando] = useState(false)
+  const [errorBorrado, setErrorBorrado] = useState<string | null>(null)
+  /** Se llena solo si quedaron cuentas de Auth sin poder borrar: entonces el modal no se cierra solo. */
+  const [avisoCuentasSinBorrar, setAvisoCuentasSinBorrar] = useState<number | null>(null)
+
+  async function confirmarBorrado() {
+    setBorrando(true)
+    setErrorBorrado(null)
+    try {
+      const resultado = await borrarClinica(clinica.id)
+      if (resultado.cuentasFallidas > 0) {
+        // Los datos ya se fueron: no tiene sentido fingir que salió perfecto.
+        // Se deja el modal abierto con el aviso en vez de cerrarlo en silencio.
+        setAvisoCuentasSinBorrar(resultado.cuentasFallidas)
+        setBorrando(false)
+        return
+      }
+      onChanged()
+      onClose()
+    } catch (err) {
+      setErrorBorrado(err instanceof Error ? err.message : 'No se pudo borrar la clínica')
+      setBorrando(false)
+    }
+  }
 
   async function exportar() {
     setRespaldando(true)
@@ -513,6 +545,7 @@ export function ClinicaDetalleModal({
                   <option value="admin">Administrador</option>
                   <option value="veterinario">Veterinario</option>
                   <option value="recepcion">Recepción</option>
+                  <option value="peluquero">Peluquero</option>
                 </Select>
               </FieldGroup>
             </div>
@@ -565,6 +598,72 @@ export function ClinicaDetalleModal({
             El correo es su usuario para entrar; el WhatsApp, por donde recibe el enlace con el que crea su
             contraseña. Ambos son obligatorios.
           </p>
+        </Seccion>
+
+        <Seccion titulo="Zona de peligro" icono={<AlertTriangle size={13} className="text-rose-600" />}>
+          {avisoCuentasSinBorrar !== null ? (
+            <div className="space-y-3">
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                La clínica y todos sus datos ya se borraron. {avisoCuentasSinBorrar} cuenta(s) de acceso de su
+                personal no se pudieron eliminar del todo — quedaron correos reservados en el sistema de acceso
+                que no volverán a usarse. No afecta a ninguna otra clínica.
+              </p>
+              <div className="flex justify-end">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    onChanged()
+                    onClose()
+                  }}
+                >
+                  Cerrar
+                </Button>
+              </div>
+            </div>
+          ) : !confirmandoBorrado ? (
+            <>
+              <p className="text-xs text-slate-500">
+                Borra la clínica entera: sucursales, usuarios, pacientes, citas, historial, cobros y todo lo demás.
+                Es para cuando el cliente da de baja el servicio — a diferencia de suspender, no se puede deshacer.
+              </p>
+              <div className="mt-3 flex justify-end">
+                <Button
+                  variant="danger"
+                  className="px-3 py-1.5 text-xs"
+                  onClick={() => {
+                    setTextoConfirmacion('')
+                    setErrorBorrado(null)
+                    setConfirmandoBorrado(true)
+                  }}
+                >
+                  <Trash2 size={14} /> Eliminar clínica…
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                Esto borra <strong>{clinica.nombre}</strong> por completo y no se puede deshacer. Para confirmar,
+                escribe el nombre exacto de la clínica.
+              </p>
+              <FieldGroup label={`Escribe «${clinica.nombre}» para confirmar`}>
+                <Input value={textoConfirmacion} onChange={(e) => setTextoConfirmacion(e.target.value)} />
+              </FieldGroup>
+              {errorBorrado && <p className="text-sm font-bold text-rose-600">{errorBorrado}</p>}
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setConfirmandoBorrado(false)} disabled={borrando}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="danger"
+                  disabled={borrando || textoConfirmacion.trim() !== clinica.nombre.trim()}
+                  onClick={confirmarBorrado}
+                >
+                  <Trash2 size={14} /> {borrando ? 'Borrando…' : 'Borrar permanentemente'}
+                </Button>
+              </div>
+            </div>
+          )}
         </Seccion>
 
         {error && <p className="text-sm font-bold text-rose-600">{error}</p>}

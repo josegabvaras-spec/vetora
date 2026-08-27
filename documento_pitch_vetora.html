@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Vetora - Kit de Pitch Comercial y Estrategia de Ventas</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+    @page {
+      size: A4 portrait;
+      margin: 12mm 15mm 15mm 15mm;
+      @bottom-right {
+        content: counter(page) " / " counter(pages);
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 8pt;
+        color: #94a3b8;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1e293b;
+      background: #ffffff;
+      font-size: 9.2pt;
+      line-height: 1.5;
+    }
+
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #e2e8f0;
+      margin-bottom: 16px;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-logo .icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #0d9488, #0284c7);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 16pt;
+    }
+
+    .brand-logo h1 {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+
+    .doc-meta {
+      text-align: right;
+      font-size: 8pt;
+      color: #64748b;
+    }
+
+    .doc-meta strong {
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    .doc-title-block {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      padding: 14px 18px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+
+    .doc-title-block h2 {
+      font-size: 13.5pt;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #38bdf8;
+    }
+
+    .doc-title-block p {
+      font-size: 8.5pt;
+      color: #cbd5e1;
+    }
+
+    h3 {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    h3::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 14px;
+      background: #0284c7;
+      border-radius: 2px;
+    }
+
+    .speech-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #0284c7;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      font-size: 8.8pt;
+      color: #334155;
+      line-height: 1.55;
+    }
+
+    .speech-box strong {
+      color: #0f172a;
+    }
+
+    .speech-box.highlight {
+      background: #f0f9ff;
+      border-left-color: #0284c7;
+    }
+
+    .speech-box.emerald {
+      background: #f0fdf4;
+      border-left-color: #16a34a;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .card-title {
+      font-size: 9pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 7pt;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-primary { background: #e0f2fe; color: #0369a1; }
+    .badge-success { background: #dcfce7; color: #15803d; }
+    .badge-purple { background: #f3e8ff; color: #7e22ce; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 14px;
+      font-size: 8.5pt;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 700;
+      text-align: left;
+      padding: 7px 10px;
+      border-top: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+      font-size: 8pt;
+    }
+
+    td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .avoid-break {
+      page-break-inside: avoid;
+    }
+
+    .step-badge {
+      background: #0284c7;
+      color: white;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7.5pt;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 7.5pt;
+      color: #94a3b8;
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header-container">
+    <div class="brand-logo">
+      <div class="icon">V</div>
+      <div>
+        <h1>VETORA</h1>
+        <div style="font-size: 7.5pt; color: #64748b; font-weight: 600;">GUÍA DE VENTAS Y PITCH COMERCIAL</div>
+      </div>
+    </div>
+    <div class="doc-meta">
+      <div><strong>Documento:</strong> Sales Pitch & Scripts Playbook</div>
+      <div><strong>Fecha:</strong> Agosto 2026 | <strong>Versión:</strong> 1.0</div>
+      <div><strong>Mercado Objetivo:</strong> Clínicas y Hospitales Veterinarios</div>
+    </div>
+  </div>
+
+  <!-- TITLE BLOCK -->
+  <div class="doc-title-block">
+    <h2>Playbook de Venta y Argumentario Comercial de Alto Impacto</h2>
+    <p>Guiones comerciales, manejo de objeciones, mensajes de prospección directa y pitch para inversores con el valor diferencial de la Inteligencia Artificial y WhatsApp.</p>
+  </div>
+
+  <!-- SECCION 1: ELEVATOR PITCH -->
+  <div class="avoid-break">
+    <h3>1. Elevator Pitch (30 a 60 Segundos)</h3>
+    <div class="speech-box highlight">
+      <div style="font-weight: 700; color: #0284c7; margin-bottom: 4px; font-size: 8pt; text-transform: uppercase;">Para eventos, networking o llamadas rápidas:</div>
+      "¿Sabías que un médico veterinario pierde entre <strong>2 y 3 horas al día</strong> solamente escribiendo fichas clínicas a mano y lidiando con citas olvidadas?<br><br>
+      Creamos <strong>Vetora</strong>, la primera plataforma integral para clínicas veterinarias impulsada por <strong>Inteligencia Artificial</strong>. Con Vetora, el veterinario simplemente dicta o escribe notas rápidas y el sistema genera la <strong>ficha médica completa, el cálculo de dosis y la receta en 3 segundos</strong>, mientras envía <strong>recordatorios automáticos por WhatsApp</strong> a los dueños para que nunca falten.<br><br>
+      Reducimos el tiempo administrativo a la mitad y aumentamos la asistencia a citas desde solo <strong>$40 dólares al mes</strong>."
+    </div>
+  </div>
+
+  <!-- SECCION 2: PITCH ESTRUCTURADO PAS -->
+  <div class="avoid-break">
+    <h3>2. Pitch de Demostración Comercial (Estructura PAS: Problema ➔ Solución ➔ Oferta)</h3>
+    
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><span class="step-badge">1</span> El Gancho y el Dolor</div>
+        <p style="font-size: 8.2pt; color: #475569;">
+          <em>"Doctor/a, usted estudió medicina veterinaria para salvar y cuidar animales, no para pasar 3 horas frente a una computadora llenando formularios después de su horario de trabajo."</em>
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="step-badge">2</span> La Realidad Actual</div>
+        <p style="font-size: 8.2pt; color: #475569;">
+          <em>"Los sistemas tradicionales son lentos y difíciles de usar. Terminan siendo una carga pesada y las citas se pierden porque nadie envía avisos por WhatsApp a tiempo."</em>
+        </p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 14px;">
+      <div class="card-title"><span class="step-badge">3</span> La Solución Vetora (Los 3 Pilares)</div>
+      <ul style="list-style: none; font-size: 8.3pt; color: #334155; line-height: 1.6;">
+        <li>🤖 <strong>Copiloto Clínico con IA:</strong> Dicta las observaciones clave y la IA estructura la ficha en formato SOAP, calcula dosis según peso/especie y genera recetas listas para imprimir o enviar.</li>
+        <li>📲 <strong>Cero Ausencias con WhatsApp:</strong> Recordatorios y confirmaciones automáticas enviadas directo al celular del dueño.</li>
+        <li>🏥 <strong>Gestión Integral 360°:</strong> Fichas, peluquería/estética, control de inventario fraccionado y portal digital para clientes.</li>
+      </ul>
+    </div>
+
+    <div class="speech-box emerald">
+      <div style="font-weight: 700; color: #16a34a; margin-bottom: 4px; font-size: 8pt; text-transform: uppercase;">La Oferta Irresistible (Cierre sin riesgo):</div>
+      <em>"Queremos que lo compruebe en su día a día sin ningún compromiso: le habilitamos <strong>14 días de prueba gratuita completa</strong> y le ayudamos con la carga inicial de sus pacientes. Si no le ahorra al menos una hora diaria, no paga un solo centavo."</em>
+    </div>
+  </div>
+
+  <!-- SALTO DE PÁGINA -->
+  <div class="page-break"></div>
+
+  <!-- SECCION 3: PROSPECCIÓN EN FRÍO -->
+  <div class="avoid-break">
+    <h3>3. Guiones de Prospección Directa (Outreach)</h3>
+    
+    <div class="card" style="margin-bottom: 12px;">
+      <div class="card-title"><span class="badge badge-success">WhatsApp / Instagram DM</span> Contacto con Director o Veterinario</div>
+      <p style="font-size: 8.2pt; color: #334155; line-height: 1.5; margin-top: 4px;">
+        "Hola <strong>[Nombre del Dr./Dra.]</strong>, un gusto saludarte. Vi el excelente trabajo que hacen en <strong>[Nombre de la Veterinaria]</strong>.<br><br>
+        Te escribo brevemente porque sabemos lo desgastante que es terminar la jornada con decenas de fichas y recetas pendientes por redactar.<br><br>
+        Desarrollamos <strong>Vetora</strong>, un sistema con <strong>asistente de Inteligencia Artificial</strong> que redacta tus fichas médicas, calcula las dosis por peso y envía recordatorios por WhatsApp a tus clientes de forma automática.<br><br>
+        ¿Te gustaría probarlo <strong>gratis por 14 días</strong> con tu equipo? Te dejo un demo de 2 minutos aquí: <em>[link-a-tu-web]</em>. ¡Un saludo cordial!"
+      </p>
+    </div>
+
+    <div class="card" style="margin-bottom: 14px;">
+      <div class="card-title"><span class="badge badge-primary">Email Outreach</span> Para Administradores y Clínicas Medianas</div>
+      <p style="font-size: 8.2pt; color: #334155; line-height: 1.5; margin-top: 4px;">
+        <strong>Asunto:</strong> Cómo ahorrar 2 horas al día en [Nombre de la Veterinaria] 🐾<br><br>
+        Estimado/a [Nombre]:<br>
+        Gestionar una clínica veterinaria eficiente requiere tiempo que hoy se pierde en papeleo administrativo y citas no confirmadas.<br><br>
+        En <strong>Vetora</strong> ayudamos a las clínicas a:
+        1. Reducir en un 70% el tiempo de redacción de recetas y fichas SOAP con IA.<br>
+        2. Disminuir el ausentismo con avisos automáticos vía WhatsApp.<br>
+        3. Controlar inventario fraccionado y agendas médicas en un solo lugar.<br><br>
+        ¿Tendrías 10 minutos esta semana para una breve demo online?
+      </p>
+    </div>
+  </div>
+
+  <!-- SECCION 4: MANEJO DE OBJECIONES -->
+  <div class="avoid-break">
+    <h3>4. Matriz de Manejo de Objeciones</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 32%;">Objeción del Cliente</th>
+          <th>Respuesta Comercial Recomendada</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>"Ya usamos otro software o planillas de Excel"</strong></td>
+          <td><em>"Lo entendemos perfectamente. Los programas tradicionales solo guardan texto; Vetora <strong>redacta y calcula por ti con IA</strong>. Le damos 14 días gratis para que compare la velocidad y tome la decisión con datos reales."</em></td>
+        </tr>
+        <tr>
+          <td><strong>"No tenemos tiempo para aprender un sistema nuevo"</strong></td>
+          <td><em>"Vetora fue diseñado para ser tan simple como WhatsApp. En 10 minutos su equipo ya sabe utilizarlo, y nosotros mismos le ayudamos a migrar su catálogo inicial sin costo."</em></td>
+        </tr>
+        <tr>
+          <td><strong>"¿Es muy costoso el servicio?"</strong></td>
+          <td><em>"Al contrario. El Plan Pro cuesta <strong>$40 USD al mes</strong> (el valor de una sola consulta clínica) y le ahorra a su equipo más de 40 horas de trabajo administrativo al mes."</em></td>
+        </tr>
+        <tr>
+          <td><strong>"¿La IA no cometerá errores médicos?"</strong></td>
+          <td><em>"La IA actúa como su copiloto: usted siempre tiene el control total para revisar y validar cada diagnóstico y dosis antes de guardar la ficha o imprimir la receta."</em></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECCION 5: PITCH DE NEGOCIO -->
+  <div class="avoid-break">
+    <h3>5. Resumen Ejecutivo de Negocio (Para Inversionistas o Socios)</h3>
+    <div class="grid-2">
+      <div class="card">
+        <div style="font-weight: 700; font-size: 8.5pt; color: #0f172a; margin-bottom: 4px;">Oportunidad de Mercado</div>
+        <p style="font-size: 8pt; color: #475569;">Mercado Pet Care creciendo al 8% anual. Más del 70% de las veterinarias independientes en LATAM carecen de automatización moderna y soporte con IA.</p>
+      </div>
+      <div class="card">
+        <div style="font-weight: 700; font-size: 8.5pt; color: #0f172a; margin-bottom: 4px;">Unit Economics Excepcionales</div>
+        <p style="font-size: 8pt; color: #475569;">Costo operativo por cliente &lt; $3.00 USD/mes. Margen de ganancia neto superior al 80% con punto de equilibrio alcanzable con solo 2 clientes activos.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    Vetora SaaS Platform © 2026 • Kit Oficial de Ventas y Estrategia Comercial
+  </div>
+
+</body>
+</html>

@@ -16,6 +16,7 @@ const ROL_LABEL: Record<string, string> = {
   admin: 'Administrador',
   veterinario: 'Veterinario',
   recepcion: 'Recepción',
+  peluquero: 'Peluquero',
 }
 
 

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, Bot, X } from 'lucide-react'
+import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, Bot, ShoppingBag, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { PanelLateral } from './PanelLateral'
 import type { ModuloVetora, Rol } from '../../types/database'
@@ -34,7 +34,10 @@ export interface EnlaceClinico {
 export const ENLACES_CLINICOS: EnlaceClinico[] = [
   { to: '/caja', label: 'Caja', icon: Wallet, roles: ['recepcion', 'admin'], modulo: 'caja' },
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
-  { to: '/pacientes', label: 'Pacientes', icon: PawPrint },
+  // El peluquero queda fuera a propósito: no escribe historial clínico ni
+  // receta, y no tiene la ruta (ver App.tsx). Ve el paciente/dueño porque ya
+  // viene con cada cita.
+  { to: '/pacientes', label: 'Pacientes', icon: PawPrint, roles: ['admin', 'veterinario', 'recepcion'] },
   {
     to: '/asistente',
     label: 'Asistente',
@@ -43,7 +46,7 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
     // inferior del celular, que leen la misma lista.
     icon: Bot,
     // Un enlace, dos pantallas: `AsistenteSegunRol` decide cuál según el rol.
-    roles: ['recepcion', 'admin', 'veterinario'],
+    roles: ['recepcion', 'admin', 'veterinario', 'peluquero'],
     modulo: 'asistente_ia',
   },
   { to: '/internacion', label: 'Internación', icon: BedDouble, etiquetaCorta: 'Internac.', modulo: 'internacion' },
@@ -52,6 +55,7 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
   { to: '/respaldo', label: 'Respaldo', icon: Download, roles: ['recepcion', 'admin'] },
   { to: '/servicios', label: 'Servicios', icon: Tags, roles: ['admin'] },
   { to: '/movimientos', label: 'Movimientos', icon: ArrowLeftRight, roles: ['admin'], modulo: 'caja' },
+  { to: '/catalogo', label: 'Catálogo', icon: ShoppingBag, roles: ['admin'], modulo: 'catalogo' },
 ]
 
 /**
