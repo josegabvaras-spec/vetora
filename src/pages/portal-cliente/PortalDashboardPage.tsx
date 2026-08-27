@@ -1,7 +1,6 @@
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import {
-  Syringe, Stethoscope, UtensilsCrossed,
   MapPin, CalendarPlus,
   MessageCircle, Home as HomeIcon, CalendarDays,
 } from 'lucide-react'
@@ -38,26 +37,6 @@ export function PortalDashboardPage() {
             <h3 className="text-sm sm:text-base font-black text-slate-800 leading-tight font-display drop-shadow-[0_1px_3px_rgba(255,255,255,0.9)]">
               Salud de Mi Mascota
             </h3>
-          </div>
-
-          {/* Iconos flotantes */}
-          <div className="absolute top-11 sm:top-14 left-2.5 sm:left-3 portal-float z-10">
-            <div className="flex items-center gap-1 bg-white/95 backdrop-blur-md rounded-full px-2 py-1 shadow-md border border-white/60">
-              <Syringe size={13} className="text-blue-500" />
-              <span className="text-[9px] sm:text-[10px] font-bold text-slate-700">Vacunas</span>
-            </div>
-          </div>
-          <div className="absolute top-10 sm:top-12 right-2.5 sm:right-3 portal-float-delay z-10">
-            <div className="flex items-center gap-1 bg-white/95 backdrop-blur-md rounded-full px-2 py-1 shadow-md border border-white/60">
-              <Stethoscope size={13} className="text-teal-500" />
-              <span className="text-[9px] sm:text-[10px] font-bold text-slate-700">Chequeos</span>
-            </div>
-          </div>
-          <div className="absolute bottom-14 sm:bottom-16 right-2.5 sm:right-3 portal-float-delay-2 z-10">
-            <div className="flex items-center gap-1 bg-white/95 backdrop-blur-md rounded-full px-2 py-1 shadow-md border border-white/60">
-              <UtensilsCrossed size={13} className="text-orange-400" />
-              <span className="text-[9px] sm:text-[10px] font-bold text-slate-700">Dieta</span>
-            </div>
           </div>
 
           {/* Botón */}
@@ -146,9 +125,9 @@ export function PortalDashboardPage() {
                 onClick={() => alert('Próximamente')}
               >
                 <div className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center">
-                  <MessageCircle size={22} className="text-orange-500 drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]" />
+                  <MessageCircle size={24} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.45)]" />
                 </div>
-                <span className="text-[10px] sm:text-[11px] font-black text-slate-800 drop-shadow-[0_1px_3px_rgba(255,255,255,0.95)]">
+                <span className="text-[10px] sm:text-[11px] font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                   Foro
                 </span>
               </button>
@@ -158,9 +137,9 @@ export function PortalDashboardPage() {
                 onClick={() => alert('Próximamente')}
               >
                 <div className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center">
-                  <HomeIcon size={22} className="text-blue-600 drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]" />
+                  <HomeIcon size={24} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.45)]" />
                 </div>
-                <span className="text-[10px] sm:text-[11px] font-black text-slate-800 leading-tight text-center drop-shadow-[0_1px_3px_rgba(255,255,255,0.95)]">
+                <span className="text-[10px] sm:text-[11px] font-black text-white leading-tight text-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                   Objetos<br />Perdidos
                 </span>
               </button>
@@ -170,9 +149,9 @@ export function PortalDashboardPage() {
                 onClick={() => alert('Próximamente')}
               >
                 <div className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center">
-                  <CalendarDays size={22} className="text-emerald-600 drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]" />
+                  <CalendarDays size={24} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.45)]" />
                 </div>
-                <span className="text-[10px] sm:text-[11px] font-black text-slate-800 drop-shadow-[0_1px_3px_rgba(255,255,255,0.95)]">
+                <span className="text-[10px] sm:text-[11px] font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                   Eventos
                 </span>
               </button>
