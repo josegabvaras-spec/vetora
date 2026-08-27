@@ -70,7 +70,11 @@ export function FormularioPaciente({
             />
           </FieldGroup>
           <FieldGroup label="Carnet de identidad">
-            <Input value={datos.clienteCi} onChange={(e) => set('clienteCi')(e.target.value)} />
+            <Input
+              value={datos.clienteCi}
+              onChange={(e) => set('clienteCi')(e.target.value)}
+              placeholder="Solo el número"
+            />
           </FieldGroup>
         </div>
       </Seccion>

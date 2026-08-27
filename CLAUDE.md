@@ -209,7 +209,7 @@ Además:
   | `['admin', 'veterinario', 'recepcion']` | `/pacientes`, `/pacientes/:id`, `/internacion`, `/inventario` |
   | `['recepcion', 'admin']` | `/caja`, `/respaldo` |
   | `['admin']` | `/servicios`, `/movimientos`, `/metricas` |
-  | `['superadmin']` | `/plataforma`, `/plataforma/clinicas`, `/plataforma/planes` |
+  | `['superadmin']` | `/plataforma`, `/plataforma/clinicas`, `/plataforma/usuarios`, `/plataforma/planes` |
 
   Estos `RolRoute` son la barrera de frontend equivalente a `auth_es_personal()`: sin ellos, una cuenta `cliente` del portal entraría en las mismas pantallas que el personal. El propio portal vive aparte, bajo `/portal-cliente` (`PortalClienteLayout`, sin `RolRoute` porque su propio layout y sus policies de solo-lectura ya acotan lo que se ve).
 
@@ -256,7 +256,9 @@ El proyecto tiene **«Confirm email» activado** en Supabase Auth, y eso decide 
 
 `crear-cuenta` **exige que quien llama sea un superadmin activo** (valida el JWT y lee el rol con el cliente admin): crea credenciales, así que no puede ser pública. Su acción `borrar` solo toca cuentas **sin fila en `usuarios`** — es el rollback de un perfil que no llegó a crearse, no un «borrar cualquier cuenta»; las cuentas con perfil se desactivan (`activo = false`), que para eso firman historiales y cobros.
 
-**Borrar una clínica entera es aparte, en `eliminar-clinica`** (para cuando el cliente da de baja el servicio, no para el rollback de un alta). Mismo guard de superadmin, pero hace tres cosas que `crear-cuenta` no hace: vacía los buckets privados (`estudios`, `comprobantes`) de esa clínica, borra la fila de `clinicas` —que en cascada de FK se lleva sola las ~20 tablas del inquilino—, y solo entonces borra la cuenta de `auth.users` de cada uno de sus usuarios (borrar `usuarios` por cascada no toca `auth.users`; la flecha corre al revés). Es irreversible a propósito, distinto de `cambiarEstadoClinica` (suspender), que no borra nada.
+**Borrar una clínica entera es aparte, en `eliminar-clinica`** (para cuando el cliente da de baja el servicio, no para el rollback de un alta). Mismo guard de superadmin, pero hace tres cosas que `crear-cuenta` no hace: vacía los buckets privados (`estudios`, `comprobantes`, `catalogo`) de esa clínica, borra la fila de `clinicas` —que en cascada de FK se lleva sola las ~20 tablas del inquilino—, y solo entonces borra la cuenta de `auth.users` de cada uno de sus usuarios (borrar `usuarios` por cascada no toca `auth.users`; la flecha corre al revés). Es irreversible a propósito, distinto de `cambiarEstadoClinica` (suspender), que no borra nada.
+
+**Borrar un usuario suelto, sin borrar la clínica entera, es `eliminar-usuario`** — corrige la frase de arriba: "las cuentas con perfil se desactivan" ya no es una regla absoluta. Antes de borrar comprueba, con `service_role` (el superadmin no tiene RLS sobre esas tablas, no puede ver datos clínicos de ningún inquilino), que el usuario no tenga ninguna fila en `citas`/`historial_clinico`/`internaciones`/`notas_internacion`/`turnos_caja`/`cobros` — ninguna de esas seis tiene cascada a propósito (son historiales y cobros inmutables), así que Postgres bloquearía el `DELETE` de todos modos, pero la función lo comprueba antes para devolver un mensaje claro en vez de un 23503 críptico. También rechaza borrar al único admin activo de una clínica, mismo chequeo que ya hacía `alternarActivoUsuario()` — ahora extraído a `exigirOtroAdminActivo()` en `services/plataforma.ts`, reusado también por `actualizarUsuario()` al degradar el rol de un admin activo.
 
 ## Respaldo y métricas
 

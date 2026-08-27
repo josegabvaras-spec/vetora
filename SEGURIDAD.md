@@ -83,15 +83,25 @@ sustituye** la prueba en vivo con dos sesiones (ver abajo).
   del formulario) y un CI boliviano está en cualquier documento. Un `POST` al endpoint con el CI de
   un cliente que aún no se hubiera registrado entregaba su expediente: sus mascotas, su historial,
   sus recetas y su carné de vacunas, que es justo lo que las policies del portal le dan al dueño.
-- **Corrección aplicada:** vincular exige ahora que coincidan **el CI *y* el WhatsApp**, comparados
-  por sus últimos 8 dígitos para que `+591 7…`, `7…` y `591-7…` casen entre sí. Si no coinciden —o
-  la ficha no tiene WhatsApp— **no se vincula**: se crea una ficha nueva, que es el camino seguro que
-  ya existía, y la clínica une las dos desde su panel.
+- **Corrección aplicada:** vincular exige ahora que coincidan **el CI *y* el WhatsApp**, cada uno
+  normalizado por separado para que el formato en que quedaron guardados no importe: el WhatsApp se
+  compara por sus últimos 8 dígitos (`+591 7…`, `7…` y `591-7…` casan entre sí), el CI por su parte
+  numérica completa (`1234567`, `1234567 SC` y `1234567-1A` casan entre sí — el complemento de
+  departamento no es parte de lo que identifica a la persona). Si no coinciden —o la ficha no tiene
+  WhatsApp— **no se vincula**: se crea una ficha nueva, que es el camino seguro que ya existía, y la
+  clínica une las dos a mano desde `FichaPacientePage` («Vincular cuenta del portal»).
 - **Honestidad sobre el alcance:** esto **no es prueba de identidad**. Sube el listón de «sé tu
   carnet» a «sé tu carnet y tu teléfono», que para un MVP es proporcionado, pero la solución correcta
   es que **la clínica apruebe la vinculación**. Queda como el paso siguiente, no improvisado aquí.
 - **Cómo confirmar:** registrarse con el CI correcto y un WhatsApp distinto **no** debe vincular la
-  ficha existente; con los dos correctos, sí.
+  ficha existente; con los dos correctos, sí — incluso si el CI guardado por el personal lleva
+  espacios, guiones o el complemento de departamento y el dueño lo teclea sin ellos.
+- **Corrección de seguimiento (CI sin normalizar):** la primera versión de este arreglo solo
+  normalizaba el WhatsApp — el CI seguía comparándose como texto exacto (`.eq('ci', ci)`), así que
+  cualquier diferencia de formato entre lo que tecleó el personal y lo que tecleó después el dueño
+  rompía el vínculo en silencio (no por falta de identidad, por una coma de más). Corregido en
+  `registro-portal/index.ts` con la misma idea que ya usaba el WhatsApp: normalizar y comparar en
+  memoria, no en el `where`.
 
 ### H-6 · ALTO · Aprobar un pago podía quedarse a medias, sin rastro — CORREGIDO
 

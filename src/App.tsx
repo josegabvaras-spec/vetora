@@ -31,6 +31,7 @@ import { PlataformaLayout } from './components/layout/PlataformaLayout'
 import { PlataformaResumenPage } from './pages/plataforma/PlataformaResumenPage'
 import { PlataformaAsistentePage } from './pages/plataforma/PlataformaAsistentePage'
 import { PlataformaClinicasPage } from './pages/plataforma/PlataformaClinicasPage'
+import { PlataformaUsuariosPage } from './pages/plataforma/PlataformaUsuariosPage'
 import { PlataformaPlanesPage } from './pages/plataforma/PlataformaPlanesPage'
 import { InicioSegunRol } from './components/layout/InicioSegunRol'
 import { CatalogoPage } from './pages/CatalogoPage'
@@ -90,6 +91,7 @@ export default function App() {
                 <Route path="/plataforma" element={<PlataformaResumenPage />} />
                 <Route path="/plataforma/asistente" element={<PlataformaAsistentePage />} />
                 <Route path="/plataforma/clinicas" element={<PlataformaClinicasPage />} />
+                <Route path="/plataforma/usuarios" element={<PlataformaUsuariosPage />} />
                 <Route path="/plataforma/planes" element={<PlataformaPlanesPage />} />
               </Route>
             </Route>

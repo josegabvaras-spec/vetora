@@ -351,8 +351,13 @@ export async function registrarClienteYPaciente(input: NuevoClientePaciente): Pr
     .from('clientes')
     .insert({
       nombre: input.clienteNombre,
-      whatsapp: input.clienteWhatsapp,
-      ci: input.clienteCi,
+      // Solo `.trim()`, no una limpieza agresiva: se guarda tal cual lo
+      // tecleó el personal (con su complemento de departamento si lo anotó),
+      // no una versión normalizada. La normalización para el vínculo con el
+      // portal vive en `registro-portal` (Edge Function), en el punto donde
+      // se compara, no aquí donde se guarda.
+      whatsapp: input.clienteWhatsapp.trim(),
+      ci: input.clienteCi?.trim() || null,
     })
     .select()
     .single()
@@ -407,8 +412,8 @@ export async function actualizarClienteYPaciente(
     .from('clientes')
     .update({
       nombre: input.clienteNombre,
-      whatsapp: input.clienteWhatsapp,
-      ci: input.clienteCi,
+      whatsapp: input.clienteWhatsapp.trim(),
+      ci: input.clienteCi?.trim() || null,
     })
     .eq('id', clienteId)
 
@@ -438,6 +443,72 @@ export async function actualizarClienteYPaciente(
     .eq('id', pacienteId)
 
   if (pacError) throw new Error(`Error al actualizar paciente: ${pacError.message}`)
+}
+
+/**
+ * Une a mano una cuenta del portal ya creada con la ficha de cliente que
+ * tiene la mascota — el camino de recuperación que `registro-portal` deja
+ * cuando el enlace automático no encuentra coincidencia (CI/WhatsApp con
+ * formato distinto, o la persona se registró antes de que existiera esa
+ * clínica en su ficha). Sin esto, la cuenta y la ficha quedan separadas para
+ * siempre: nada más las vuelve a juntar solas.
+ *
+ * La cuenta que se está uniendo tiene, por diseño de `registro-portal`
+ * (siempre inserta una fila en `clientes` si no pudo vincular), una ficha
+ * propia vacía — sin mascotas. Se borra esa ficha vacía y se traslada su
+ * `usuario_id` a la ficha real, en ese orden: el índice único parcial
+ * `clientes_por_usuario` (0004) no deja que dos filas compartan la misma
+ * cuenta a la vez, así que hay que soltarla antes de poder tomarla.
+ */
+export async function vincularCuentaPortal(clienteId: string, clinicaId: string, email: string): Promise<void> {
+  const correo = email.trim().toLowerCase()
+  if (!correo) throw new Error('Escribe el correo con el que se registró')
+
+  const { data: usuario, error: errorUsuario } = await supabase
+    .from('usuarios')
+    .select('id')
+    .eq('clinica_id', clinicaId)
+    .eq('rol', 'cliente')
+    .ilike('email', correo)
+    .maybeSingle()
+
+  if (errorUsuario) throw new Error(`No se pudo buscar la cuenta: ${errorUsuario.message}`)
+  if (!usuario) throw new Error('No se encontró ninguna cuenta de portal con ese correo en esta clínica')
+
+  const { data: fichaDuplicada, error: errorFicha } = await supabase
+    .from('clientes')
+    .select('id')
+    .eq('usuario_id', usuario.id)
+    .maybeSingle()
+
+  if (errorFicha) throw new Error(`No se pudo comprobar la cuenta: ${errorFicha.message}`)
+  if (!fichaDuplicada) throw new Error('Esa cuenta no tiene ninguna ficha para unir')
+  if (fichaDuplicada.id === clienteId) throw new Error('Esa cuenta ya está vinculada a esta ficha')
+
+  // Comprobación antes de tocar nada: si la ficha "duplicada" en realidad ya
+  // tiene sus propias mascotas, no es el duplicado vacío que se espera —
+  // fusionarla a ciegas borraría ese registro real.
+  const { count, error: errorPacientes } = await supabase
+    .from('pacientes')
+    .select('id', { count: 'exact', head: true })
+    .eq('cliente_id', fichaDuplicada.id)
+
+  if (errorPacientes) throw new Error(`No se pudo comprobar la ficha: ${errorPacientes.message}`)
+  if (count && count > 0) {
+    throw new Error('Esa cuenta ya tiene sus propias mascotas registradas: no se puede unir automáticamente')
+  }
+
+  const { error: errorBorrado } = await supabase.from('clientes').delete().eq('id', fichaDuplicada.id)
+  if (errorBorrado) throw new Error(`No se pudo soltar la ficha duplicada: ${errorBorrado.message}`)
+
+  const { data: actualizado, error: errorVinculo } = await supabase
+    .from('clientes')
+    .update({ usuario_id: usuario.id })
+    .eq('id', clienteId)
+    .select('id')
+
+  if (errorVinculo) throw new Error(`No se pudo vincular la cuenta: ${errorVinculo.message}`)
+  if (!actualizado || actualizado.length === 0) throw new Error('No tienes permiso para vincular esta ficha')
 }
 
 /**

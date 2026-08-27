@@ -41,6 +41,7 @@ import { MensajeModal } from '../features/asistente/MensajeModal'
 import { FirmarConsentimientoModal } from '../features/agenda/FirmarConsentimientoModal'
 import { InternacionModal } from '../features/internacion/InternacionModal'
 import { RegistrarEvolucionModal } from '../features/internacion/RegistrarEvolucionModal'
+import { VincularCuentaPortalModal } from '../features/pacientes/VincularCuentaPortalModal'
 import { TIPO_LABEL, TIPO_TONE, ESTADO_LABEL, ESTADO_TONE } from '../lib/citas'
 
 const ESPECIE_LABEL: Record<string, string> = {
@@ -85,6 +86,7 @@ export function FichaPacientePage() {
   const [modalEvolucion, setModalEvolucion] = useState<{ internacionId: string; pacienteNombre: string } | null>(null)
   const [errorConsulta, setErrorConsulta] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'historial' | 'esquema' | 'internaciones'>('historial')
+  const [vinculandoPortal, setVinculandoPortal] = useState(false)
   const tarjetaAbiertaRef = useRef<HTMLDivElement | null>(null)
   
   const [menuImpresionAbierto, setMenuImpresionAbierto] = useState(false)
@@ -471,6 +473,20 @@ export function FichaPacientePage() {
               <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
                 <IdCard size={13} className="shrink-0" /> CI {paciente.cliente.ci}
               </p>
+            )}
+            {/* El enlace automático del registro público exige CI+WhatsApp
+                exactos (ver registro-portal); cuando no coincide, la cuenta
+                del dueño queda separada de esta ficha y hay que unirla a mano. */}
+            {paciente.cliente.usuario_id ? (
+              <p className="mt-2 text-xs font-semibold text-emerald-600">Cuenta del portal vinculada</p>
+            ) : (
+              <Button
+                variant="secondary"
+                className="mt-2 px-3 py-1.5 text-xs"
+                onClick={() => setVinculandoPortal(true)}
+              >
+                Vincular cuenta del portal
+              </Button>
             )}
           </Card>
 
@@ -873,6 +889,18 @@ export function FichaPacientePage() {
           loading={borrando}
           onConfirm={handleBorrar}
           onCancel={() => setModalBorrar(false)}
+        />
+      )}
+
+      {vinculandoPortal && usuario?.clinica_id && (
+        <VincularCuentaPortalModal
+          clienteId={paciente.cliente.id}
+          clinicaId={usuario.clinica_id}
+          onClose={() => setVinculandoPortal(false)}
+          onVinculado={async () => {
+            setVinculandoPortal(false)
+            await recargar()
+          }}
         />
       )}
     </div>

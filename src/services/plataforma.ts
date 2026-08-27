@@ -139,10 +139,17 @@ async function detalleDeClinica(clinica: Clinica): Promise<ClinicaConDetalle> {
     .select('*', { count: 'exact', head: true })
     .eq('clinica_id', clinica.id)
 
+  // Solo PERSONAL: las cuentas del portal (`rol = 'cliente'`) son dueños de
+  // mascota, no ocupan plaza del plan —igual que en `limitesDe`— y se
+  // gestionan desde las pantallas de la propia clínica, no desde aquí. Sin
+  // este filtro se colaban en la lista de usuarios del panel de plataforma:
+  // el contador de la cabecera no cuadraba con las filas, y al abrir una para
+  // editarla su rol no existía en el desplegable, que caía en «Administrador».
   const { data: usuarios } = await supabase
     .from('usuarios')
     .select('*')
     .eq('clinica_id', clinica.id)
+    .neq('rol', 'cliente')
     .order('nombre')
 
   return {
@@ -186,7 +193,12 @@ export async function listClinicas(): Promise<ClinicaConDetalle[]> {
     await Promise.all([
       supabase.from('planes').select('*').in('id', [...new Set(filas.map((c) => c.plan_id))]),
       supabase.from('sucursales').select('clinica_id'),
-      supabase.from('usuarios').select('*').order('nombre'),
+      // Solo PERSONAL, igual que en `detalleDeClinica`: las cuentas del portal
+      // (`rol = 'cliente'`) son dueños de mascota. De aquí salen tanto el
+      // contador de plazas del plan como la lista que pinta el panel, así que
+      // se filtra una sola vez, en el origen: filtrar solo el contador dejaba
+      // la cabecera «Usuarios (n/m)» sin cuadrar con las filas de abajo.
+      supabase.from('usuarios').select('*').neq('rol', 'cliente').order('nombre'),
       supabase.from('pacientes').select('clinica_id'),
       supabase.from('citas').select('clinica_id'),
     ])
@@ -202,9 +214,9 @@ export async function listClinicas(): Promise<ClinicaConDetalle[]> {
 
   const mapaPlanes = new Map((planes ?? []).map((x: any) => [x.id, x]))
   const porSucursales = contarPor(sucursales as any[])
-  // Las cuentas del portal (`rol = 'cliente'') no ocupan plaza del plan, igual
-  // que en `limitesDe`.
-  const porUsuarios = contarPor((usuarios ?? []).filter((u: any) => u.rol !== 'cliente') as any[])
+  // Ya vienen sin las cuentas del portal (ver la consulta de arriba), que no
+  // ocupan plaza del plan — igual que en `limitesDe`.
+  const porUsuarios = contarPor(usuarios as any[])
   const porPacientes = contarPor(pacientes as any[])
   const porCitas = contarPor(citas as any[])
 
@@ -718,6 +730,26 @@ export async function crearUsuario(clinicaId: string, datos: DatosUsuario): Prom
   return data as Usuario
 }
 
+/**
+ * Antes de desactivar a un admin o quitarle el rol, comprueba que la clínica
+ * no se quede sin nadie que pueda gestionarla. Compartido por
+ * `alternarActivoUsuario` (al desactivar) y `actualizarUsuario` (al degradar
+ * el rol de un admin activo) — mismo criterio, misma consulta.
+ */
+async function exigirOtroAdminActivo(usuario: Usuario, accion: string): Promise<void> {
+  const { count } = await supabase
+    .from('usuarios')
+    .select('*', { count: 'exact', head: true })
+    .eq('clinica_id', usuario.clinica_id!)
+    .eq('rol', 'admin')
+    .eq('activo', true)
+    .neq('id', usuario.id)
+
+  if ((count ?? 0) === 0) {
+    throw new Error(`Es el único administrador activo de la clínica: nombra otro antes de ${accion}`)
+  }
+}
+
 export async function actualizarUsuario(usuarioId: string, datos: DatosUsuario): Promise<void> {
   const { data: usuario } = await supabase
     .from('usuarios')
@@ -729,6 +761,21 @@ export async function actualizarUsuario(usuarioId: string, datos: DatosUsuario):
   exigirWhatsapp(datos.whatsapp, 'del usuario')
   const email = await exigirEmailLibre(datos.email, usuarioId)
   if (datos.rol === 'superadmin') throw new Error('El rol de plataforma no se asigna a una clínica')
+
+  // Una cuenta del portal no se gestiona desde el panel de personal, ni en un
+  // sentido ni en el otro. Sin esto, ascender a un dueño de mascota a `admin`
+  // le daba acceso completo al sistema clínico — y era fácil hacerlo sin
+  // querer, porque su rol no existe en el desplegable y este pintaba
+  // «Administrador» por defecto.
+  if (usuario.rol === 'cliente') {
+    throw new Error('Es una cuenta del portal de dueños: se gestiona desde la ficha de su mascota, no desde aquí')
+  }
+  if (datos.rol === 'cliente') throw new Error('El rol del portal no se asigna al personal de la clínica')
+
+  // Degradar al único admin activo lo deja igual de sin gestión que desactivarlo.
+  if (usuario.activo && usuario.rol === 'admin' && datos.rol !== 'admin') {
+    await exigirOtroAdminActivo(usuario as Usuario, 'cambiarle el rol')
+  }
 
   const { data, error } = await supabase
     .from('usuarios')
@@ -761,17 +808,7 @@ export async function alternarActivoUsuario(usuarioId: string): Promise<void> {
 
   // Una clínica sin ningún administrador activo se queda sin quien la gestione.
   if (usuario.activo && usuario.rol === 'admin') {
-    const { count } = await supabase
-      .from('usuarios')
-      .select('*', { count: 'exact', head: true })
-      .eq('clinica_id', usuario.clinica_id!)
-      .eq('rol', 'admin')
-      .eq('activo', true)
-      .neq('id', usuarioId)
-
-    if ((count ?? 0) === 0) {
-      throw new Error('Es el único administrador activo de la clínica: nombra otro antes de desactivarlo')
-    }
+    await exigirOtroAdminActivo(usuario as Usuario, 'desactivarlo')
   }
 
   const { data, error } = await supabase
@@ -782,6 +819,33 @@ export async function alternarActivoUsuario(usuarioId: string): Promise<void> {
 
   if (error) throw new Error(`Error al cambiar estado del usuario: ${error.message}`)
   exigirFilaAfectada(data, 'cambiar el estado del usuario')
+}
+
+export interface ResultadoBorradoUsuario {
+  cuentaBorrada: boolean
+  aviso?: string
+}
+
+/**
+ * Borra un usuario por completo: su fila en `usuarios` y su cuenta de acceso.
+ * A diferencia de `alternarActivoUsuario`, no hay vuelta atrás — por eso pasa
+ * por la Edge Function `eliminar-usuario`, que rechaza el borrado mientras el
+ * usuario tenga actividad clínica o de caja firmada (comprobación que el
+ * navegador no puede hacer: el superadmin no tiene RLS sobre esas tablas) o
+ * sea el único admin activo de su clínica.
+ */
+export async function borrarUsuario(usuarioId: string): Promise<ResultadoBorradoUsuario> {
+  const { data, error } = await supabase.functions.invoke<{
+    ok?: boolean
+    cuenta_borrada?: boolean
+    aviso?: string
+    error?: string
+  }>('eliminar-usuario', { body: { usuario_id: usuarioId } })
+
+  if (error) throw new Error((await motivoDelFallo(error)) ?? 'No se pudo borrar el usuario')
+  if (!data || data.error) throw new Error(data?.error ?? 'No se pudo borrar el usuario')
+
+  return { cuentaBorrada: data.cuenta_borrada ?? false, aviso: data.aviso }
 }
 
 /* ============================================================

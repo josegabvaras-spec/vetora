@@ -55,6 +55,18 @@ function movil(valor: string): string {
   return digitos.length >= 8 ? digitos.slice(-8) : ''
 }
 
+/**
+ * El CI boliviano se escribe de mil formas: con espacios, guiones, o el
+ * complemento de departamento pegado ("1234567 SC", "1234567-1A"). Lo único
+ * que de verdad identifica a la persona es la parte numérica — mismo
+ * criterio que `movil()` con el WhatsApp. Sin esto, el CI que tecleó el
+ * personal casi nunca coincidía carácter por carácter con el que teclea
+ * después el dueño, y el vínculo automático fallaba en silencio.
+ */
+function soloDigitos(valor: string): string {
+  return valor.replace(/\D/g, '')
+}
+
 Deno.serve(async (peticion) => {
   if (peticion.method === 'OPTIONS') return new Response('ok', { headers: cabeceras })
 
@@ -149,26 +161,33 @@ Deno.serve(async (peticion) => {
     // listón de «sé tu carnet» a «sé tu carnet y tu teléfono».
     //
     // Si no casan, NO se vincula: se cae al camino de crear una ficha nueva, que
-    // es seguro. La clínica las une después desde su panel. Perder el
-    // automático es barato; entregar un expediente ajeno, no.
+    // es seguro. La clínica las une después desde su panel (`FichaPacientePage`,
+    // «Vincular cuenta del portal»). Perder el automático es barato; entregar un
+    // expediente ajeno, no.
     //
     // Lo correcto de verdad sería que la clínica apruebe la vinculación. Está
     // anotado en SEGURIDAD.md como el paso siguiente.
     let clienteVinculado = false
     const movilQueTeclea = movil(whatsapp)
+    const ciQueTeclea = soloDigitos(ci)
 
-    if (ci && movilQueTeclea) {
-      const { data: ficha } = await admin
-        .from('clientes')
-        .select('id, whatsapp')
-        .eq('clinica_id', clinica.id)
-        .eq('ci', ci)
-        .is('usuario_id', null)
-        .maybeSingle()
-
+    if (ciQueTeclea && movilQueTeclea) {
       // La comparación se hace aquí y no en el `where` porque los formatos
-      // guardados varían: hay que normalizar los dos lados.
-      if (ficha && movil(ficha.whatsapp ?? '') === movilQueTeclea) {
+      // guardados varían: hay que normalizar los dos lados. El CI no se puede
+      // filtrar en la consulta (no hay forma de pedirle a PostgREST "solo
+      // dígitos"), así que se traen las fichas sin reclamar de la clínica y se
+      // compara en memoria — son a lo sumo unos cientos por clínica.
+      const { data: fichas } = await admin
+        .from('clientes')
+        .select('id, ci, whatsapp')
+        .eq('clinica_id', clinica.id)
+        .is('usuario_id', null)
+
+      const ficha = (fichas ?? []).find(
+        (f) => soloDigitos(f.ci ?? '') === ciQueTeclea && movil(f.whatsapp ?? '') === movilQueTeclea,
+      )
+
+      if (ficha) {
         const { error } = await admin
           .from('clientes')
           .update({ usuario_id: usuarioId })

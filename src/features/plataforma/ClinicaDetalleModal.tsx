@@ -7,6 +7,7 @@ import {
   Database,
   Download,
   MessageCircle,
+  Pencil,
   Plus,
   RotateCcw,
   Trash2,
@@ -17,12 +18,14 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import { Seccion } from '../../components/ui/Seccion'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { FieldGroup, Input, Select } from '../../components/ui/Field'
 import { useTable } from '../../mocks/useDb'
 import {
   actualizarClinica,
   alternarActivoUsuario,
   borrarClinica,
+  borrarUsuario,
   cambiarEstadoClinica,
   crearSucursal,
   crearUsuario,
@@ -36,6 +39,7 @@ import { exportarClinica, importarEnClinica } from '../../services/respaldoPlata
 import { estadoDeLaCuenta } from '../../lib/acceso'
 import { ultimasInvitacionesDe } from '../../services/invitaciones'
 import { EnviarAccesoModal } from './EnviarAccesoModal'
+import { EditarUsuarioModal } from './EditarUsuarioModal'
 import { getConfiguracion, TIPO_CAMBIO_POR_DEFECTO } from '../../services/configuracion'
 import { formatBs, formatUsd, usdABs } from '../../lib/currency'
 import { TIPO_NEGOCIO_LABEL, TIPOS_NEGOCIO } from '../../lib/negocio'
@@ -91,6 +95,9 @@ export function ClinicaDetalleModal({
   const [usuarioRol, setUsuarioRol] = useState<Rol>('veterinario')
   const [usuarioSucursal, setUsuarioSucursal] = useState('')
   const [enviandoAcceso, setEnviandoAcceso] = useState<Usuario | null>(null)
+  const [editandoUsuario, setEditandoUsuario] = useState<Usuario | null>(null)
+  const [borrandoUsuario, setBorrandoUsuario] = useState<Usuario | null>(null)
+  const [eliminandoUsuario, setEliminandoUsuario] = useState(false)
 
   // El precio acordado está en dólares; esto es lo que hace falta para decir
   // cuánto se le pide de verdad a la clínica, que paga en bolivianos.
@@ -467,7 +474,7 @@ export function ClinicaDetalleModal({
                     {u.nombre}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {ROL_LABEL[u.rol]} ·{' '}
+                    {ROL_LABEL[u.rol] ?? u.rol} ·{' '}
                     {u.sucursal_id ? sucursales.find((s) => s.id === u.sucursal_id)?.nombre : 'Todas las sucursales'}
                   </p>
                   <p className="font-mono text-[11px] text-slate-400">
@@ -505,6 +512,22 @@ export function ClinicaDetalleModal({
                   >
                     {u.activo ? 'Desactivar' : 'Activar'}
                   </Button>
+                  <Button
+                    variant="secondary"
+                    className="px-2 py-1.5 text-xs"
+                    onClick={() => setEditandoUsuario(u)}
+                    title="Editar"
+                  >
+                    <Pencil size={13} />
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setBorrandoUsuario(u)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600"
+                    title="Eliminar"
+                  >
+                    <Trash2 size={15} />
+                  </button>
                 </div>
               </li>
             ))}
@@ -682,6 +705,41 @@ export function ClinicaDetalleModal({
           onClose={() => {
             setEnviandoAcceso(null)
             onChanged()
+          }}
+        />
+      )}
+
+      {editandoUsuario && (
+        <EditarUsuarioModal
+          usuario={editandoUsuario}
+          sucursales={sucursales}
+          onClose={() => setEditandoUsuario(null)}
+          onGuardado={() => {
+            setEditandoUsuario(null)
+            onChanged()
+          }}
+        />
+      )}
+
+      {borrandoUsuario && (
+        <ConfirmDialog
+          title={`Eliminar a ${borrandoUsuario.nombre}`}
+          description="Borra su cuenta de acceso por completo. Si ya registró actividad clínica o de caja, se rechaza —desactívalo en vez de borrarlo—; si no, no se puede deshacer."
+          confirmLabel="Eliminar"
+          loading={eliminandoUsuario}
+          onCancel={() => setBorrandoUsuario(null)}
+          onConfirm={async () => {
+            setEliminandoUsuario(true)
+            setError(null)
+            try {
+              await borrarUsuario(borrandoUsuario.id)
+              setBorrandoUsuario(null)
+              onChanged()
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'No se pudo eliminar el usuario')
+            } finally {
+              setEliminandoUsuario(false)
+            }
           }}
         />
       )}
