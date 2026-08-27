@@ -142,37 +142,37 @@ export function PortalDashboardPage() {
             <div className="flex items-center justify-around">
               <button
                 type="button"
-                className="flex flex-col items-center gap-1 group/btn hover:scale-105 transition-transform"
+                className="flex flex-col items-center gap-0.5 group/btn hover:scale-110 transition-transform"
                 onClick={() => alert('Próximamente')}
               >
-                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-white/95 backdrop-blur-md flex items-center justify-center shadow-md border border-white/70">
-                  <MessageCircle size={18} className="text-orange-500" />
+                <div className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center">
+                  <MessageCircle size={22} className="text-orange-500 drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]" />
                 </div>
-                <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 drop-shadow-[0_1px_3px_rgba(255,255,255,0.9)]">
+                <span className="text-[10px] sm:text-[11px] font-black text-slate-800 drop-shadow-[0_1px_3px_rgba(255,255,255,0.95)]">
                   Foro
                 </span>
               </button>
               <button
                 type="button"
-                className="flex flex-col items-center gap-1 group/btn hover:scale-105 transition-transform"
+                className="flex flex-col items-center gap-0.5 group/btn hover:scale-110 transition-transform"
                 onClick={() => alert('Próximamente')}
               >
-                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-white/95 backdrop-blur-md flex items-center justify-center shadow-md border border-white/70">
-                  <HomeIcon size={18} className="text-blue-500" />
+                <div className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center">
+                  <HomeIcon size={22} className="text-blue-600 drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]" />
                 </div>
-                <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 leading-tight text-center drop-shadow-[0_1px_3px_rgba(255,255,255,0.9)]">
+                <span className="text-[10px] sm:text-[11px] font-black text-slate-800 leading-tight text-center drop-shadow-[0_1px_3px_rgba(255,255,255,0.95)]">
                   Objetos<br />Perdidos
                 </span>
               </button>
               <button
                 type="button"
-                className="flex flex-col items-center gap-1 group/btn hover:scale-105 transition-transform"
+                className="flex flex-col items-center gap-0.5 group/btn hover:scale-110 transition-transform"
                 onClick={() => alert('Próximamente')}
               >
-                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-white/95 backdrop-blur-md flex items-center justify-center shadow-md border border-white/70">
-                  <CalendarDays size={18} className="text-emerald-500" />
+                <div className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center">
+                  <CalendarDays size={22} className="text-emerald-600 drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]" />
                 </div>
-                <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-800 drop-shadow-[0_1px_3px_rgba(255,255,255,0.9)]">
+                <span className="text-[10px] sm:text-[11px] font-black text-slate-800 drop-shadow-[0_1px_3px_rgba(255,255,255,0.95)]">
                   Eventos
                 </span>
               </button>
