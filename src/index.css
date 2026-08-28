@@ -272,3 +272,50 @@ a, button, select, input, textarea {
 .portal-card:hover .portal-card-img {
   transform: scale(1.05);
 }
+
+/* ── Vetora Home / Landing Page Styles (Claymorphism & Soft Pastel) ── */
+.vetora-home-bg {
+  background: linear-gradient(135deg, #d2e8f8 0%, #d7eef6 28%, #d5f3ec 62%, #c7f0db 100%);
+  background-attachment: fixed;
+}
+
+.clay-btn {
+  background-color: #3b5266;
+  color: #ffffff;
+  border-radius: 9999px;
+  box-shadow: 
+    0 8px 20px -2px rgba(45, 68, 88, 0.35),
+    0 2px 6px -1px rgba(45, 68, 88, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.clay-btn:hover {
+  background-color: #2d4052;
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 24px -2px rgba(45, 68, 88, 0.42),
+    0 4px 8px -1px rgba(45, 68, 88, 0.25),
+    inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+.clay-btn:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 
+    0 4px 10px -2px rgba(45, 68, 88, 0.3),
+    inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.clay-card-container {
+  border-radius: 2rem;
+  overflow: hidden;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 16px 36px -4px rgba(60, 100, 130, 0.16),
+    0 4px 14px rgba(0, 0, 0, 0.04);
+}
+.clay-card-container:hover {
+  transform: translateY(-6px);
+  box-shadow: 
+    0 24px 48px -4px rgba(50, 90, 120, 0.24),
+    0 8px 20px rgba(0, 0, 0, 0.06);
+}
+

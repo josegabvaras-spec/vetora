@@ -45,12 +45,16 @@ import { PortalMascotasPage } from './pages/portal-cliente/PortalMascotasPage'
 import { PortalCitasPage } from './pages/portal-cliente/PortalCitasPage'
 import { PortalPerfilPage } from './pages/portal-cliente/PortalPerfilPage'
 import { RegistroClientePage } from './pages/RegistroClientePage'
+import { HomePage } from './pages/HomePage'
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Página Principal Pública (Home / Landing Page) */}
+          <Route path="/" element={<HomePage />} />
+
           {/* Portal de Clientes (protegido por AuthContext normal) */}
           <Route element={<ProtectedRoute />}>
             <Route path="/portal-cliente" element={<PortalClienteLayout />}>
