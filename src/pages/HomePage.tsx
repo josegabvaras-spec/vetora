@@ -2,7 +2,6 @@ import { PawPrint } from 'lucide-react'
 import { HomeHeader } from '../components/home/HomeHeader'
 import { HeroSection } from '../components/home/HeroSection'
 import { CardsSection } from '../components/home/CardsSection'
-import { HomeMobileNav } from '../components/home/HomeMobileNav'
 import { Link } from 'react-router-dom'
 
 export function HomePage() {
@@ -31,21 +30,21 @@ export function HomePage() {
       </div>
 
       {/* ── Contenedor principal de la Landing Page ── */}
-      <div className="relative z-10 max-w-7xl mx-auto w-full px-3.5 sm:px-6 lg:px-8 flex-1 flex flex-col justify-between pb-24 sm:pb-28 md:pb-0">
-        {/* 1. Header (Logo + Hamburguesa en Mobile / Nav completa en Desktop) */}
+      <div className="relative z-10 max-w-7xl mx-auto w-full px-3.5 sm:px-6 lg:px-8 flex-1 flex flex-col justify-between">
+        {/* 1. Header (Logo + Menú Hamburguesa en Mobile / Navegación completa en Desktop) */}
         <HomeHeader />
 
         {/* 2. Hero Section (Título + Descripción + CTA + Ilustración integrada) */}
         <main className="flex-1 flex flex-col justify-center">
           <HeroSection />
 
-          {/* 3. Tres Tarjetas (3 en fila tanto en mobile como en desktop según sitiomobil.jpg) */}
+          {/* 3. Tres Tarjetas Horizontales */}
           <CardsSection />
         </main>
       </div>
 
-      {/* ── Footer sutil (oculto o espaciado en mobile para no chocar con la barra fija) ── */}
-      <footer className="relative z-10 border-t border-slate-900/5 py-4 sm:py-6 px-4 text-center text-xs text-slate-500 font-medium pb-24 md:pb-6">
+      {/* ── Footer sutil ── */}
+      <footer className="relative z-10 border-t border-slate-900/5 py-4 sm:py-6 px-4 text-center text-xs text-slate-500 font-medium">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p>© {new Date().getFullYear()} Vetora. Todos los derechos reservados.</p>
           <div className="flex items-center gap-6">
@@ -58,9 +57,6 @@ export function HomePage() {
           </div>
         </div>
       </footer>
-
-      {/* ── 4. Barra de navegación inferior fija para Mobile (Bottom Nav) ── */}
-      <HomeMobileNav />
     </div>
   )
 }
