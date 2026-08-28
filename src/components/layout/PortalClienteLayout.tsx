@@ -45,18 +45,12 @@ export function PortalClienteLayout() {
             <PawPrint size={18} strokeWidth={2.5} />
           </div>
 
-          <div className="flex flex-col items-center justify-center py-6 px-4 relative z-10">
+          <div className="flex flex-col items-center justify-center py-5 px-4 relative z-10">
             <img
-              src="/vetoraicono.png"
-              alt="Vetora"
-              className="h-14 w-14 mb-1 drop-shadow-md"
+              src="/vetoralogo.png"
+              alt="Vetora - Plataforma de Gestión Veterinaria Digital"
+              className="h-24 sm:h-28 w-auto drop-shadow-sm hover:scale-105 transition-transform duration-300"
             />
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight font-display">
-              Vetora
-            </h1>
-            <p className="text-[11px] font-medium text-emerald-700/70 uppercase tracking-widest mt-0.5">
-              Plataforma de Gestión Veterinaria Digital
-            </p>
           </div>
         </header>
       )}
