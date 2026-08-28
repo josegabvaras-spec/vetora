@@ -56,23 +56,25 @@ function movil(valor: string): string {
 }
 
 /**
- * Número de cédula, sin el complemento.
+ * Número de cédula, sin el complemento ni prefijos.
  *
- * El CI boliviano se escribe de mil formas: con espacios, guiones, o el
- * complemento pegado ("1234567 SC", "1234567-1A", "1234567SC"). Lo único que
- * de verdad identifica a la persona es el número base — mismo criterio que
- * `movil()` con el WhatsApp.
+ * El CI boliviano se escribe de mil formas: con espacios, guiones, el
+ * complemento pegado o un prefijo delante ("1234567 SC", "1234567-1A",
+ * "1234567SC", "CI 1234567"). Lo único que de verdad identifica a la persona
+ * es el número base — mismo criterio que `movil()` con el WhatsApp.
  *
- * Se corta en el primer separador ANTES de quedarse con los dígitos, y esa
- * es la diferencia con la primera versión: los complementos de un CI
- * reexpedido llevan un dígito ("-1A", "-2A"), así que limitarse a `\D` los
- * concatenaba al número — "1234567-1A" daba "12345671", que no coincide con
- * el "1234567" que teclea el dueño. Sin separador no hay nada que cortar y
- * los dígitos ya son solo los del número ("1234567SC" → "1234567").
+ * Se queda con **la racha de dígitos más larga**. Las dos versiones anteriores
+ * fallaban por lo mismo, cada una por un lado: quedarse con todos los dígitos
+ * concatenaba el complemento de un CI reexpedido ("1234567-1A" → "12345671"),
+ * y cortar por el primer separador se rompía con cualquier prefijo
+ * ("CI 1234567" → "CI" → ""). La racha más larga acierta en los cuatro casos.
+ *
+ * ⚠️ Duplicada a propósito en `src/lib/identidad.ts`: Deno no puede importar
+ * de `src/`. Si cambias una, cambia la otra — mismo criterio que `esSuperadmin`.
  */
 function cedula(valor: string): string {
-  const base = valor.trim().split(/[\s-]/)[0] ?? ''
-  return base.replace(/\D/g, '')
+  const rachas = valor.match(/\d+/g) ?? []
+  return rachas.sort((a, b) => b.length - a.length)[0] ?? ''
 }
 
 Deno.serve(async (peticion) => {
@@ -168,22 +170,36 @@ Deno.serve(async (peticion) => {
     // identidad —los dos son datos que un conocido podría saber—, pero sube el
     // listón de «sé tu carnet» a «sé tu carnet y tu teléfono».
     //
-    // Cuando los dos coinciden se vincula SOLO, aquí mismo: no hay nada que
-    // aprobar. La aprobación de la clínica existe únicamente para el caso
-    // degradado —la ficha sin CI anotado, que es opcional para recepción—,
-    // donde lo único en común es el WhatsApp y vincular con eso solo sería
-    // volver al agujero de H-5 con otro dato. Ese camino vive en la sección
-    // «Clientes» de la clínica (`ClientesPage`), que sugiere la coincidencia
-    // por WhatsApp para que una persona la confirme; y desde la ficha del
-    // paciente con «Vincular cuenta del portal», si se sabe el correo.
+    // Se vincula en DOS NIVELES, y los dos son automáticos: no hay nada que
+    // aprobar cuando aciertan.
     //
-    // Esa aprobación es lo que SEGURIDAD.md (H-5) dejó anotado como «el paso
-    // siguiente»: ya está construida.
+    //   Nivel 1 — CI + WhatsApp. La ficha tiene CI anotado y coinciden los dos.
+    //   Nivel 2 — solo WhatsApp, y solo si la ficha NO tiene CI anotado y es la
+    //             ÚNICA candidata de esa clínica con ese número.
+    //
+    // El nivel 2 existe porque el CI es opcional para recepción, y una ficha
+    // sin CI no podía casar jamás: era la causa dominante de que el registro no
+    // vinculara. La guarda de unicidad es lo que impide que sea el agujero de
+    // H-5 con otro dato: para quedarse con una ficha ajena habría que saber el
+    // número, acertar la clínica, que esa ficha no tenga CI y que no exista
+    // ninguna otra con ese mismo número. Con dos o más candidatas no se vincula
+    // nada — se manda a la sugerencia manual, que es donde decide una persona.
+    //
+    // Y una ficha cuyo WhatsApp coincide pero cuyo CI anotado NO coincide queda
+    // descartada del nivel 2: un CI que no cuadra es una señal activa en
+    // contra, no un dato ausente.
+    //
+    // Lo que no acierta aquí se resuelve a mano desde la sección «Clientes»
+    // (`ClientesPage`), o desde la ficha del paciente con «Vincular cuenta del
+    // portal» si se sabe el correo.
+    type Motivo = 'ci_y_whatsapp' | 'whatsapp_unico' | 'sin_coincidencia' | 'ambiguo'
+
     let clienteVinculado = false
+    let motivo: Motivo = 'sin_coincidencia'
     const movilQueTeclea = movil(whatsapp)
     const ciQueTeclea = cedula(ci)
 
-    if (ciQueTeclea && movilQueTeclea) {
+    if (movilQueTeclea) {
       // La comparación se hace aquí y no en el `where` porque los formatos
       // guardados varían: hay que normalizar los dos lados. El CI no se puede
       // filtrar en la consulta (no hay forma de pedirle a PostgREST "solo
@@ -195,22 +211,38 @@ Deno.serve(async (peticion) => {
         .eq('clinica_id', clinica.id)
         .is('usuario_id', null)
 
-      // `cedula('')` da '' y `ciQueTeclea` nunca lo es (lo garantiza el `if`),
-      // así que una ficha sin CI anotado no casa con nadie — es correcto, pero
-      // es el motivo por el que muchos registros no vinculan solos: el CI es
-      // opcional para el personal. Ese caso se resuelve a mano desde
-      // «Clientes», con la sugerencia por WhatsApp.
-      const ficha = (fichas ?? []).find(
-        (f) => cedula(f.ci ?? '') === ciQueTeclea && movil(f.whatsapp ?? '') === movilQueTeclea,
-      )
+      // El WhatsApp es obligatorio en los dos niveles; lo que cambia es el
+      // segundo factor.
+      const porMovil = (fichas ?? []).filter((f) => movil(f.whatsapp ?? '') === movilQueTeclea)
 
-      if (ficha) {
+      let elegida: { id: string } | null = null
+
+      if (ciQueTeclea) {
+        const exacta = porMovil.find((f) => cedula(f.ci ?? '') === ciQueTeclea)
+        if (exacta) {
+          elegida = exacta
+          motivo = 'ci_y_whatsapp'
+        }
+      }
+
+      if (!elegida) {
+        const sinCi = porMovil.filter((f) => !cedula(f.ci ?? ''))
+        if (sinCi.length === 1) {
+          elegida = sinCi[0]
+          motivo = 'whatsapp_unico'
+        } else if (sinCi.length > 1) {
+          motivo = 'ambiguo'
+        }
+      }
+
+      if (elegida) {
         const { error } = await admin
           .from('clientes')
           .update({ usuario_id: usuarioId })
-          .eq('id', ficha.id)
+          .eq('id', elegida.id)
           .is('usuario_id', null)
         clienteVinculado = !error
+        if (error) motivo = 'sin_coincidencia'
       }
     }
 
@@ -233,7 +265,11 @@ Deno.serve(async (peticion) => {
 
     // No se devuelve sesión: el frontend inicia sesión con la contraseña que
     // acaba de elegir, igual que en el canje de invitación.
-    return responder({ email, clinica_nombre: clinica.nombre, vinculado: clienteVinculado })
+    //
+    // `motivo` viaja para que el registro pueda EXPLICAR un vínculo fallido en
+    // vez de mandar al dueño a un portal vacío sin decirle nada, que es lo que
+    // pasaba antes.
+    return responder({ email, clinica_nombre: clinica.nombre, vinculado: clienteVinculado, motivo })
   } catch (error) {
     console.error('registro-portal:', error)
     return responder({ error: 'No se pudo completar el registro' }, 500)

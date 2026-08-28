@@ -116,6 +116,52 @@ Deno.serve(async (peticion) => {
       return responder({ user_id: data.user.id })
     }
 
+    // Cuentas de Auth que no tienen fila en `usuarios`.
+    //
+    // Se producen porque `crear`, arriba, solo devuelve el id: el `insert` en
+    // `usuarios` lo hace el navegador en una SEGUNDA petición. Si se corta
+    // entre las dos, queda una credencial válida sin perfil — invisible en toda
+    // la aplicación, porque todo lee `usuarios`, y ocupando el correo para
+    // siempre. Es la pareja de lectura de `borrar`, que ya solo toca huérfanas.
+    if (accion === 'huerfanas') {
+      const cuentas: { id: string; email: string; created_at: string }[] = []
+
+      // `listUsers` pagina; sin el bucle solo se verían las 50 primeras.
+      for (let pagina = 1; ; pagina++) {
+        const { data, error } = await admin.auth.admin.listUsers({ page: pagina, perPage: 1000 })
+        if (error) {
+          console.error('crear-cuenta: listUsers', error)
+          return responder({ error: 'No se pudieron leer las cuentas de acceso' }, 500)
+        }
+
+        const lote = data.users
+        if (lote.length === 0) break
+
+        // Se cruza lote a lote y no de una: la lista de ids se pasa a `in`, que
+        // tiene un límite práctico de longitud de URL.
+        const { data: perfiles, error: errorPerfiles } = await admin
+          .from('usuarios')
+          .select('id')
+          .in('id', lote.map((u) => u.id))
+
+        if (errorPerfiles) {
+          console.error('crear-cuenta: perfiles', errorPerfiles)
+          return responder({ error: 'No se pudieron leer los perfiles' }, 500)
+        }
+
+        const conPerfil = new Set((perfiles ?? []).map((p) => p.id))
+        for (const u of lote) {
+          if (!conPerfil.has(u.id)) {
+            cuentas.push({ id: u.id, email: u.email ?? '(sin correo)', created_at: u.created_at })
+          }
+        }
+
+        if (lote.length < 1000) break
+      }
+
+      return responder({ cuentas })
+    }
+
     if (accion === 'borrar') {
       const userId = texto(cuerpo.user_id)
       if (!userId) return responder({ error: 'Falta la cuenta a borrar' }, 400)

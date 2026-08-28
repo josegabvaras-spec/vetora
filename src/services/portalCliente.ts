@@ -42,6 +42,25 @@ export interface DatosRegistroPortal {
 }
 
 /**
+ * Por qué se vinculó (o no) la cuenta nueva con la ficha que la clínica ya
+ * tuviera. Lo decide `registro-portal`; aquí solo se transporta para poder
+ * explicárselo a quien se registra.
+ *
+ * - `ci_y_whatsapp`  — coincidieron los dos. Vinculado.
+ * - `whatsapp_unico` — la ficha no tenía CI anotado y era la única con ese
+ *                      número en esa clínica. Vinculado.
+ * - `ambiguo`        — varias fichas sin CI comparten ese número: no se
+ *                      vincula ninguna, lo confirma la clínica a mano.
+ * - `sin_coincidencia` — no había ninguna ficha que casara.
+ */
+export type MotivoVinculo = 'ci_y_whatsapp' | 'whatsapp_unico' | 'sin_coincidencia' | 'ambiguo'
+
+export interface ResultadoRegistro {
+  vinculado: boolean
+  motivo: MotivoVinculo
+}
+
+/**
  * Alta de una cuenta del portal.
  *
  * Pasa por la Edge Function `registro-portal` porque **el rol y la clínica no
@@ -52,8 +71,12 @@ export interface DatosRegistroPortal {
  * La función tampoco devuelve sesión: se inicia después con la contraseña
  * recién elegida, igual que en el canje de invitación.
  */
-export async function registrarClientePortal(datos: DatosRegistroPortal): Promise<void> {
-  const { data, error } = await supabase.functions.invoke<{ error?: string }>('registro-portal', {
+export async function registrarClientePortal(datos: DatosRegistroPortal): Promise<ResultadoRegistro> {
+  const { data, error } = await supabase.functions.invoke<{
+    error?: string
+    vinculado?: boolean
+    motivo?: MotivoVinculo
+  }>('registro-portal', {
     body: datos,
   })
 
@@ -79,6 +102,11 @@ export async function registrarClientePortal(datos: DatosRegistroPortal): Promis
   if (errorSesion) {
     throw new Error('Tu cuenta se creó, pero no se pudo iniciar sesión. Entra desde el inicio de sesión.')
   }
+
+  // Una cuenta creada sin vincular es un éxito a medias: la sesión funciona,
+  // pero el portal sale vacío. Antes esto se descartaba y el dueño no tenía
+  // forma de saber que faltaba algo ni a quién pedírselo.
+  return { vinculado: data?.vinculado === true, motivo: data?.motivo ?? 'sin_coincidencia' }
 }
 
 export async function getPacientesPortal(clinicaId: string, usuarioId: string): Promise<Paciente[]> {

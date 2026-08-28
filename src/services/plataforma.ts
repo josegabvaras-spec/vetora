@@ -25,6 +25,132 @@ function exigirFilaAfectada(filas: unknown[] | null, accion: string): void {
   }
 }
 
+/** Tamaño de página: `max_rows` de PostgREST (`supabase/config.toml`). */
+const PAGINA = 1000
+
+/**
+ * Trae TODAS las filas de una consulta, por páginas.
+ *
+ * PostgREST corta en `max_rows = 1000` **sin error y sin ninguna señal**: la
+ * consulta devuelve mil filas y parece completa. En las pantallas de plataforma
+ * eso significaba usuarios y clínicas que sencillamente no existían para la
+ * interfaz, y nadie podía saber que faltaban.
+ *
+ * `consulta` se pasa como fábrica porque un `PostgrestFilterBuilder` es
+ * "thenable" de un solo uso: reutilizarlo entre páginas no vuelve a consultar.
+ *
+ * La fila llega sin tipar y se afirma como `T` en la frontera, igual que el
+ * `as Usuario[]` que ya hace `listClinicas`: el tipo generado en
+ * `types/supabase.ts` ensancha las uniones de literales (`rol: string` en vez
+ * de `Rol`), así que casarlos aquí no aportaría seguridad, solo ruido.
+ */
+async function traerTodo<T>(
+  consulta: (desde: number, hasta: number) => PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<T[]> {
+  const acumulado: T[] = []
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data, error } = await consulta(desde, desde + PAGINA - 1)
+    if (error) {
+      throw new Error((error as { message?: string }).message ?? 'No se pudieron cargar los datos')
+    }
+    const pagina = (data ?? []) as T[]
+    acumulado.push(...pagina)
+    if (pagina.length < PAGINA) return acumulado
+  }
+}
+
+/** Una fila de la pantalla «Usuarios» de plataforma, ya con su clínica resuelta. */
+export interface UsuarioPlataforma {
+  usuario: Usuario
+  clinicaId: string | null
+  clinicaNombre: string
+}
+
+/**
+ * TODOS los usuarios de la plataforma, consultando `usuarios` directamente.
+ *
+ * Existe porque `PlataformaUsuariosPage` armaba sus filas recorriendo las
+ * **clínicas** de `listClinicas()`, y por ahí se perdían usuarios de tres
+ * formas a la vez: las filas sin `clinica_id` se descartaban (`continue`), la
+ * salida se generaba sobre el array de clínicas —así que un usuario cuya
+ * clínica no estuviera ahí no se leía nunca—, y `max_rows` truncaba en
+ * silencio. Un superadmin **no pertenece a ninguna clínica** por constraint
+ * (`usuarios_clinica_segun_rol`), así que por el primer motivo no podía
+ * aparecer jamás, ni el que estaba mirando la pantalla.
+ *
+ * Aquí la lista la manda `usuarios`, no `clinicas`: la clínica es solo una
+ * etiqueta que se resuelve con un mapa. Tampoco toca `planes`, así que un
+ * `plan_id` inválido no puede vaciarla.
+ *
+ * No sustituye a `listClinicas()`: esa sigue siendo por clínica, que es lo que
+ * necesitan el panel de clínicas y su modal de detalle.
+ */
+export async function listUsuariosPlataforma(): Promise<UsuarioPlataforma[]> {
+  const [usuarios, clinicas] = await Promise.all([
+    traerTodo<Usuario>((desde, hasta) =>
+      supabase.from('usuarios').select('*').order('nombre').range(desde, hasta),
+    ),
+    traerTodo<{ id: string; nombre: string }>((desde, hasta) =>
+      supabase.from('clinicas').select('id, nombre').order('nombre').range(desde, hasta),
+    ),
+  ])
+
+  const nombrePorClinica = new Map(clinicas.map((c) => [c.id, c.nombre]))
+
+  return usuarios.map((usuario) => ({
+    usuario,
+    clinicaId: usuario.clinica_id,
+    // `clinica_id` null solo lo tiene el superadmin, por constraint. Una
+    // clínica que no esté en el mapa es una inconsistencia real, y se enseña
+    // como tal en vez de esconder la fila.
+    clinicaNombre: usuario.clinica_id
+      ? nombrePorClinica.get(usuario.clinica_id) ?? 'Clínica desconocida'
+      : 'Plataforma',
+  }))
+}
+
+/** Una cuenta de Supabase Auth que no tiene fila en `usuarios`. */
+export interface CuentaHuerfana {
+  id: string
+  email: string
+  created_at: string
+}
+
+/**
+ * Cuentas de Auth sin perfil, que no aparecen en ninguna otra pantalla.
+ *
+ * `crear-cuenta` crea la cuenta de Auth y devuelve el id; el `insert` en
+ * `usuarios` lo hace el navegador en una **segunda** petición. Si algo se corta
+ * entre las dos, queda una credencial válida sin perfil: invisible en toda la
+ * aplicación —todo lee `usuarios`— pero presente en Authentication → Users, y
+ * ocupando el correo para siempre.
+ *
+ * Solo se pueden ver con `service_role`, de ahí la Edge Function.
+ */
+export async function listCuentasHuerfanas(): Promise<CuentaHuerfana[]> {
+  const { data, error } = await supabase.functions.invoke<{
+    error?: string
+    cuentas?: CuentaHuerfana[]
+  }>('crear-cuenta', { body: { accion: 'huerfanas' } })
+
+  if (error) throw new Error((await motivoDelFallo(error)) ?? 'No se pudieron cargar las cuentas sueltas')
+  if (!data || data.error) throw new Error(data?.error ?? 'No se pudieron cargar las cuentas sueltas')
+
+  return data.cuentas ?? []
+}
+
+/** Borra una cuenta de Auth sin perfil. La función rechaza las que sí lo tienen. */
+export async function borrarCuentaHuerfana(userId: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke<{ error?: string; ok?: boolean }>('crear-cuenta', {
+    body: { accion: 'borrar', user_id: userId },
+  })
+
+  if (error) throw new Error((await motivoDelFallo(error)) ?? 'No se pudo borrar la cuenta suelta')
+  if (!data || data.error || data.ok !== true) {
+    throw new Error(data?.error ?? 'No se pudo borrar la cuenta suelta')
+  }
+}
+
 /**
  * Crea la cuenta de Supabase Auth del personal, en la Edge Function
  * `crear-cuenta` (`service_role`).
@@ -241,9 +367,15 @@ export async function listClinicas(): Promise<ClinicaConDetalle[]> {
   const usuariosPorClinica = agruparPorClinica(personal)
   const portalPorClinica = agruparPorClinica(delPortal)
 
-  return filas.map((clinica) => {
+  // Una clínica con un `plan_id` inválido se descarta, no revienta la lista:
+  // esto era un `throw`, y una sola fila mala dejaba el panel de plataforma
+  // entero en blanco con un mensaje que hablaba de planes.
+  return filas.flatMap((clinica) => {
     const plan = mapaPlanes.get(clinica.plan_id)
-    if (!plan) throw new Error(`La clínica ${clinica.nombre} no tiene un plan válido asignado`)
+    if (!plan) {
+      console.error(`listClinicas: la clínica ${clinica.nombre} (${clinica.id}) no tiene un plan válido asignado`)
+      return []
+    }
 
     const limites: LimitesClinica = {
       plan,
@@ -256,16 +388,18 @@ export async function listClinicas(): Promise<ClinicaConDetalle[]> {
       },
     }
 
-    return {
-      ...clinica,
-      plan_nombre: plan.nombre,
-      precio_lista_usd: plan.precio_mensual_usd,
-      limites,
-      total_pacientes: porPacientes.get(clinica.id) ?? 0,
-      total_citas: porCitas.get(clinica.id) ?? 0,
-      usuarios: usuariosPorClinica.get(clinica.id) ?? [],
-      usuarios_portal: portalPorClinica.get(clinica.id) ?? [],
-    } as ClinicaConDetalle
+    return [
+      {
+        ...clinica,
+        plan_nombre: plan.nombre,
+        precio_lista_usd: plan.precio_mensual_usd,
+        limites,
+        total_pacientes: porPacientes.get(clinica.id) ?? 0,
+        total_citas: porCitas.get(clinica.id) ?? 0,
+        usuarios: usuariosPorClinica.get(clinica.id) ?? [],
+        usuarios_portal: portalPorClinica.get(clinica.id) ?? [],
+      } as ClinicaConDetalle,
+    ]
   })
 }
 

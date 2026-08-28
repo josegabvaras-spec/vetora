@@ -1,29 +1,38 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, PawPrint, CalendarCheck, Store, User, Menu, X, LogIn, LayoutDashboard, ChevronRight } from 'lucide-react'
+import { Home, LayoutGrid, Tag, Info, MessageCircle, Menu, X, LogIn, LayoutDashboard, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useBloqueoScroll } from '../../hooks/useBloqueoScroll'
+import { FuncionalidadesModal } from './FuncionalidadesModal'
+import { PlanesModal } from './PlanesModal'
+import { AcercaDeModal } from './AcercaDeModal'
+import { ContactoModal } from './ContactoModal'
 import { clsx } from 'clsx'
 
-interface NavItem {
-  to: string
-  label: string
-  icon: typeof Home
-  activeOnlyExact?: boolean
-}
+type ModalMenu = 'funcionalidades' | 'planes' | 'acerca' | 'contacto'
+
+type NavItem =
+  | { kind: 'link'; to: string; label: string; icon: typeof Home; activeOnlyExact?: boolean }
+  | { kind: 'modal'; modal: ModalMenu; label: string; icon: typeof Home }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/', label: 'Inicio', icon: Home, activeOnlyExact: true },
-  { to: '/portal-cliente/mascotas', label: 'Mascotas', icon: PawPrint },
-  { to: '/portal-cliente/citas', label: 'Citas', icon: CalendarCheck },
-  { to: '/portal-cliente/tienda', label: 'Tienda', icon: Store },
-  { to: '/portal-cliente/perfil', label: 'Perfil', icon: User },
+  { kind: 'link', to: '/', label: 'Inicio', icon: Home, activeOnlyExact: true },
+  { kind: 'modal', modal: 'funcionalidades', label: 'Funcionalidades', icon: LayoutGrid },
+  { kind: 'modal', modal: 'planes', label: 'Planes', icon: Tag },
+  { kind: 'modal', modal: 'acerca', label: 'Acerca de Nosotros', icon: Info },
+  { kind: 'modal', modal: 'contacto', label: 'Contáctanos', icon: MessageCircle },
 ]
 
 export function HomeHeader() {
   const { usuario, esPlataforma } = useAuth()
   const location = useLocation()
   const [drawerAbierto, setDrawerAbierto] = useState(false)
+  const [modalAbierto, setModalAbierto] = useState<ModalMenu | null>(null)
+  // Cada modal (Funcionalidades/Planes/Acerca/Contacto) ya bloquea el scroll
+  // por su cuenta mientras vive montado — igual que `HeroSection` con su
+  // propio `PlanesModal`. Bloquearlo también aquí duplicaba el hook: al
+  // cerrar, la limpieza del modal hijo pisaba la del header y el scroll
+  // quedaba trabado para siempre.
   useBloqueoScroll(drawerAbierto)
 
   // Determinar la ruta de panel según el rol para usuarios autenticados
@@ -50,22 +59,20 @@ export function HomeHeader() {
 
         {/* Navegación central SOLO visible en Desktop (>= md) */}
         <nav className="hidden md:flex items-center gap-6 lg:gap-10" aria-label="Navegación principal">
-          {NAV_ITEMS.map(({ to, label, icon: Icon, activeOnlyExact }) => {
-            const isActive = activeOnlyExact
-              ? location.pathname === to
-              : location.pathname.startsWith(to)
+          {NAV_ITEMS.map((item) => {
+            const { label, icon: Icon } = item
+            const isActive =
+              item.kind === 'link' &&
+              (item.activeOnlyExact ? location.pathname === item.to : location.pathname.startsWith(item.to))
 
-            return (
-              <Link
-                key={to}
-                to={to}
-                className={clsx(
-                  'flex flex-col items-center gap-1 group py-1 transition-all duration-200',
-                  isActive
-                    ? 'text-slate-900 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 font-medium'
-                )}
-              >
+            const claseBase = clsx(
+              'flex flex-col items-center gap-1 group py-1 transition-all duration-200 cursor-pointer',
+              isActive
+                ? 'text-slate-900 font-bold'
+                : 'text-slate-600 hover:text-slate-900 font-medium'
+            )
+            const contenido = (
+              <>
                 <Icon
                   size={24}
                   strokeWidth={isActive ? 2.2 : 1.8}
@@ -78,7 +85,22 @@ export function HomeHeader() {
                 {isActive && (
                   <span className="h-1 w-5 rounded-full bg-slate-800 -mb-1 mt-0.5" />
                 )}
+              </>
+            )
+
+            return item.kind === 'link' ? (
+              <Link key={item.to} to={item.to} className={claseBase}>
+                {contenido}
               </Link>
+            ) : (
+              <button
+                key={item.modal}
+                type="button"
+                onClick={() => setModalAbierto(item.modal)}
+                className={claseBase}
+              >
+                {contenido}
+              </button>
             )
           })}
         </nav>
@@ -148,29 +170,44 @@ export function HomeHeader() {
               </div>
 
               <nav className="mt-6 space-y-1.5" aria-label="Menú móvil">
-                {NAV_ITEMS.map(({ to, label, icon: Icon, activeOnlyExact }) => {
-                  const isActive = activeOnlyExact
-                    ? location.pathname === to
-                    : location.pathname.startsWith(to)
+                {NAV_ITEMS.map((item) => {
+                  const { label, icon: Icon } = item
+                  const isActive =
+                    item.kind === 'link' &&
+                    (item.activeOnlyExact ? location.pathname === item.to : location.pathname.startsWith(item.to))
 
-                  return (
-                    <Link
-                      key={to}
-                      to={to}
-                      onClick={() => setDrawerAbierto(false)}
-                      className={clsx(
-                        'flex items-center justify-between p-3.5 rounded-2xl transition-all font-medium text-sm',
-                        isActive
-                          ? 'bg-slate-900 text-white shadow-md'
-                          : 'text-slate-700 hover:bg-slate-100'
-                      )}
-                    >
+                  const claseBase = clsx(
+                    'flex items-center justify-between p-3.5 rounded-2xl transition-all font-medium text-sm w-full text-left',
+                    isActive
+                      ? 'bg-slate-900 text-white shadow-md'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  )
+                  const contenido = (
+                    <>
                       <div className="flex items-center gap-3">
                         <Icon size={20} className={isActive ? 'text-white' : 'text-slate-500'} />
                         <span className="font-semibold">{label}</span>
                       </div>
                       <ChevronRight size={18} className={isActive ? 'text-white/60' : 'text-slate-400'} />
+                    </>
+                  )
+
+                  return item.kind === 'link' ? (
+                    <Link key={item.to} to={item.to} onClick={() => setDrawerAbierto(false)} className={claseBase}>
+                      {contenido}
                     </Link>
+                  ) : (
+                    <button
+                      key={item.modal}
+                      type="button"
+                      onClick={() => {
+                        setDrawerAbierto(false)
+                        setModalAbierto(item.modal)
+                      }}
+                      className={claseBase}
+                    >
+                      {contenido}
+                    </button>
                   )
                 })}
               </nav>
@@ -200,6 +237,15 @@ export function HomeHeader() {
           </div>
         </div>
       )}
+
+      {modalAbierto === 'funcionalidades' && (
+        <FuncionalidadesModal onClose={() => setModalAbierto(null)} onVerPlanes={() => setModalAbierto('planes')} />
+      )}
+      {modalAbierto === 'planes' && <PlanesModal onClose={() => setModalAbierto(null)} />}
+      {modalAbierto === 'acerca' && (
+        <AcercaDeModal onClose={() => setModalAbierto(null)} onVerPlanes={() => setModalAbierto('planes')} />
+      )}
+      {modalAbierto === 'contacto' && <ContactoModal onClose={() => setModalAbierto(null)} />}
     </header>
   )
 }

@@ -94,11 +94,28 @@ sustituye** la prueba en vivo con dos sesiones (ver abajo).
   carnet» a «sé tu carnet y tu teléfono», que para un MVP es proporcionado, pero la solución correcta
   es que **la clínica apruebe la vinculación**. Queda como el paso siguiente, no improvisado aquí.
 - **El paso siguiente, ya construido:** la aprobación existe en la sección «Clientes» de la clínica
-  (`src/pages/ClientesPage.tsx`), y cubre el caso que el automático no puede resolver: la ficha
-  **sin CI anotado** —el campo es opcional para recepción—, donde lo único en común con quien se
-  registra es el WhatsApp. Ahí se sugiere la coincidencia y la confirma una persona que conoce al
-  cliente; vincular con el WhatsApp solo, automáticamente, sería reabrir este mismo hallazgo con
-  otro dato. Con CI **y** WhatsApp presentes el vínculo sigue siendo automático, sin aprobación.
+  (`src/pages/ClientesPage.tsx`). Sugiere la coincidencia y la confirma una persona que conoce al
+  cliente, y hoy cubre lo que el automático descarta a propósito (ver la revisión de abajo).
+- **Revisión posterior — el nivel 2, y por qué no reabre esto:** la exigencia de CI **y** WhatsApp
+  dejaba fuera el caso más común, no el más peligroso: `clientes.ci` es nullable y el campo era
+  opcional para recepción, así que una ficha sin CI **no podía casar jamás** (`cedula('')` no
+  coincide con nada) y el dueño se quedaba mirando un portal vacío sin saber por qué. El
+  emparejamiento pasa a tener dos niveles:
+  - **Nivel 1 — CI + WhatsApp.** Igual que antes.
+  - **Nivel 2 — WhatsApp solo, con guarda de unicidad.** Solo si el nivel 1 no encontró nada, solo
+    sobre fichas **sin CI anotado**, y solo si hay **exactamente una** candidata en esa clínica con
+    ese número. Con dos o más no se vincula ninguna: se manda a la sugerencia manual.
+
+  No es el agujero original con otro dato, y la diferencia es la guarda: para quedarse con una ficha
+  ajena ya no basta con saber un número, hacen falta las cuatro cosas a la vez —saber el número,
+  acertar la clínica, que esa ficha no tenga CI anotado, y que no exista ninguna otra con ese mismo
+  número—. Además, una ficha cuyo WhatsApp coincide pero cuyo CI anotado **no** coincide queda
+  descartada del nivel 2: un CI que no cuadra es una señal activa en contra, no un dato ausente.
+- **Y la causa raíz, cerrada aparte:** el CI pasa a ser **obligatorio** al dar de alta un paciente
+  (`FormularioPaciente.tsx`), así que las fichas nuevas caen siempre en el nivel 1. El nivel 2 es
+  para el histórico que ya se cargó sin CI.
+- **El fallo dejó de ser mudo:** `registro-portal` devuelve `motivo`, y `/registro-cliente` ya no
+  navega a un portal vacío cuando no vinculó — explica qué pasó y a quién pedírselo.
 - **Cómo confirmar:** registrarse con el CI correcto y un WhatsApp distinto **no** debe vincular la
   ficha existente; con los dos correctos, sí — incluso si el CI guardado por el personal lleva
   espacios, guiones o el complemento de departamento y el dueño lo teclea sin ellos.

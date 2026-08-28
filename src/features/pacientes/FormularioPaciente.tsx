@@ -69,18 +69,21 @@ export function FormularioPaciente({
               required
             />
           </FieldGroup>
-          {/* Opcional a propósito (no siempre traen el carnet), pero es lo que
-              permite que el dueño vincule su cuenta del portal al registrarse:
-              sin CI anotado aquí, ese vínculo no puede ocurrir solo y hay que
+          {/* Obligatorio: era opcional, y una ficha sin CI no podía casar nunca
+              con la cuenta que el dueño crea en el portal —`cedula('')` no
+              coincide con nada—, que resultó ser la causa dominante de los
+              registros que no vinculaban solos. Con el CI anotado, el vínculo
+              ocurre solo al registrarse; sin él dependía del WhatsApp o de
               unirlo a mano desde «Clientes». */}
           <FieldGroup label="Carnet de identidad">
             <Input
+              required
               value={datos.clienteCi}
               onChange={(e) => set('clienteCi')(e.target.value)}
               placeholder="Solo el número"
             />
             <p className="mt-1 text-xs text-slate-500">
-              Con esto el dueño puede vincular su cuenta del portal y ver el historial de su mascota.
+              Es lo que permite al dueño vincular su cuenta del portal y ver el historial de su mascota.
             </p>
           </FieldGroup>
         </div>

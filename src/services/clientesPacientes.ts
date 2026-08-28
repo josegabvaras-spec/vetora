@@ -10,7 +10,7 @@ import { consultaOrigenDe, origenesDe } from './citas'
 import { detalleDeInternacion, internacionAbiertaDe } from './internacion'
 import { diasDeEstadia } from '../lib/internacion'
 import { COLUMNAS_PACIENTE_SIN_FOTO } from '../lib/paciente'
-import { movil } from '../lib/identidad'
+import { cedula, movil } from '../lib/identidad'
 import { actualizarBorradorHistorial, iniciarConsultaLibre, type CamposEditablesHistorial } from './historial'
 import { clinicDayIso, formatClinicDate, fromClinicTime } from '../lib/datetime'
 
@@ -573,33 +573,43 @@ export async function listClientesDeClinica(clinicaId: string): Promise<ClienteC
 export interface SugerenciaVinculo {
   /** La ficha vacía que creó `registro-portal` al no poder vincular. */
   cuenta: ClienteConEstado
-  /** Ficha con mascotas, sin cuenta, cuyo WhatsApp coincide. */
+  /** Ficha con mascotas, sin cuenta, cuyo CI o WhatsApp coincide. */
   posible: ClienteConEstado
+  /** Por qué se sugiere, para que quien aprueba sepa qué está confirmando. */
+  coincide: 'ci' | 'whatsapp'
 }
 
 /**
  * Empareja cuentas del portal sueltas con la ficha que probablemente les
  * corresponda, **sin aplicar nada**: decide una persona de la clínica.
  *
- * Se sugiere por WhatsApp porque es el dato que ambos lados siempre tienen
- * (obligatorio en los dos formularios), a diferencia del CI, que es opcional
- * para el personal y es justo lo que hace fallar el vínculo automático.
+ * Es la red de seguridad de lo que `registro-portal` no pudo resolver solo.
+ * Esa función ya vincula automáticamente en dos casos —CI + WhatsApp, y
+ * WhatsApp solo cuando la ficha no tiene CI y es la única candidata—, así que
+ * lo que llega aquí es lo que quedó fuera: sobre todo fichas con un CI anotado
+ * que no coincide, y coincidencias ambiguas donde varias fichas comparten el
+ * número. Vincular esas automáticamente sí sería el agujero de H-5; con una
+ * persona de por medio no lo es, porque quien confirma conoce al cliente.
  *
- * Vincular con el WhatsApp SOLO, automáticamente, sería un retroceso de
- * seguridad —bastaría con saber el número de alguien para quedarse con el
- * expediente de sus mascotas, que es el hallazgo H-5 de SEGURIDAD.md—. Con la
- * aprobación de por medio no lo es: quien confirma conoce al cliente. Es la
- * solución que ese mismo hallazgo dejó anotada como la correcta.
+ * Se cruza por los dos datos: por CI cuando ambos lados lo tienen (cubre a
+ * quien cambió de número) y por WhatsApp en el resto. El CI manda, por ser el
+ * más específico.
  */
 export function sugerenciasDeVinculo(clientes: ClienteConEstado[]): SugerenciaVinculo[] {
   const sueltas = clientes.filter((c) => c.usuario_id && c.total_pacientes === 0)
   const conMascotas = clientes.filter((c) => !c.usuario_id && c.total_pacientes > 0)
 
-  return sueltas.flatMap((cuenta) => {
+  return sueltas.flatMap((cuenta): SugerenciaVinculo[] => {
+    const suCi = cedula(cuenta.ci ?? '')
+    if (suCi) {
+      const porCi = conMascotas.find((f) => cedula(f.ci ?? '') === suCi)
+      if (porCi) return [{ cuenta, posible: porCi, coincide: 'ci' }]
+    }
+
     const suMovil = movil(cuenta.whatsapp)
     if (!suMovil) return []
-    const posible = conMascotas.find((f) => movil(f.whatsapp) === suMovil)
-    return posible ? [{ cuenta, posible }] : []
+    const porMovil = conMascotas.find((f) => movil(f.whatsapp) === suMovil)
+    return porMovil ? [{ cuenta, posible: porMovil, coincide: 'whatsapp' }] : []
   })
 }
 

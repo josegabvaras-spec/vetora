@@ -7,8 +7,19 @@ import {
   listClinicasParaRegistro,
   registrarClientePortal,
   type ClinicaParaRegistro,
+  type MotivoVinculo,
 } from '../services/portalCliente'
 import { PASSWORD_MINIMO } from '../services/cuentas'
+
+/** Qué decirle a quien se registró pero cuya ficha no se encontró. */
+const EXPLICACION: Record<MotivoVinculo, string> = {
+  ci_y_whatsapp: '',
+  whatsapp_unico: '',
+  ambiguo:
+    'Encontramos más de una ficha con tu número de WhatsApp, así que por seguridad no elegimos ninguna. Tu clínica puede unirlas en un momento.',
+  sin_coincidencia:
+    'No encontramos ninguna ficha con tu carnet ni con tu WhatsApp en esa clínica. Puede ser que los datos estén anotados de otra forma, o que hayas elegido una clínica distinta a la que atiende a tu mascota.',
+}
 
 export function RegistroClientePage() {
   const navigate = useNavigate()
@@ -25,6 +36,9 @@ export function RegistroClientePage() {
   
   const [error, setError] = useState<string | null>(null)
   const [registrando, setRegistrando] = useState(false)
+  // Solo se rellena cuando la cuenta se creó pero NO se pudo vincular: ese caso
+  // no navega, se explica.
+  const [sinVincular, setSinVincular] = useState<MotivoVinculo | null>(null)
 
   useEffect(() => {
     let montado = true
@@ -54,7 +68,7 @@ export function RegistroClientePage() {
     try {
       // El alta entera ocurre en el servidor: el rol y la clínica no salen de
       // este formulario, y la vinculación por CI tampoco se decide aquí.
-      await registrarClientePortal({
+      const { vinculado, motivo } = await registrarClientePortal({
         clinica_id: form.clinicaId,
         nombre: form.nombre,
         email: form.email,
@@ -63,11 +77,46 @@ export function RegistroClientePage() {
         whatsapp: form.whatsapp,
       })
 
+      // Si no se vinculó, el portal saldría vacío y sin ninguna pista de por
+      // qué. Se para aquí y se explica, con la sesión ya iniciada.
+      if (!vinculado) {
+        setSinVincular(motivo)
+        setRegistrando(false)
+        return
+      }
+
       navigate('/portal-cliente/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ocurrió un error al registrarse.')
       setRegistrando(false)
     }
+  }
+
+  if (sinVincular) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <Card className="relative z-10 w-full max-w-md p-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-slate-900">Tu cuenta ya está lista</h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Pero todavía no encontramos la ficha de tu mascota.
+            </p>
+          </div>
+
+          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm text-amber-900">{EXPLICACION[sinVincular]}</p>
+            <p className="mt-3 text-sm font-semibold text-amber-900">
+              Escribe a tu clínica y pídeles que unan tu cuenta ({form.email}) con la ficha de tu mascota. Lo
+              hacen en un clic desde su sección «Clientes».
+            </p>
+          </div>
+
+          <Button className="mt-6 w-full" onClick={() => navigate('/portal-cliente/dashboard', { replace: true })}>
+            Ir a mi portal
+          </Button>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -92,15 +141,25 @@ export function RegistroClientePage() {
                 <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
             </Select>
+            {/* La lista es de TODA la plataforma (`clinicas_para_registro`), no
+                solo de las del dueño: elegir mal acota la búsqueda al inquilino
+                equivocado y no encuentra nada, en silencio. */}
+            <p className="mt-1 text-xs text-slate-500">
+              Elige exactamente la clínica donde atienden a tu mascota. Si eliges otra, no encontraremos su ficha.
+            </p>
           </FieldGroup>
 
           <FieldGroup label="Carnet de Identidad (CI)">
             <Input
               required
-              placeholder="Para vincular con el registro de la clínica"
+              placeholder="Solo el número, sin el complemento"
               value={form.ci}
               onChange={(e) => setForm(f => ({ ...f, ci: e.target.value }))}
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Usa el mismo carnet y WhatsApp que diste en la clínica: es lo que conecta tu cuenta con la ficha de
+              tu mascota.
+            </p>
           </FieldGroup>
 
           <FieldGroup label="Nombre Completo">

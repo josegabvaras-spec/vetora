@@ -88,8 +88,8 @@ export function ClientesPage() {
               : `${sugerencias.length} cuentas del portal parecen ser de clientes que ya tienes`}
           </p>
           <p className="mt-1 text-xs text-amber-800">
-            Coinciden por WhatsApp. Revisa que sea la misma persona antes de unirlas: al hacerlo, verá el historial
-            y las vacunas de esas mascotas desde su celular.
+            El registro no pudo unirlas solo. Revisa que sea la misma persona antes de hacerlo: al unirlas, verá el
+            historial y las vacunas de esas mascotas desde su celular.
           </p>
 
           <ul className="mt-3 space-y-2">
@@ -108,6 +108,11 @@ export function ClientesPage() {
                   <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-teal-700">
                     <Link2 size={13} /> Sería «{s.posible.nombre}», con {s.posible.total_pacientes} mascota(s)
                   </p>
+                  {/* Qué casó exactamente: no es lo mismo aprobar una
+                      coincidencia de carnet que una de teléfono. */}
+                  <p className="mt-0.5 text-[11px] text-slate-400">
+                    {s.coincide === 'ci' ? 'Coincide el carnet de identidad' : 'Coincide el WhatsApp'}
+                  </p>
                 </div>
                 <Button className="px-3 py-1.5 text-xs" onClick={() => setVinculando(s)}>
                   Vincular
@@ -124,8 +129,9 @@ export function ClientesPage() {
             {sueltasSinSugerencia.length} cuenta(s) del portal sin mascotas
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Se registraron con un WhatsApp que no coincide con ninguna ficha. Si son clientes tuyos, abre la ficha de
-            su mascota y usa «Vincular cuenta del portal» con su correo.
+            Ni su carnet ni su WhatsApp coinciden con ninguna ficha sin dueño. Puede que se registraran eligiendo
+            otra clínica, o con los datos escritos de otra forma. Si son clientes tuyos, abre la ficha de su mascota
+            y usa «Vincular cuenta del portal» con su correo.
           </p>
           <ul className="mt-2 space-y-1 text-xs text-slate-500">
             {sueltasSinSugerencia.map((c) => (

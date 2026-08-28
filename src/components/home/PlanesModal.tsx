@@ -8,7 +8,7 @@ import { useBloqueoScroll } from '../../hooks/useBloqueoScroll'
 import type { Plan } from '../../types/database'
 
 /** Contacto comercial de Vetora — no es el WhatsApp de ninguna clínica. */
-const WHATSAPP_VETORA = '59178215518'
+export const WHATSAPP_VETORA = '59178215518'
 
 /**
  * Los planes de suscripción de Vetora, para quien está evaluando contratar el

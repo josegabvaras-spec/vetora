@@ -27,14 +27,17 @@ export function movil(valor: string): string {
 }
 
 /**
- * Número de cédula, sin el complemento.
+ * Número de cédula, sin el complemento ni prefijos.
  *
- * Se corta en el primer separador ANTES de quedarse con los dígitos: los
- * complementos de un CI reexpedido llevan un dígito ("-1A", "-2A"), así que
- * limitarse a quitar los no-dígitos los concatenaría al número
- * ("1234567-1A" → "12345671", que no casa con "1234567").
+ * Se queda con **la racha de dígitos más larga**. Las dos versiones anteriores
+ * fallaban por lo mismo, cada una por un lado: quedarse con todos los dígitos
+ * concatenaba el complemento de un CI reexpedido ("1234567-1A" → "12345671"),
+ * y cortar por el primer separador se rompía con cualquier prefijo
+ * ("CI 1234567" → "CI" → ""). La racha más larga acierta en los cuatro casos:
+ *
+ *   "1234567-1A" · "1234567 SC" · "1234567SC" · "CI 1234567"  →  "1234567"
  */
 export function cedula(valor: string): string {
-  const base = valor.trim().split(/[\s-]/)[0] ?? ''
-  return base.replace(/\D/g, '')
+  const rachas = valor.match(/\d+/g) ?? []
+  return rachas.sort((a, b) => b.length - a.length)[0] ?? ''
 }
