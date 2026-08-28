@@ -33,13 +33,13 @@ export function HeroSection() {
           </div>
         </div>
 
-        {/* Columna Derecha: Ilustración del Consultorio Familiar */}
-        <div className="lg:col-span-7 flex justify-center lg:justify-end">
-          <div className="relative w-full max-w-2xl rounded-3xl sm:rounded-[2.5rem] overflow-hidden shadow-2xl shadow-sky-900/10 border border-white/60 bg-white/40 backdrop-blur-xs transition-transform duration-500 hover:scale-[1.01]">
+        {/* Columna Derecha: Ilustración del Consultorio Familiar integrada en degradé sin borde */}
+        <div className="lg:col-span-7 flex justify-center lg:justify-end relative">
+          <div className="relative w-full max-w-2xl overflow-hidden consultorio-mask">
             <img
               src="/consultorio.jpg"
               alt="Consulta veterinaria familiar con perro, gato, veterinario y familia"
-              className="w-full h-auto object-cover object-center transform scale-[1.01]"
+              className="w-full h-auto object-cover object-right"
               loading="eager"
             />
           </div>
