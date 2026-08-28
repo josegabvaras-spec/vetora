@@ -4,8 +4,9 @@ import { CommunityCard } from './CommunityCard'
 
 export function CardsSection() {
   return (
-    <section className="relative pt-4 pb-12 sm:pb-16" aria-label="Secciones principales de Vetora">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-stretch">
+    <section className="relative pt-2 pb-6 sm:pt-4 sm:pb-12 md:pb-16" aria-label="Secciones principales de Vetora">
+      {/* Disposición de 3 tarjetas compactas en fila horizontal tanto en mobile como en desktop según la referencia */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 md:gap-6 lg:gap-8 items-stretch">
         {/* Tarjeta 1: Planes de Bienestar */}
         <WellnessCard />
 

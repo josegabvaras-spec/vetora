@@ -7,23 +7,22 @@ export function WellnessCard() {
 
   return (
     <>
-      <div className="clay-card-container group relative bg-[#cbe5ee] p-0 flex flex-col justify-between">
+      <div className="clay-card-container group relative bg-[#cbe5ee] p-0 flex flex-col justify-between rounded-2xl sm:rounded-3xl lg:rounded-[2rem]">
         {/* Imagen 3D completa de la tarjeta de bienestar */}
-        <div className="relative w-full aspect-4/3 sm:aspect-auto overflow-hidden">
+        <div className="relative w-full aspect-[3/4] sm:aspect-[4/3] md:aspect-auto overflow-hidden">
           <img
             src="/tarjeta1.jpg"
             alt="Planes de Bienestar para mascotas"
             className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
           />
 
-          {/* Zonas interactivas sobre los botones reales para accesibilidad y navegación */}
-          <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-5 z-10">
-            {/* Botón interactivo Ver Planes */}
+          {/* Zona interactiva sobre el botón */}
+          <div className="absolute inset-0 flex flex-col justify-end p-2 sm:p-4 z-10">
             <div className="mt-auto flex justify-center">
               <button
                 type="button"
                 onClick={() => setModalAbierto(true)}
-                className="clay-btn w-full max-w-[200px] py-2.5 px-6 text-sm font-bold tracking-wide shadow-md transition-all hover:scale-105"
+                className="clay-btn w-full max-w-[160px] sm:max-w-[200px] py-1.5 sm:py-2.5 px-2 sm:px-4 text-[10px] sm:text-xs md:text-sm font-bold tracking-tight shadow-md transition-all active:scale-95 hover:scale-105"
               >
                 Ver Planes
               </button>
@@ -40,6 +39,7 @@ export function WellnessCard() {
               type="button"
               onClick={() => setModalAbierto(false)}
               className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              aria-label="Cerrar modal"
             >
               <X size={20} />
             </button>
@@ -61,7 +61,7 @@ export function WellnessCard() {
                 <Stethoscope className="text-teal-600 shrink-0 mt-0.5" size={20} />
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">Consultas Médicas Preventivas</h4>
-                  <p className="text-slate-500 text-xs mt-0.5">Revisiones clínicas periódicas, control de peso y diagnóstico temprano.</p>
+                  <p className="text-slate-500 text-xs mt-0.5">Revisiones periódicas, control de peso y diagnóstico temprano.</p>
                 </div>
               </div>
 
@@ -69,7 +69,7 @@ export function WellnessCard() {
                 <Utensils className="text-amber-600 shrink-0 mt-0.5" size={20} />
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">Guía de Nutrición & Vitaminas</h4>
-                  <p className="text-slate-500 text-xs mt-0.5">Planes alimenticios a medida y suplementos avalados por especialistas.</p>
+                  <p className="text-slate-500 text-xs mt-0.5">Planes nutricionales a medida y suplementos avalados por especialistas.</p>
                 </div>
               </div>
 
@@ -77,7 +77,7 @@ export function WellnessCard() {
                 <ShieldCheck className="text-rose-600 shrink-0 mt-0.5" size={20} />
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">Prevención & Vacunación</h4>
-                  <p className="text-slate-500 text-xs mt-0.5">Calendario de vacunas, desparasitación interna y antipulgas al día.</p>
+                  <p className="text-slate-500 text-xs mt-0.5">Calendario de vacunas, desparasitaciones y control veterinario al día.</p>
                 </div>
               </div>
             </div>
