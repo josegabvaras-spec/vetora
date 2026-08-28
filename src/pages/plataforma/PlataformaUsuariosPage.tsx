@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { clsx } from 'clsx'
 import { MessageCircle, Pencil, Search, Trash2 } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
@@ -44,6 +45,7 @@ export function PlataformaUsuariosPage() {
   const [enviandoAcceso, setEnviandoAcceso] = useState<FilaUsuario | null>(null)
   const [borrando, setBorrando] = useState<FilaUsuario | null>(null)
   const [eliminando, setEliminando] = useState(false)
+  const [pestana, setPestana] = useState<'personal' | 'portal'>('personal')
 
   const revisionUsuarios = useSuscripcionTabla('usuarios')
   const sucursales = useTable('sucursales')
@@ -57,8 +59,13 @@ export function PlataformaUsuariosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recargar, revisionUsuarios])
 
+  const esPortal = pestana === 'portal'
   const filas: FilaUsuario[] = clinicas.flatMap((c) =>
-    c.usuarios.map((u) => ({ usuario: u, clinicaId: c.id, clinicaNombre: c.nombre })),
+    (esPortal ? c.usuarios_portal : c.usuarios).map((u) => ({
+      usuario: u,
+      clinicaId: c.id,
+      clinicaNombre: c.nombre,
+    })),
   )
 
   const termino = busqueda.trim().toLowerCase()
@@ -91,9 +98,41 @@ export function PlataformaUsuariosPage() {
       <div>
         <h1 className="font-display text-xl font-bold text-slate-900">Usuarios</h1>
         <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Personal de todas las clínicas, en un solo lugar
+          {esPortal ? 'Dueños de mascota registrados en el portal' : 'Personal de todas las clínicas, en un solo lugar'}
         </p>
       </div>
+
+      {/* Dos mundos distintos, no un filtro: el personal ocupa plaza del plan
+          y se edita; las cuentas del portal ni lo uno ni lo otro. */}
+      <div className="border-b border-slate-200">
+        <nav className="-mb-px flex gap-6" aria-label="Tipo de cuenta">
+          {([
+            ['personal', 'Personal'],
+            ['portal', 'Cuentas del portal'],
+          ] as const).map(([clave, etiqueta]) => (
+            <button
+              key={clave}
+              onClick={() => setPestana(clave)}
+              className={clsx(
+                'cursor-pointer whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors',
+                pestana === clave
+                  ? 'border-teal-500 text-teal-600'
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+              )}
+            >
+              {etiqueta}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {esPortal && (
+        <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+          Son cuentas de dueños de mascota, no personal: no ocupan plaza del plan y no se editan desde aquí. Quien
+          las gestiona es la propia clínica, desde su sección «Clientes» —ahí puede unir una cuenta con la ficha de
+          su mascota si el registro no lo hizo solo.
+        </p>
+      )}
 
       <div className="relative max-w-sm">
         <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -127,12 +166,16 @@ export function PlataformaUsuariosPage() {
                   </Badge>
                 )}
               </div>
-              <p className="text-xs text-slate-500">{ROL_LABEL[u.rol] ?? u.rol}</p>
+              <p className="text-xs text-slate-500">{esPortal ? 'Dueño de mascota' : ROL_LABEL[u.rol] ?? u.rol}</p>
               <p className="font-mono text-[11px] text-slate-400">
                 {u.email} · {u.whatsapp}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            {/* Sin acciones para las cuentas del portal: el desplegable de
+                edición solo tiene roles de personal —convertir a un dueño de
+                mascota en «Administrador» le daría acceso al sistema clínico
+                entero—, y el enlace de acceso es para el alta de personal. */}
+            <div className={clsx('flex items-center gap-2', esPortal && 'hidden')}>
               {u.activo && (
                 <Button
                   variant="secondary"
@@ -173,7 +216,11 @@ export function PlataformaUsuariosPage() {
       {filtradas.length === 0 && (
         <Card className="border border-dashed border-slate-300 py-10 text-center">
           <p className="text-sm text-slate-400">
-            {busqueda ? 'Ningún usuario coincide con la búsqueda.' : 'Todavía no hay usuarios.'}
+            {busqueda
+              ? 'Ningún usuario coincide con la búsqueda.'
+              : esPortal
+                ? 'Todavía nadie se ha registrado en el portal.'
+                : 'Todavía no hay usuarios.'}
           </p>
         </Card>
       )}

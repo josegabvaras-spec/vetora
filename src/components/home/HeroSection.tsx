@@ -1,8 +1,12 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
+import { PlanesModal } from './PlanesModal'
 
 export function HeroSection() {
+  const [planesAbierto, setPlanesAbierto] = useState(false)
+
   return (
+    <>
     <section className="relative pt-3 pb-4 sm:pt-6 sm:pb-8 md:pt-10 md:pb-12">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 lg:gap-12 items-center">
         {/* Columna Izquierda (En Mobile se muestra arriba): Textos y Botón CTA */}
@@ -20,8 +24,9 @@ export function HeroSection() {
 
           {/* Botón CTA "Comenzar Ahora" (Optimizado táctil para mobile) */}
           <div className="pt-1">
-            <Link
-              to="/registro-cliente"
+            <button
+              type="button"
+              onClick={() => setPlanesAbierto(true)}
               className="clay-btn inline-flex items-center justify-center gap-2.5 w-full sm:w-auto max-w-[280px] sm:max-w-none px-7 py-3.5 sm:px-9 sm:py-4 text-base sm:text-lg font-bold tracking-wide shadow-md active:scale-95 transition-all text-center"
             >
               <span>Comenzar Ahora</span>
@@ -29,7 +34,7 @@ export function HeroSection() {
                 size={18}
                 className="transition-transform duration-300 group-hover:translate-x-1"
               />
-            </Link>
+            </button>
           </div>
         </div>
 
@@ -46,5 +51,8 @@ export function HeroSection() {
         </div>
       </div>
     </section>
+
+    {planesAbierto && <PlanesModal onClose={() => setPlanesAbierto(false)} />}
+    </>
   )
 }

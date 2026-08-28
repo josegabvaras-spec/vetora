@@ -69,12 +69,19 @@ export function FormularioPaciente({
               required
             />
           </FieldGroup>
+          {/* Opcional a propósito (no siempre traen el carnet), pero es lo que
+              permite que el dueño vincule su cuenta del portal al registrarse:
+              sin CI anotado aquí, ese vínculo no puede ocurrir solo y hay que
+              unirlo a mano desde «Clientes». */}
           <FieldGroup label="Carnet de identidad">
             <Input
               value={datos.clienteCi}
               onChange={(e) => set('clienteCi')(e.target.value)}
               placeholder="Solo el número"
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Con esto el dueño puede vincular su cuenta del portal y ver el historial de su mascota.
+            </p>
           </FieldGroup>
         </div>
       </Seccion>

@@ -10,6 +10,7 @@ import { consultaOrigenDe, origenesDe } from './citas'
 import { detalleDeInternacion, internacionAbiertaDe } from './internacion'
 import { diasDeEstadia } from '../lib/internacion'
 import { COLUMNAS_PACIENTE_SIN_FOTO } from '../lib/paciente'
+import { movil } from '../lib/identidad'
 import { actualizarBorradorHistorial, iniciarConsultaLibre, type CamposEditablesHistorial } from './historial'
 import { clinicDayIso, formatClinicDate, fromClinicTime } from '../lib/datetime'
 
@@ -505,6 +506,145 @@ export async function vincularCuentaPortal(clienteId: string, clinicaId: string,
     .from('clientes')
     .update({ usuario_id: usuario.id })
     .eq('id', clienteId)
+    .select('id')
+
+  if (errorVinculo) throw new Error(`No se pudo vincular la cuenta: ${errorVinculo.message}`)
+  if (!actualizado || actualizado.length === 0) throw new Error('No tienes permiso para vincular esta ficha')
+}
+
+/** Un dueño de la clínica, con lo que hace falta para gestionarlo desde «Clientes». */
+export interface ClienteConEstado {
+  id: string
+  nombre: string
+  whatsapp: string
+  ci: string | null
+  /** Cuenta del portal vinculada a esta ficha, si la hay. */
+  usuario_id: string | null
+  /** Correo de esa cuenta — lo único que identifica al dueño en el portal. */
+  email: string | null
+  total_pacientes: number
+}
+
+/**
+ * Todos los dueños de la clínica, con su nº de mascotas y si tienen cuenta
+ * del portal.
+ *
+ * Existe porque el sistema no tenía NINGUNA lista de dueños: `/pacientes`
+ * lista mascotas, así que una ficha sin mascotas —justo la que crea
+ * `registro-portal` cuando no logra vincular— era invisible en toda la
+ * aplicación. Sin poder verla, nadie podía arreglarla.
+ */
+export async function listClientesDeClinica(clinicaId: string): Promise<ClienteConEstado[]> {
+  const { data: clientes, error } = await supabase
+    .from('clientes')
+    .select('id, nombre, whatsapp, ci, usuario_id')
+    .eq('clinica_id', clinicaId)
+    .order('nombre')
+
+  if (error) throw new Error(`No se pudieron cargar los clientes: ${error.message}`)
+  const filas = (clientes ?? []) as ClienteConEstado[]
+  if (filas.length === 0) return []
+
+  // Dos consultas más, no una por fila: el conteo de mascotas se agrupa en
+  // memoria y los correos salen de un solo `in`.
+  const [{ data: pacientes }, { data: cuentas }] = await Promise.all([
+    supabase.from('pacientes').select('cliente_id').eq('clinica_id', clinicaId),
+    supabase
+      .from('usuarios')
+      .select('id, email')
+      .in('id', filas.map((c) => c.usuario_id).filter((id): id is string => Boolean(id))),
+  ])
+
+  const porCliente = new Map<string, number>()
+  for (const p of pacientes ?? []) {
+    const id = (p as { cliente_id: string }).cliente_id
+    porCliente.set(id, (porCliente.get(id) ?? 0) + 1)
+  }
+  const correos = new Map((cuentas ?? []).map((u) => [u.id as string, u.email as string]))
+
+  return filas.map((c) => ({
+    ...c,
+    email: c.usuario_id ? correos.get(c.usuario_id) ?? null : null,
+    total_pacientes: porCliente.get(c.id) ?? 0,
+  }))
+}
+
+/** Una cuenta del portal que quedó suelta, y la ficha con la que probablemente sea. */
+export interface SugerenciaVinculo {
+  /** La ficha vacía que creó `registro-portal` al no poder vincular. */
+  cuenta: ClienteConEstado
+  /** Ficha con mascotas, sin cuenta, cuyo WhatsApp coincide. */
+  posible: ClienteConEstado
+}
+
+/**
+ * Empareja cuentas del portal sueltas con la ficha que probablemente les
+ * corresponda, **sin aplicar nada**: decide una persona de la clínica.
+ *
+ * Se sugiere por WhatsApp porque es el dato que ambos lados siempre tienen
+ * (obligatorio en los dos formularios), a diferencia del CI, que es opcional
+ * para el personal y es justo lo que hace fallar el vínculo automático.
+ *
+ * Vincular con el WhatsApp SOLO, automáticamente, sería un retroceso de
+ * seguridad —bastaría con saber el número de alguien para quedarse con el
+ * expediente de sus mascotas, que es el hallazgo H-5 de SEGURIDAD.md—. Con la
+ * aprobación de por medio no lo es: quien confirma conoce al cliente. Es la
+ * solución que ese mismo hallazgo dejó anotada como la correcta.
+ */
+export function sugerenciasDeVinculo(clientes: ClienteConEstado[]): SugerenciaVinculo[] {
+  const sueltas = clientes.filter((c) => c.usuario_id && c.total_pacientes === 0)
+  const conMascotas = clientes.filter((c) => !c.usuario_id && c.total_pacientes > 0)
+
+  return sueltas.flatMap((cuenta) => {
+    const suMovil = movil(cuenta.whatsapp)
+    if (!suMovil) return []
+    const posible = conMascotas.find((f) => movil(f.whatsapp) === suMovil)
+    return posible ? [{ cuenta, posible }] : []
+  })
+}
+
+/**
+ * Une una cuenta del portal con la ficha que tiene las mascotas, por ids.
+ *
+ * Misma operación que `vincularCuentaPortal` —y con las mismas comprobaciones
+ * de seguridad— pero partiendo de dos fichas que ya se tienen a la vista, en
+ * vez de un correo tecleado a ciegas. Las dos conviven a propósito: esta se
+ * usa desde «Clientes», donde la sugerencia ya está delante; la otra desde la
+ * ficha del paciente, donde solo se sabe el correo.
+ */
+export async function vincularPorIds(clienteConMascotasId: string, clienteDelPortalId: string): Promise<void> {
+  if (clienteConMascotasId === clienteDelPortalId) throw new Error('Es la misma ficha')
+
+  const { data: portal, error: errorPortal } = await supabase
+    .from('clientes')
+    .select('id, usuario_id')
+    .eq('id', clienteDelPortalId)
+    .maybeSingle()
+
+  if (errorPortal) throw new Error(`No se pudo leer la cuenta: ${errorPortal.message}`)
+  if (!portal?.usuario_id) throw new Error('Esa ficha ya no tiene una cuenta del portal')
+
+  // La ficha del portal debe estar vacía: si tiene mascotas propias no es el
+  // duplicado que se espera, y fusionarla borraría un registro real.
+  const { count, error: errorPacientes } = await supabase
+    .from('pacientes')
+    .select('id', { count: 'exact', head: true })
+    .eq('cliente_id', clienteDelPortalId)
+
+  if (errorPacientes) throw new Error(`No se pudo comprobar la ficha: ${errorPacientes.message}`)
+  if (count && count > 0) {
+    throw new Error('Esa cuenta ya tiene sus propias mascotas registradas: no se puede unir automáticamente')
+  }
+
+  // Soltar antes de tomar: el índice único parcial `clientes_por_usuario`
+  // (0004) no deja que dos fichas compartan la misma cuenta a la vez.
+  const { error: errorBorrado } = await supabase.from('clientes').delete().eq('id', clienteDelPortalId)
+  if (errorBorrado) throw new Error(`No se pudo soltar la ficha del portal: ${errorBorrado.message}`)
+
+  const { data: actualizado, error: errorVinculo } = await supabase
+    .from('clientes')
+    .update({ usuario_id: portal.usuario_id })
+    .eq('id', clienteConMascotasId)
     .select('id')
 
   if (errorVinculo) throw new Error(`No se pudo vincular la cuenta: ${errorVinculo.message}`)

@@ -139,18 +139,23 @@ async function detalleDeClinica(clinica: Clinica): Promise<ClinicaConDetalle> {
     .select('*', { count: 'exact', head: true })
     .eq('clinica_id', clinica.id)
 
-  // Solo PERSONAL: las cuentas del portal (`rol = 'cliente'`) son dueños de
-  // mascota, no ocupan plaza del plan —igual que en `limitesDe`— y se
-  // gestionan desde las pantallas de la propia clínica, no desde aquí. Sin
-  // este filtro se colaban en la lista de usuarios del panel de plataforma:
-  // el contador de la cabecera no cuadraba con las filas, y al abrir una para
-  // editarla su rol no existía en el desplegable, que caía en «Administrador».
-  const { data: usuarios } = await supabase
+  // Se traen todas y se separan aquí, en DOS campos distintos.
+  //
+  // El personal y las cuentas del portal (`rol = 'cliente'`, dueños de
+  // mascota) no se mezclan: solo el personal ocupa plaza del plan —igual que
+  // en `limitesDe`— y solo el personal tiene un rol válido en el desplegable
+  // de edición. Mezclarlos hacía que el contador de la cabecera no cuadrara
+  // con las filas y que al editar un dueño su rol cayera en «Administrador».
+  //
+  // Pero tampoco se descartan: el superadmin necesita poder ver que alguien
+  // se registró en el portal, que era el otro lado del mismo problema.
+  const { data: todos } = await supabase
     .from('usuarios')
     .select('*')
     .eq('clinica_id', clinica.id)
-    .neq('rol', 'cliente')
     .order('nombre')
+
+  const filas = (todos ?? []) as Usuario[]
 
   return {
     ...clinica,
@@ -159,7 +164,8 @@ async function detalleDeClinica(clinica: Clinica): Promise<ClinicaConDetalle> {
     limites,
     total_pacientes: pacientesCount ?? 0,
     total_citas: citasCount ?? 0,
-    usuarios: (usuarios ?? []) as Usuario[],
+    usuarios: filas.filter((u) => u.rol !== 'cliente'),
+    usuarios_portal: filas.filter((u) => u.rol === 'cliente'),
   }
 }
 
@@ -193,12 +199,9 @@ export async function listClinicas(): Promise<ClinicaConDetalle[]> {
     await Promise.all([
       supabase.from('planes').select('*').in('id', [...new Set(filas.map((c) => c.plan_id))]),
       supabase.from('sucursales').select('clinica_id'),
-      // Solo PERSONAL, igual que en `detalleDeClinica`: las cuentas del portal
-      // (`rol = 'cliente'`) son dueños de mascota. De aquí salen tanto el
-      // contador de plazas del plan como la lista que pinta el panel, así que
-      // se filtra una sola vez, en el origen: filtrar solo el contador dejaba
-      // la cabecera «Usuarios (n/m)» sin cuadrar con las filas de abajo.
-      supabase.from('usuarios').select('*').neq('rol', 'cliente').order('nombre'),
+      // Todas, y se separan abajo en personal y cuentas del portal — igual
+      // que en `detalleDeClinica`, que es su versión para una sola clínica.
+      supabase.from('usuarios').select('*').order('nombre'),
       supabase.from('pacientes').select('clinica_id'),
       supabase.from('citas').select('clinica_id'),
     ])
@@ -214,19 +217,29 @@ export async function listClinicas(): Promise<ClinicaConDetalle[]> {
 
   const mapaPlanes = new Map((planes ?? []).map((x: any) => [x.id, x]))
   const porSucursales = contarPor(sucursales as any[])
-  // Ya vienen sin las cuentas del portal (ver la consulta de arriba), que no
-  // ocupan plaza del plan — igual que en `limitesDe`.
-  const porUsuarios = contarPor(usuarios as any[])
+
+  // Personal y cuentas del portal, separados: solo el personal ocupa plaza del
+  // plan (igual que en `limitesDe`) y solo el personal se edita con el
+  // desplegable de roles. Ver el comentario largo en `detalleDeClinica`.
+  const personal = ((usuarios ?? []) as Usuario[]).filter((u) => u.rol !== 'cliente')
+  const delPortal = ((usuarios ?? []) as Usuario[]).filter((u) => u.rol === 'cliente')
+
+  const porUsuarios = contarPor(personal as any[])
   const porPacientes = contarPor(pacientes as any[])
   const porCitas = contarPor(citas as any[])
 
-  const usuariosPorClinica = new Map<string, Usuario[]>()
-  for (const u of (usuarios ?? []) as Usuario[]) {
-    if (!u.clinica_id) continue
-    const acumulado = usuariosPorClinica.get(u.clinica_id) ?? []
-    acumulado.push(u)
-    usuariosPorClinica.set(u.clinica_id, acumulado)
+  const agruparPorClinica = (lista: Usuario[]): Map<string, Usuario[]> => {
+    const mapa = new Map<string, Usuario[]>()
+    for (const u of lista) {
+      if (!u.clinica_id) continue
+      const acumulado = mapa.get(u.clinica_id) ?? []
+      acumulado.push(u)
+      mapa.set(u.clinica_id, acumulado)
+    }
+    return mapa
   }
+  const usuariosPorClinica = agruparPorClinica(personal)
+  const portalPorClinica = agruparPorClinica(delPortal)
 
   return filas.map((clinica) => {
     const plan = mapaPlanes.get(clinica.plan_id)
@@ -251,6 +264,7 @@ export async function listClinicas(): Promise<ClinicaConDetalle[]> {
       total_pacientes: porPacientes.get(clinica.id) ?? 0,
       total_citas: porCitas.get(clinica.id) ?? 0,
       usuarios: usuariosPorClinica.get(clinica.id) ?? [],
+      usuarios_portal: portalPorClinica.get(clinica.id) ?? [],
     } as ClinicaConDetalle
   })
 }

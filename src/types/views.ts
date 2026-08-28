@@ -43,7 +43,17 @@ export interface ClinicaConDetalle extends Clinica {
   limites: LimitesClinica
   total_pacientes: number
   total_citas: number
+  /** Solo PERSONAL. Las cuentas del portal van aparte, ver `usuarios_portal`. */
   usuarios: Usuario[]
+  /**
+   * Cuentas del portal (`rol = 'cliente'`) de esta clínica.
+   *
+   * En un campo propio y no mezcladas con `usuarios`: no ocupan plaza del
+   * plan, no se editan con el desplegable de roles del personal (no tienen
+   * uno válido ahí), y mezclarlas fue justo lo que hizo que el panel enseñara
+   * «Administrador» en el rol de un dueño de mascota.
+   */
+  usuarios_portal: Usuario[]
 }
 
 export interface ResumenPlataforma {

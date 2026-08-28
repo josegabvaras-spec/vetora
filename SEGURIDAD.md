@@ -93,6 +93,12 @@ sustituye** la prueba en vivo con dos sesiones (ver abajo).
 - **Honestidad sobre el alcance:** esto **no es prueba de identidad**. Sube el listón de «sé tu
   carnet» a «sé tu carnet y tu teléfono», que para un MVP es proporcionado, pero la solución correcta
   es que **la clínica apruebe la vinculación**. Queda como el paso siguiente, no improvisado aquí.
+- **El paso siguiente, ya construido:** la aprobación existe en la sección «Clientes» de la clínica
+  (`src/pages/ClientesPage.tsx`), y cubre el caso que el automático no puede resolver: la ficha
+  **sin CI anotado** —el campo es opcional para recepción—, donde lo único en común con quien se
+  registra es el WhatsApp. Ahí se sugiere la coincidencia y la confirma una persona que conoce al
+  cliente; vincular con el WhatsApp solo, automáticamente, sería reabrir este mismo hallazgo con
+  otro dato. Con CI **y** WhatsApp presentes el vínculo sigue siendo automático, sin aprobación.
 - **Cómo confirmar:** registrarse con el CI correcto y un WhatsApp distinto **no** debe vincular la
   ficha existente; con los dos correctos, sí — incluso si el CI guardado por el personal lleva
   espacios, guiones o el complemento de departamento y el dueño lo teclea sin ellos.

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { MessageSquare, BookOpen, Calendar, X } from 'lucide-react'
+import { useBloqueoScroll } from '../../hooks/useBloqueoScroll'
 
 export function CommunityCard() {
   const [modalContenido, setModalContenido] = useState<string | null>(null)
+  useBloqueoScroll(modalContenido !== null)
 
   return (
     <>

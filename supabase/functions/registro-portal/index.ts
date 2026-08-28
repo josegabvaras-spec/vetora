@@ -56,15 +56,23 @@ function movil(valor: string): string {
 }
 
 /**
+ * Número de cédula, sin el complemento.
+ *
  * El CI boliviano se escribe de mil formas: con espacios, guiones, o el
- * complemento de departamento pegado ("1234567 SC", "1234567-1A"). Lo único
- * que de verdad identifica a la persona es la parte numérica — mismo
- * criterio que `movil()` con el WhatsApp. Sin esto, el CI que tecleó el
- * personal casi nunca coincidía carácter por carácter con el que teclea
- * después el dueño, y el vínculo automático fallaba en silencio.
+ * complemento pegado ("1234567 SC", "1234567-1A", "1234567SC"). Lo único que
+ * de verdad identifica a la persona es el número base — mismo criterio que
+ * `movil()` con el WhatsApp.
+ *
+ * Se corta en el primer separador ANTES de quedarse con los dígitos, y esa
+ * es la diferencia con la primera versión: los complementos de un CI
+ * reexpedido llevan un dígito ("-1A", "-2A"), así que limitarse a `\D` los
+ * concatenaba al número — "1234567-1A" daba "12345671", que no coincide con
+ * el "1234567" que teclea el dueño. Sin separador no hay nada que cortar y
+ * los dígitos ya son solo los del número ("1234567SC" → "1234567").
  */
-function soloDigitos(valor: string): string {
-  return valor.replace(/\D/g, '')
+function cedula(valor: string): string {
+  const base = valor.trim().split(/[\s-]/)[0] ?? ''
+  return base.replace(/\D/g, '')
 }
 
 Deno.serve(async (peticion) => {
@@ -160,16 +168,20 @@ Deno.serve(async (peticion) => {
     // identidad —los dos son datos que un conocido podría saber—, pero sube el
     // listón de «sé tu carnet» a «sé tu carnet y tu teléfono».
     //
-    // Si no casan, NO se vincula: se cae al camino de crear una ficha nueva, que
-    // es seguro. La clínica las une después desde su panel (`FichaPacientePage`,
-    // «Vincular cuenta del portal»). Perder el automático es barato; entregar un
-    // expediente ajeno, no.
+    // Cuando los dos coinciden se vincula SOLO, aquí mismo: no hay nada que
+    // aprobar. La aprobación de la clínica existe únicamente para el caso
+    // degradado —la ficha sin CI anotado, que es opcional para recepción—,
+    // donde lo único en común es el WhatsApp y vincular con eso solo sería
+    // volver al agujero de H-5 con otro dato. Ese camino vive en la sección
+    // «Clientes» de la clínica (`ClientesPage`), que sugiere la coincidencia
+    // por WhatsApp para que una persona la confirme; y desde la ficha del
+    // paciente con «Vincular cuenta del portal», si se sabe el correo.
     //
-    // Lo correcto de verdad sería que la clínica apruebe la vinculación. Está
-    // anotado en SEGURIDAD.md como el paso siguiente.
+    // Esa aprobación es lo que SEGURIDAD.md (H-5) dejó anotado como «el paso
+    // siguiente»: ya está construida.
     let clienteVinculado = false
     const movilQueTeclea = movil(whatsapp)
-    const ciQueTeclea = soloDigitos(ci)
+    const ciQueTeclea = cedula(ci)
 
     if (ciQueTeclea && movilQueTeclea) {
       // La comparación se hace aquí y no en el `where` porque los formatos
@@ -183,8 +195,13 @@ Deno.serve(async (peticion) => {
         .eq('clinica_id', clinica.id)
         .is('usuario_id', null)
 
+      // `cedula('')` da '' y `ciQueTeclea` nunca lo es (lo garantiza el `if`),
+      // así que una ficha sin CI anotado no casa con nadie — es correcto, pero
+      // es el motivo por el que muchos registros no vinculan solos: el CI es
+      // opcional para el personal. Ese caso se resuelve a mano desde
+      // «Clientes», con la sugerencia por WhatsApp.
       const ficha = (fichas ?? []).find(
-        (f) => soloDigitos(f.ci ?? '') === ciQueTeclea && movil(f.whatsapp ?? '') === movilQueTeclea,
+        (f) => cedula(f.ci ?? '') === ciQueTeclea && movil(f.whatsapp ?? '') === movilQueTeclea,
       )
 
       if (ficha) {

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, Bot, ShoppingBag, X } from 'lucide-react'
+import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, Bot, ShoppingBag, Contact, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { PanelLateral } from './PanelLateral'
 import type { ModuloVetora, Rol } from '../../types/database'
@@ -38,6 +38,10 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
   // receta, y no tiene la ruta (ver App.tsx). Ve el paciente/dueño porque ya
   // viene con cada cita.
   { to: '/pacientes', label: 'Pacientes', icon: PawPrint, roles: ['admin', 'veterinario', 'recepcion'] },
+  // Los dueños. `/pacientes` lista mascotas, así que una ficha sin mascotas
+  // —la que queda cuando el registro del portal no encuentra a su dueño— no
+  // se veía en ninguna pantalla hasta que existió esta.
+  { to: '/clientes', label: 'Clientes', icon: Contact, roles: ['admin', 'veterinario', 'recepcion'] },
   {
     to: '/asistente',
     label: 'Asistente',

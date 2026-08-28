@@ -8,6 +8,7 @@ import { RecuperarPasswordPage } from './pages/RecuperarPasswordPage'
 import { NuevaPasswordPage } from './pages/NuevaPasswordPage'
 import { AgendaPage } from './pages/AgendaPage'
 import { PacientesListPage } from './pages/PacientesListPage'
+import { ClientesPage } from './pages/ClientesPage'
 import { FichaPacientePage } from './pages/FichaPacientePage'
 import { InventarioPage } from './pages/InventarioPage'
 import { ConsentimientoPage } from './pages/ConsentimientoPage'
@@ -117,6 +118,9 @@ export default function App() {
               <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion']} />}>
                 <Route path="/pacientes" element={<PacientesListPage />} />
                 <Route path="/pacientes/:id" element={<FichaPacientePage />} />
+                {/* Sin módulo: la lista de dueños no es una sección opcional
+                    del plan, es la contraparte de Pacientes. */}
+                <Route path="/clientes" element={<ClientesPage />} />
 
                 <Route element={<ModuloRoute modulo="internacion" />}>
                   <Route path="/internacion" element={<InternacionPage />} />

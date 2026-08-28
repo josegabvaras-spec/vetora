@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Home, PawPrint, CalendarCheck, Store, User, Menu, X, LogIn, LayoutDashboard, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { useBloqueoScroll } from '../../hooks/useBloqueoScroll'
 import { clsx } from 'clsx'
 
 interface NavItem {
@@ -23,6 +24,7 @@ export function HomeHeader() {
   const { usuario, esPlataforma } = useAuth()
   const location = useLocation()
   const [drawerAbierto, setDrawerAbierto] = useState(false)
+  useBloqueoScroll(drawerAbierto)
 
   // Determinar la ruta de panel según el rol para usuarios autenticados
   const rutaDestino = esPlataforma
