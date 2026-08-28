@@ -8,6 +8,7 @@ import { registrarProductoUsado } from '../../services/historial'
 import { useAuth } from '../../context/AuthContext'
 import { useTable } from '../../mocks/useDb'
 import { supabase } from '../../lib/supabase'
+import { puedeVerHistorialClinico } from '../../lib/personal'
 import { FormularioPaciente, datosPacienteVacios } from './FormularioPaciente'
 import { FormularioClinico, aCamposHistorial, datosClinicosVacios } from './FormularioClinico'
 import { SeccionesConsulta, type ProductoPendiente } from './SeccionesConsulta'
@@ -25,26 +26,34 @@ export function NuevoPacienteModal({
 
   const [datosPaciente, setDatosPaciente] = useState(datosPacienteVacios)
 
-  // Ficha clínica de la primera consulta. Siempre se llena: todo paciente
-  // entra al sistema con su historial abierto. El historial aún no existe al
-  // llenar el formulario, así que los productos se acumulan y se registran
-  // justo después de crearlo.
+  // Ficha clínica de la primera consulta. La llena quien atiende: todo
+  // paciente de una clínica entra al sistema con su historial abierto. El
+  // historial aún no existe al llenar el formulario, así que los productos se
+  // acumulan y se registran justo después de crearlo.
   //
   // Las vacunas y desparasitaciones que la mascota ya trae puestas se cargan
   // después, desde el esquema sanitario de su ficha: allí la fecha de
   // aplicación es un campo, que es lo que un historial previo necesita.
+  //
+  // El peluquero es la excepción, y por eso esta sección es condicional: da de
+  // alta a la mascota para poder agendarle, pero no abre una consulta médica.
+  // Exigirle motivo, temperatura y frecuencia cardíaca —campos obligatorios de
+  // abajo— le impedía registrar a nadie, que es justo lo que dejaba a una
+  // peluquería sin poder usar el sistema.
+  const conConsulta = puedeVerHistorialClinico(usuario)
   const [datosClinicos, setDatosClinicos] = useState(datosClinicosVacios)
   const [productosPendientes, setProductosPendientes] = useState<ProductoPendiente[]>([])
 
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const faltaMotivo = !datosClinicos.motivo.trim()
+  const faltaMotivo = conConsulta && !datosClinicos.motivo.trim()
   const faltanCamposFisico =
-    !datosClinicos.peso_kg.trim() ||
-    !datosClinicos.temperatura_c.trim() ||
-    !datosClinicos.frecuencia_cardiaca.trim() ||
-    !datosClinicos.frecuencia_respiratoria.trim()
+    conConsulta &&
+    (!datosClinicos.peso_kg.trim() ||
+      !datosClinicos.temperatura_c.trim() ||
+      !datosClinicos.frecuencia_cardiaca.trim() ||
+      !datosClinicos.frecuencia_respiratoria.trim())
 
   /** Valida contra el stock real menos lo ya pendiente, para avisar antes de crear al paciente. */
   async function agregarProductoPendiente(p: ProductoPendiente) {
@@ -89,7 +98,10 @@ export function NuevoPacienteModal({
         antecedentes: datosPaciente.antecedentes,
         veterinarioId: usuario?.id,
         sucursalId,
-        primeraConsulta: aCamposHistorial(datosClinicos),
+        // Sin consulta para el peluquero: `registrarClienteYPaciente` ya trata
+        // `primeraConsulta` como opcional, así que la mascota se crea sola, sin
+        // historial abierto a nombre de nadie.
+        primeraConsulta: conConsulta ? aCamposHistorial(datosClinicos) : undefined,
       })
 
       // El historial ya existe: se registran las líneas acumuladas.
@@ -127,7 +139,9 @@ export function NuevoPacienteModal({
       <form className="space-y-5" onSubmit={handleSubmit}>
         <FormularioPaciente datos={datosPaciente} onChange={setDatosPaciente} />
 
-        {/* Ficha clínica de la primera consulta: siempre presente */}
+        {/* Ficha clínica de la primera consulta: para quien atiende. El
+            peluquero registra la mascota y nada más. */}
+        {conConsulta && (
         <Seccion
           titulo="Ficha clínica de la primera consulta"
           tono="destacado"
@@ -148,6 +162,7 @@ export function NuevoPacienteModal({
             La consulta queda como borrador: puede completarse y cerrarse después desde la ficha del paciente.
           </p>
         </Seccion>
+        )}
 
         {error && <p className="text-sm text-rose-600">{error}</p>}
 

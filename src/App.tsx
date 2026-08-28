@@ -83,13 +83,23 @@ export default function App() {
           <Route path="/nueva-password" element={<NuevaPasswordPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/consentimientos/:citaId" element={<ConsentimientoPage />} />
-            <Route path="/pacientes/:id/historial/imprimir" element={<HistorialImprimirPage />} />
-            <Route path="/pacientes/:pacienteId/consulta/:consultaId/imprimir" element={<ConsultaImprimirPage />} />
-            <Route path="/pacientes/:pacienteId/consulta/:consultaId/receta/imprimir" element={<RecetarioImprimirPage />} />
-            <Route path="/pacientes/:pacienteId/reporte/:tipo" element={<InformeImprimirPage />} />
-            <Route path="/pacientes/:pacienteId/reporte/:tipo/:itemId" element={<InformeImprimirPage />} />
+            {/* Los documentos clínicos en papel enseñan exactamente lo que las
+                pestañas del expediente, así que van tras la MISMA puerta que
+                `puedeVerHistorialClinico()`. Sin este RolRoute bastaba con
+                teclear la URL: colgaban solo de `ProtectedRoute`, y desde que
+                el peluquero tiene «Pacientes» en el menú también tiene a mano
+                los ids con los que construirla. El portal no enlaza ninguna de
+                estas rutas — usa sus propias pantallas—, así que cerrarlas al
+                personal clínico no le quita nada al dueño. */}
+            <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion']} />}>
+              <Route path="/pacientes/:id/historial/imprimir" element={<HistorialImprimirPage />} />
+              <Route path="/pacientes/:pacienteId/consulta/:consultaId/imprimir" element={<ConsultaImprimirPage />} />
+              <Route path="/pacientes/:pacienteId/consulta/:consultaId/receta/imprimir" element={<RecetarioImprimirPage />} />
+              <Route path="/pacientes/:pacienteId/reporte/:tipo" element={<InformeImprimirPage />} />
+              <Route path="/pacientes/:pacienteId/reporte/:tipo/:itemId" element={<InformeImprimirPage />} />
+              <Route path="/internaciones/:id/imprimir" element={<InternacionImprimirPage />} />
+            </Route>
             <Route path="/recibos/:cobroId" element={<ReciboPage />} />
-            <Route path="/internaciones/:id/imprimir" element={<InternacionImprimirPage />} />
             {/* Área del dueño de la plataforma: no comparte nada con la clínica */}
             <Route element={<RolRoute roles={['superadmin']} />}>
               <Route element={<PlataformaLayout />}>
@@ -110,18 +120,29 @@ export default function App() {
                 <Route path="/agenda" element={<AgendaPage />} />
               </Route>
 
-              {/* Ficha del paciente: historial médico, vacunas, recetario. Sin
-                  este RolRoute, una cuenta del portal («cliente») entraba en las
-                  mismas pantallas que el personal. El peluquero queda fuera a
-                  propósito: no escribe historial clínico ni receta, y ve el
-                  nombre del paciente/dueño porque ya viene con cada cita. */}
-              <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion']} />}>
+              {/* Alta de mascotas y dueños. El peluquero SÍ entra: una
+                  peluquería tiene que poder registrar al paciente para poder
+                  agendarle y para que su dueño lo vea en el portal, igual que
+                  una clínica — y la RLS ya se lo permite (`auth_es_personal()`
+                  lo incluye desde 0025). Lo que no ve es el expediente clínico:
+                  `FichaPacientePage` le oculta las pestañas de historial,
+                  esquema sanitario e internaciones con
+                  `puedeVerHistorialClinico()`, y las rutas de impresión —que
+                  enseñan lo mismo en papel— quedan cerradas por su propio
+                  RolRoute, más arriba.
+
+                  Sin este RolRoute, una cuenta del portal («cliente») entraría
+                  en las mismas pantallas que el personal. */}
+              <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion', 'peluquero']} />}>
                 <Route path="/pacientes" element={<PacientesListPage />} />
                 <Route path="/pacientes/:id" element={<FichaPacientePage />} />
                 {/* Sin módulo: la lista de dueños no es una sección opcional
                     del plan, es la contraparte de Pacientes. */}
                 <Route path="/clientes" element={<ClientesPage />} />
+              </Route>
 
+              {/* El peluquero no interna ni maneja el kardex. */}
+              <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion']} />}>
                 <Route element={<ModuloRoute modulo="internacion" />}>
                   <Route path="/internacion" element={<InternacionPage />} />
                 </Route>

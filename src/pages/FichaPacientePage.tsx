@@ -33,6 +33,7 @@ import { EsquemaSanitario } from '../features/pacientes/EsquemaSanitario'
 import { useAuth } from '../context/AuthContext'
 import { useTable } from '../mocks/useDb'
 import { calcularEdad } from '../lib/paciente'
+import { puedeVerHistorialClinico } from '../lib/personal'
 import { formatClinicDate, formatClinicDateTime, formatClinicTime } from '../lib/datetime'
 import { etiquetaDias, ESTADO_INTERNACION_LABEL, ESTADO_INTERNACION_TONE } from '../lib/internacion'
 import type { CitaConDetalle, FichaPaciente } from '../types/views'
@@ -69,6 +70,9 @@ export function FichaPacientePage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { usuario, sucursalActivaId } = useAuth()
+  // El peluquero da de alta y consulta la ficha, pero no el expediente
+  // clínico: las tres pestañas son historial, vacunas e internaciones.
+  const verClinico = puedeVerHistorialClinico(usuario)
   const sucursales = useTable('sucursales')
   const [ficha, setFicha] = useState<FichaPaciente | null | undefined>(undefined)
   const [errorFicha, setErrorFicha] = useState<string | null>(null)
@@ -238,10 +242,13 @@ export function FichaPacientePage() {
           >
             <Trash2 size={16} /> <span className="hidden sm:inline">Borrar</span>
           </Button>
-          <div className="relative" ref={menuImpresionRef}>
-            <Button 
-            variant="outline" 
-            size="sm" 
+          {/* Todo lo de este menú son documentos clínicos, y sus rutas están
+              cerradas al peluquero en App.tsx: dejarle el botón solo serviría
+              para rebotarle a la agenda. */}
+          <div className={clsx('relative', !verClinico && 'hidden')} ref={menuImpresionRef}>
+            <Button
+            variant="outline"
+            size="sm"
             onClick={() => setMenuImpresionAbierto(!menuImpresionAbierto)}
             className="flex items-center gap-2 bg-white"
           >
@@ -514,8 +521,21 @@ export function FichaPacientePage() {
         {/* Columna del historial */}
         <div className="space-y-4 lg:col-span-2">
           
+          {/* Para el peluquero, el expediente clínico entero se sustituye por
+              esta nota: lo que necesita de la mascota (raza, tamaño, alergias,
+              el dueño y su teléfono) está en la columna de al lado. */}
+          {!verClinico && (
+            <Card className="border border-dashed border-slate-300 py-10 text-center">
+              <p className="text-sm font-semibold text-slate-500">Expediente clínico</p>
+              <p className="mx-auto mt-1 max-w-sm text-xs text-slate-400">
+                El historial médico, las vacunas y las internaciones los lleva el equipo veterinario. Las alergias
+                y los antecedentes que te sirven para la peluquería están en la ficha, a la izquierda.
+              </p>
+            </Card>
+          )}
+
           {/* Navegación por Pestañas */}
-          <div className="border-b border-slate-200">
+          <div className={clsx('border-b border-slate-200', !verClinico && 'hidden')}>
             <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
               <button
                 onClick={() => setActiveTab('historial')}
@@ -553,7 +573,7 @@ export function FichaPacientePage() {
             </nav>
           </div>
 
-          {activeTab === 'historial' && (
+          {verClinico && activeTab === 'historial' && (
             <>
               <Card className="border border-teal-100 bg-teal-50/20">
                 <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-800">
@@ -744,9 +764,9 @@ export function FichaPacientePage() {
             </>
           )}
 
-          {activeTab === 'esquema' && <EsquemaSanitario pacienteId={paciente.id} />}
+          {verClinico && activeTab === 'esquema' && <EsquemaSanitario pacienteId={paciente.id} />}
 
-          {activeTab === 'internaciones' && (
+          {verClinico && activeTab === 'internaciones' && (
             <div>
               {internaciones.length > 0 ? (
                 <div>

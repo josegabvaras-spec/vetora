@@ -67,3 +67,25 @@ export function peluqueroAcotado(
 ): string | undefined {
   return usuario?.rol === 'peluquero' ? usuario.id : undefined
 }
+
+/**
+ * Quién ve el expediente clínico: historial, esquema sanitario e internaciones.
+ *
+ * El `peluquero` es el único rol de personal que queda fuera. Sí da de alta
+ * mascotas y dueños —una peluquería necesita registrar al paciente para poder
+ * agendarle, y para que el dueño lo vea en su portal, igual que una clínica—,
+ * pero no escribe ni lee consultas, recetas ni vacunas: no es asistencia
+ * médica y no le hace falta para su trabajo. Lo que sí necesita de la ficha
+ * (raza, tamaño, alergias, el dueño y su teléfono) está fuera de las pestañas.
+ *
+ * **Es un filtro de pantalla, no una barrera de seguridad**, igual que
+ * `veterinarioAcotado`: la RLS separa el inquilino, no el sub-rol, y
+ * `auth_es_personal()` incluye al peluquero desde la migración 0025. Quien de
+ * verdad cierra el expediente por URL es el `RolRoute` de las rutas de
+ * impresión en `App.tsx`, que va emparejado con esta función.
+ */
+export function puedeVerHistorialClinico(
+  usuario: { rol: string } | null | undefined,
+): boolean {
+  return usuario?.rol === 'admin' || usuario?.rol === 'veterinario' || usuario?.rol === 'recepcion'
+}

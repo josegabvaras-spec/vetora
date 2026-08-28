@@ -84,7 +84,7 @@ El peluquero comparte la misma pantalla y el mismo componente que el veterinario
 - **Sin WhatsApp y sin IA, a propósito.** El cupo de mensajes del plan se gasta por un solo lado, el de recepción; y esto es una cola derivada de la base, no un redactor de textos (mismo criterio que [lib/asistentePlataforma.ts](src/lib/asistentePlataforma.ts)).
 - **Todo se deriva, igual que `listProgramados`.** Una fila desaparece sola cuando deja de ser cierta: se cerró la consulta, se firmó el consentimiento, se escribió la evolución. No hay nada que marcar como hecho.
 - `listConsultasAbiertas()` ([services/historial.ts](src/services/historial.ts)) es lo único que hubo que escribir: `CitaConDetalle.historial_id` dice que hay historial pero no si sigue abierto, y un borrador de ayer sin cerrar tiene que seguir apareciendo. `historial_clinico` **no tiene `sucursal_id`** — la sucursal se resuelve por la cita.
-- Las otras dos secciones salen de `listCitas` y `listInternaciones` con el `veterinarioId` que ya aceptan. Para el peluquero quedan naturalmente vacías: nunca tiene historiales ni internaciones a su nombre, porque no tiene acceso a `/pacientes` (ver el reparto de `RolRoute` más abajo).
+- Las otras dos secciones salen de `listCitas` y `listInternaciones` con el `veterinarioId` que ya aceptan. Para el peluquero quedan naturalmente vacías: nunca tiene historiales ni internaciones a su nombre — da de alta pacientes, pero no abre consultas ni interna (ver el reparto de `RolRoute` más abajo).
 
 ## El catálogo y la Tienda
 
@@ -205,15 +205,17 @@ Además:
 
   | `RolRoute` | Rutas |
   |---|---|
-  | `['admin', 'veterinario', 'recepcion', 'peluquero']` | `/agenda`, `/asistente` |
-  | `['admin', 'veterinario', 'recepcion']` | `/pacientes`, `/pacientes/:id`, `/internacion`, `/inventario` |
+  | `['admin', 'veterinario', 'recepcion', 'peluquero']` | `/agenda`, `/asistente`, `/pacientes`, `/pacientes/:id`, `/clientes` |
+  | `['admin', 'veterinario', 'recepcion']` | `/internacion`, `/inventario`, y **las seis rutas de impresión clínica** |
   | `['recepcion', 'admin']` | `/caja`, `/respaldo` |
   | `['admin']` | `/servicios`, `/movimientos`, `/metricas` |
   | `['superadmin']` | `/plataforma`, `/plataforma/clinicas`, `/plataforma/usuarios`, `/plataforma/planes` |
 
   Estos `RolRoute` son la barrera de frontend equivalente a `auth_es_personal()`: sin ellos, una cuenta `cliente` del portal entraría en las mismas pantallas que el personal. El propio portal vive aparte, bajo `/portal-cliente` (`PortalClienteLayout`, sin `RolRoute` porque su propio layout y sus policies de solo-lectura ya acotan lo que se ve).
 
-  `/agenda` y `/pacientes` se separaron en dos `RolRoute` distintos (migración `0025`) porque el peluquero entra al primero pero no al segundo: no escribe historial clínico ni receta, y hoy esa pantalla no distingue quién escribe — cualquier rol con acceso puede hacerlo, sin ningún bloqueo (ni siquiera `recepcion`). No darle la ruta evita construir ese bloqueo de cero. ⚠️ `/agenda` tiene que llevar SIEMPRE a `peluquero` (y a cualquier rol de personal nuevo que se añada): `RolRoute` rebota ahí cuando el rol no encaja, e `InicioSegunRol` también manda ahí por defecto — sin él en la lista, el rol queda en un bucle de redirección infinito.
+  **El peluquero da de alta mascotas y dueños, pero no ve el expediente clínico.** Al principio se le negó `/pacientes` entera, porque `FichaPacientePage` no distinguía quién escribe. Eso dejaba a una peluquería sin poder registrar a su propio paciente —y sin paciente no hay a quién agendarle, ni nada que enseñarle al dueño en el portal—, cuando es exactamente el mismo alta que hace una clínica. Ahora entra a `/pacientes` y `/clientes`, y lo que se acota es el expediente, en dos sitios que van emparejados: `puedeVerHistorialClinico()` ([lib/personal.ts](src/lib/personal.ts)) le oculta las tres pestañas (historial, esquema sanitario, internaciones) y el menú de impresión, y el `RolRoute` de las rutas de impresión cierra la puerta de atrás — esas seis colgaban solo de `ProtectedRoute` y se abrían tecleando la URL. Si añades una pantalla clínica, decide en cuál de las dos listas va; la RLS no te va a frenar, `auth_es_personal()` incluye al peluquero desde `0025`.
+
+  ⚠️ `/agenda` tiene que llevar SIEMPRE a `peluquero` (y a cualquier rol de personal nuevo que se añada): `RolRoute` rebota ahí cuando el rol no encaja, e `InicioSegunRol` también manda ahí por defecto — sin él en la lista, el rol queda en un bucle de redirección infinito.
 
 ## El tour de bienvenida
 
@@ -236,7 +238,7 @@ Recorrido guiado sobre la propia interfaz (migración 0022): la pantalla se oscu
 
 El `admin` queda fuera **a propósito** aunque atienda (`puedeAtender` lo cuenta como veterinario para el Plan Consultorio): coordina la clínica y necesita la vista completa. Y esto **no es una barrera de seguridad** — la RLS no distingue veterinarios, así que el expediente del paciente (historial, recetas, esquema sanitario) se sigue viendo entero, que es lo correcto para atender sin riesgo. Lo acotado es «mi trabajo de hoy». No lo repliques en las pantallas del expediente.
 
-`peluqueroAcotado(usuario)` (migración `0025`) es la misma función, un rol distinto: mismo criterio, mismo hueco intencional para el admin. Solo se usa donde el peluquero tiene ruta —`AgendaPage` y `AsistenteJornadaPage`, siempre combinada con `veterinarioAcotado(usuario) ?? peluqueroAcotado(usuario)`—, nunca en `InternarModal` ni `listInternaciones`: el peluquero no interna pacientes y no tiene acceso a `/internacion`.
+`peluqueroAcotado(usuario)` (migración `0025`) es la misma función, un rol distinto: mismo criterio, mismo hueco intencional para el admin. Se usa para acotar «mi trabajo de hoy» —`AgendaPage` y `AsistenteJornadaPage`, siempre combinada con `veterinarioAcotado(usuario) ?? peluqueroAcotado(usuario)`—, nunca en `InternarModal` ni `listInternaciones`: el peluquero no interna pacientes y no tiene acceso a `/internacion`. En `/pacientes` y `/clientes`, que sí lleva, **no se acota nada**: las mascotas y los dueños son de la clínica, no de quien los dio de alta.
 
 Las altas de usuario generan una `Invitacion` (token de un solo uso, con caducidad) que se envía por WhatsApp y se canjea en `/acceso/:token`, donde la persona crea su contraseña.
 

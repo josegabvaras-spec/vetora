@@ -34,14 +34,15 @@ export interface EnlaceClinico {
 export const ENLACES_CLINICOS: EnlaceClinico[] = [
   { to: '/caja', label: 'Caja', icon: Wallet, roles: ['recepcion', 'admin'], modulo: 'caja' },
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
-  // El peluquero queda fuera a propósito: no escribe historial clínico ni
-  // receta, y no tiene la ruta (ver App.tsx). Ve el paciente/dueño porque ya
-  // viene con cada cita.
-  { to: '/pacientes', label: 'Pacientes', icon: PawPrint, roles: ['admin', 'veterinario', 'recepcion'] },
+  // El peluquero entra: sin dar de alta a la mascota no hay a quién agendarle
+  // ni qué enseñarle al dueño en el portal. Lo que no ve es el expediente
+  // clínico — `FichaPacientePage` le oculta las pestañas (ver
+  // `puedeVerHistorialClinico`).
+  { to: '/pacientes', label: 'Pacientes', icon: PawPrint, roles: ['admin', 'veterinario', 'recepcion', 'peluquero'] },
   // Los dueños. `/pacientes` lista mascotas, así que una ficha sin mascotas
   // —la que queda cuando el registro del portal no encuentra a su dueño— no
   // se veía en ninguna pantalla hasta que existió esta.
-  { to: '/clientes', label: 'Clientes', icon: Contact, roles: ['admin', 'veterinario', 'recepcion'] },
+  { to: '/clientes', label: 'Clientes', icon: Contact, roles: ['admin', 'veterinario', 'recepcion', 'peluquero'] },
   {
     to: '/asistente',
     label: 'Asistente',
@@ -53,8 +54,24 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
     roles: ['recepcion', 'admin', 'veterinario', 'peluquero'],
     modulo: 'asistente_ia',
   },
-  { to: '/internacion', label: 'Internación', icon: BedDouble, etiquetaCorta: 'Internac.', modulo: 'internacion' },
-  { to: '/inventario', label: 'Inventario', icon: Boxes, modulo: 'inventario' },
+  // `roles` explícito aunque parezca redundante: sin él estas dos salían en el
+  // menú del peluquero, cuyo `RolRoute` no las admite, y el enlace le rebotaba
+  // a la agenda. El menú y la ruta tienen que decir lo mismo.
+  {
+    to: '/internacion',
+    label: 'Internación',
+    icon: BedDouble,
+    etiquetaCorta: 'Internac.',
+    roles: ['admin', 'veterinario', 'recepcion'],
+    modulo: 'internacion',
+  },
+  {
+    to: '/inventario',
+    label: 'Inventario',
+    icon: Boxes,
+    roles: ['admin', 'veterinario', 'recepcion'],
+    modulo: 'inventario',
+  },
   { to: '/metricas', label: 'Métricas', icon: BarChart3, roles: ['admin'], modulo: 'metricas' },
   { to: '/respaldo', label: 'Respaldo', icon: Download, roles: ['recepcion', 'admin'] },
   { to: '/servicios', label: 'Servicios', icon: Tags, roles: ['admin'] },

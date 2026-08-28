@@ -12,6 +12,8 @@ import { NuevoPacienteModal } from '../features/pacientes/NuevoPacienteModal'
 import { EditarPacienteModal } from '../features/pacientes/EditarPacienteModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useSuscripcionTabla } from '../mocks/useDb'
+import { useAuth } from '../context/AuthContext'
+import { puedeVerHistorialClinico } from '../lib/personal'
 import { etiquetaDias } from '../lib/internacion'
 import type { PacienteConDueno } from '../types/views'
 import { formatClinicTime } from '../lib/datetime'
@@ -26,6 +28,11 @@ const ESPECIE_LABEL: Record<string, string> = {
 }
 
 export function PacientesListPage() {
+  const { usuario } = useAuth()
+  // Borrar un paciente se lleva por cascada todo su historial clínico. El
+  // peluquero da de alta y edita la ficha, pero no destruye el expediente que
+  // llevan otros.
+  const puedeBorrar = puedeVerHistorialClinico(usuario)
   const [pacientes, setPacientes] = useState<PacienteConDueno[]>([])
   const [busqueda, setBusqueda] = useState('')
   const [modalNuevo, setModalNuevo] = useState(false)
@@ -161,22 +168,24 @@ export function PacientesListPage() {
             >
               <Edit2 size={16} className="text-slate-500 hover:text-teal-600 transition-colors" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-white px-2 py-1 hover:bg-rose-50"
-              onClick={(e) => {
-                e.stopPropagation()
-                setPacienteBorrar(p)
-              }}
-            >
-              <Trash2 size={16} className="text-rose-500 hover:text-rose-700 transition-colors" />
-            </Button>
+            {puedeBorrar && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white px-2 py-1 hover:bg-rose-50"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setPacienteBorrar(p)
+                }}
+              >
+                <Trash2 size={16} className="text-rose-500 hover:text-rose-700 transition-colors" />
+              </Button>
+            )}
           </div>
         ),
       },
     ],
-    [],
+    [puedeBorrar],
   )
 
   return (
