@@ -319,16 +319,15 @@ a, button, select, input, textarea {
     0 8px 20px rgba(0, 0, 0, 0.06);
 }
 
-/* Máscara de degradé suave para fundir la ilustración del consultorio con el fondo */
+/* Máscara de degradé suave perimetral (arriba, abajo, izquierda y derecha) */
 .consultorio-mask {
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 5%, rgba(0, 0, 0, 0.8) 12%, black 22%, black 100%);
-  mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 5%, rgba(0, 0, 0, 0.8) 12%, black 22%, black 100%);
-}
-
-@media (max-width: 1023px) {
-  .consultorio-mask {
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.3) 4%, rgba(0, 0, 0, 0.8) 10%, black 18%, black 100%);
-    mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.3) 4%, rgba(0, 0, 0, 0.8) 10%, black 18%, black 100%);
-  }
+  -webkit-mask-image: 
+    linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 4%, rgba(0, 0, 0, 0.85) 10%, black 18%, black 82%, rgba(0, 0, 0, 0.85) 90%, rgba(0, 0, 0, 0.3) 96%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.3) 3%, rgba(0, 0, 0, 0.85) 8%, black 16%, black 84%, rgba(0, 0, 0, 0.85) 92%, rgba(0, 0, 0, 0.3) 97%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: 
+    linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 4%, rgba(0, 0, 0, 0.85) 10%, black 18%, black 82%, rgba(0, 0, 0, 0.85) 90%, rgba(0, 0, 0, 0.3) 96%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.3) 3%, rgba(0, 0, 0, 0.85) 8%, black 16%, black 84%, rgba(0, 0, 0, 0.85) 92%, rgba(0, 0, 0, 0.3) 97%, transparent 100%);
+  mask-composite: intersect;
 }
 
