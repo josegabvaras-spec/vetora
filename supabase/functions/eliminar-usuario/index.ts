@@ -98,6 +98,13 @@ async function esUnicoAdminActivo(usuario: {
  * peor, Postgres rechaza el DELETE con un 23503 críptico porque ninguna de
  * estas seis columnas tiene cascada (a propósito: son historiales y cobros
  * inmutables). Se comprueba antes para devolver un mensaje claro.
+ *
+ * Las seis son columnas de PERSONAL. Una cuenta del portal (`rol = 'cliente'`)
+ * no aparece en ninguna, así que da 0 y se puede borrar — y eso es correcto,
+ * no una casualidad: lo único que la referencia es `clientes.usuario_id`, cuya
+ * FK es `on delete set null` (0004). Borrarla NO destruye la ficha ni las
+ * mascotas: las suelta. Es, de hecho, la única forma que había de deshacer un
+ * vínculo antes de que existiera `desvincular_cuenta_portal` (0028).
  */
 async function tieneActividadFirmada(usuarioId: string): Promise<boolean> {
   const columnas: { tabla: string; columna: string }[] = [

@@ -111,9 +111,39 @@ sustituye** la prueba en vivo con dos sesiones (ver abajo).
   acertar la clínica, que esa ficha no tenga CI anotado, y que no exista ninguna otra con ese mismo
   número—. Además, una ficha cuyo WhatsApp coincide pero cuyo CI anotado **no** coincide queda
   descartada del nivel 2: un CI que no cuadra es una señal activa en contra, no un dato ausente.
-- **Y la causa raíz, cerrada aparte:** el CI pasa a ser **obligatorio** al dar de alta un paciente
-  (`FormularioPaciente.tsx`), así que las fichas nuevas caen siempre en el nivel 1. El nivel 2 es
-  para el histórico que ya se cargó sin CI.
+- **Y la causa raíz, cerrada a medias:** el CI pasa a ser obligatorio **en el formulario** de alta
+  (`FormularioPaciente.tsx`, atributo `required`), así que las fichas nuevas creadas por ahí caen
+  siempre en el nivel 1. Pero **la columna sigue siendo nullable** y `registrarClienteYPaciente`
+  acepta `ci: … || null`: quien llame al servicio por otra vía puede seguir creando fichas sin CI.
+  El nivel 2 sigue haciendo falta, y no solo para el histórico.
+- **Confirmación de correo (posterior).** El registro del portal dejó de usar `email_confirm: true`:
+  la cuenta nace sin confirmar y Supabase manda el enlace. Es lo único que prueba que la dirección
+  es de quien se registra —el formulario es público y cualquiera escribe cualquier correo— y de paso
+  frena el alta automatizada, porque cada una necesita una bandeja real. `crear-cuenta` y `acceso`
+  **conservan** `email_confirm`: ahí la prueba es el enlace de WhatsApp que la persona ya recibió.
+
+  Efecto secundario que hay que tener presente: alguien puede registrar con el CI y el WhatsApp de
+  otro usando un correo falso. No entrará —no puede confirmar—, pero la ficha queda reclamada y
+  **bloquea al dueño real**, porque el automático exige `.is('usuario_id', null)`. Lo que lo hace
+  asumible es que ahora se puede deshacer: ver el punto siguiente.
+- **Un vínculo mal hecho ya se puede deshacer.** Hasta la migración `0028` no existía: ningún punto
+  del código escribía `clientes.usuario_id = null`, y como `vincularPorIds` **borraba** la ficha del
+  portal, el estado anterior tampoco era reconstruible. La única salida era borrar la cuenta entera.
+  Ahora `desvincular_cuenta_portal()` la suelta y le devuelve su propia ficha vacía, en una
+  transacción, con el botón «Desvincular» de `ClientesPage`.
+
+  La misma migración cerró dos agujeros más de las rutas manuales: **no comprobaban que la ficha
+  destino estuviera libre** —pisaban un vínculo existente en silencio y dejaban a la cuenta anterior
+  sin ninguna fila en `clientes`, invisible para la pantalla que sirve para recuperarla— y hacían
+  `DELETE` y luego `UPDATE` en dos viajes sin transacción, de modo que un fallo entre medias dejaba
+  la cuenta huérfana. Las dos operaciones son ahora funciones SQL, **sin `security definer`**: corren
+  con los privilegios de quien llama, así que `clientes_personal` sigue aplicando entera.
+- **La sugerencia manual dejó de ser más laxa que el automático.** Emparejaba con **un solo** factor
+  (CI *o* WhatsApp) y devolvía la primera coincidencia con `.find()`, sin señalar la ambigüedad: con
+  dos fichas compartiendo el teléfono —un matrimonio, una familia— proponía una de las dos sin decir
+  que había otra, y de ahí salía un vínculo irreversible. Ahora exige unicidad en el dato que gana,
+  prefiere las coincidencias de CI **y** WhatsApp, marca cuál fue, y **no propone nada** cuando hay
+  más de una candidata o cuando el CI y el teléfono apuntan a fichas distintas.
 - **El fallo dejó de ser mudo:** `registro-portal` devuelve `motivo`, y `/registro-cliente` ya no
   navega a un portal vacío cuando no vinculó — explica qué pasó y a quién pedírselo.
 - **Cómo confirmar:** registrarse con el CI correcto y un WhatsApp distinto **no** debe vincular la

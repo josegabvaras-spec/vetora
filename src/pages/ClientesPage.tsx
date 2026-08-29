@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, IdCard, Link2, MessageCircle, PawPrint, Search, Smartphone } from 'lucide-react'
+import {
+  AlertTriangle,
+  IdCard,
+  Link2,
+  MessageCircle,
+  PawPrint,
+  Search,
+  Smartphone,
+  Unlink,
+} from 'lucide-react'
 import { AvisoError } from '../components/ui/AvisoError'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -10,6 +19,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useAuth } from '../context/AuthContext'
 import { useSuscripcionTabla } from '../mocks/useDb'
 import {
+  desvincularCuentaPortal,
   listClientesDeClinica,
   sugerenciasDeVinculo,
   vincularPorIds,
@@ -31,6 +41,7 @@ export function ClientesPage() {
   const [busqueda, setBusqueda] = useState('')
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [vinculando, setVinculando] = useState<SugerenciaVinculo | null>(null)
+  const [desvinculando, setDesvinculando] = useState<ClienteConEstado | null>(null)
   const [enCurso, setEnCurso] = useState(false)
 
   const revisionClientes = useSuscripcionTabla('clientes')
@@ -110,8 +121,15 @@ export function ClientesPage() {
                   </p>
                   {/* Qué casó exactamente: no es lo mismo aprobar una
                       coincidencia de carnet que una de teléfono. */}
+                  {/* Qué casó exactamente, y con cuánta fuerza: aprobar una
+                      coincidencia de carnet Y teléfono no es lo mismo que
+                      aprobar una de un solo dato. */}
                   <p className="mt-0.5 text-[11px] text-slate-400">
-                    {s.coincide === 'ci' ? 'Coincide el carnet de identidad' : 'Coincide el WhatsApp'}
+                    {s.coincide === 'ci_y_whatsapp'
+                      ? 'Coinciden el carnet y el WhatsApp'
+                      : s.coincide === 'ci'
+                        ? 'Coincide solo el carnet de identidad'
+                        : 'Coincide solo el WhatsApp'}
                   </p>
                 </div>
                 <Button className="px-3 py-1.5 text-xs" onClick={() => setVinculando(s)}>
@@ -189,10 +207,23 @@ export function ClientesPage() {
                 {c.email && <span className="font-mono">{c.email}</span>}
               </p>
             </div>
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-              <PawPrint size={13} className="text-slate-400" />
-              {c.total_pacientes} mascota(s)
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                <PawPrint size={13} className="text-slate-400" />
+                {c.total_pacientes} mascota(s)
+              </span>
+              {/* La reparación de un vínculo mal hecho. Antes no existía: la
+                  única forma de soltarlo era borrar la cuenta entera. */}
+              {c.usuario_id && (
+                <Button
+                  variant="secondary"
+                  className="px-3 py-1.5 text-xs"
+                  onClick={() => setDesvinculando(c)}
+                >
+                  <Unlink size={13} /> Desvincular
+                </Button>
+              )}
+            </div>
           </li>
         ))}
       </ul>
@@ -213,7 +244,7 @@ export function ClientesPage() {
       {vinculando && (
         <ConfirmDialog
           title="Unir la cuenta del portal"
-          description={`«${vinculando.cuenta.nombre}» (${vinculando.cuenta.email}) pasará a ver el historial y las vacunas de las ${vinculando.posible.total_pacientes} mascota(s) de «${vinculando.posible.nombre}». Confirma que es la misma persona: no se puede deshacer solo.`}
+          description={`«${vinculando.cuenta.nombre}» (${vinculando.cuenta.email}) pasará a ver el historial, las vacunas y las recetas de las ${vinculando.posible.total_pacientes} mascota(s) de «${vinculando.posible.nombre}». Confirma que es la misma persona. Si te equivocas, puedes deshacerlo con «Desvincular».`}
           confirmLabel="Sí, es la misma persona"
           loading={enCurso}
           onCancel={() => setVinculando(null)}
@@ -226,6 +257,29 @@ export function ClientesPage() {
               await recargar()
             } catch (err) {
               setErrorCarga(err instanceof Error ? err.message : 'No se pudo vincular la cuenta')
+            } finally {
+              setEnCurso(false)
+            }
+          }}
+        />
+      )}
+
+      {desvinculando && (
+        <ConfirmDialog
+          title="Desvincular la cuenta del portal"
+          description={`«${desvinculando.email ?? desvinculando.nombre}» dejará de ver el historial, las vacunas y las recetas de las ${desvinculando.total_pacientes} mascota(s) de esta ficha. La mascota y su expediente NO se borran: siguen aquí, y la cuenta vuelve a quedar libre para vincularla con la ficha correcta.`}
+          confirmLabel="Sí, desvincular"
+          loading={enCurso}
+          onCancel={() => setDesvinculando(null)}
+          onConfirm={async () => {
+            setEnCurso(true)
+            setErrorCarga(null)
+            try {
+              await desvincularCuentaPortal(desvinculando.id)
+              setDesvinculando(null)
+              await recargar()
+            } catch (err) {
+              setErrorCarga(err instanceof Error ? err.message : 'No se pudo desvincular la cuenta')
             } finally {
               setEnCurso(false)
             }

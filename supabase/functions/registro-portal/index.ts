@@ -119,12 +119,23 @@ Deno.serve(async (peticion) => {
       return responder({ error: 'No se pudo crear la cuenta con esos datos' }, 409)
     }
 
+    // SIN `email_confirm`, y es la diferencia con las otras dos altas.
+    //
+    // En `crear-cuenta` y en `acceso` se marca el correo como confirmado a
+    // propósito: quien demuestra que es suyo es el enlace de WhatsApp que ya
+    // recibió. Aquí no hay nada equivalente — el formulario es público y
+    // cualquiera escribe cualquier dirección—, así que la confirmación de
+    // Supabase es lo único que prueba que esa cuenta pertenece a alguien.
+    //
+    // Es también el freno al registro automatizado: cada alta necesita una
+    // bandeja de entrada real y alcanzable.
+    //
+    // Consecuencia: la cuenta nace SIN confirmar y `signInWithPassword`
+    // fallará hasta que abra el enlace. Por eso el frontend ya no inicia
+    // sesión al terminar; ver `registrarClientePortal`.
     const { data: creado, error: errorAuth } = await admin.auth.admin.createUser({
       email,
       password,
-      // Llega por el formulario público, no por correo: sin esto no podría
-      // iniciar sesión al terminar.
-      email_confirm: true,
     })
 
     if (errorAuth || !creado.user) {

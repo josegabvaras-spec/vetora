@@ -246,19 +246,43 @@ Las altas de usuario generan una `Invitacion` (token de un solo uso, con caducid
 
 ### Crear cuentas de Auth: nunca desde el navegador
 
-El proyecto tiene **«Confirm email» activado** en Supabase Auth, y eso decide la forma de las tres altas. Ninguna crea la cuenta con `supabase.auth.signUp` desde el cliente: las tres usan `service_role` en una Edge Function y marcan `email_confirm: true`, porque **quien demuestra que el correo es suyo es el enlace de WhatsApp o el formulario, no un clic en la bandeja de entrada**.
+El proyecto tiene **«Confirm email» activado** en Supabase Auth, y eso decide la forma de las tres altas. Ninguna crea la cuenta con `supabase.auth.signUp` desde el cliente: las tres usan `service_role` en una Edge Function.
 
 | Alta | Función | Crea la cuenta con |
 |---|---|---|
 | Personal (clínica nueva o usuario nuevo) | `crear-cuenta` | `admin.createUser` + `email_confirm` |
 | Canje del enlace de acceso | `acceso` | `admin.updateUserById` + `email_confirm` |
-| Cliente del portal (`/registro-cliente`) | `registro-portal` | `admin.createUser` + `email_confirm` |
+| Cliente del portal (`/registro-cliente`) | `registro-portal` | `admin.createUser`, **sin** `email_confirm` |
+
+Las dos primeras marcan `email_confirm: true` porque **quien demuestra que el correo es suyo es el enlace de WhatsApp que la persona ya recibió**, no un clic en la bandeja de entrada.
+
+**El registro del portal es la excepción, y por lo mismo:** ahí no hay ningún enlace previo. El formulario es público y cualquiera escribe cualquier dirección, así que la confirmación de Supabase es lo único que prueba que esa cuenta pertenece a alguien — y de paso es el freno al alta automatizada, porque cada una necesita una bandeja real (se eligió sobre un captcha: Supabase no tiene uno propio, su `[auth.captcha]` es un conector a hCaptcha/Turnstile y aquí ni se dispararía, porque el alta no pasa por `signUp`).
+
+Consecuencia: la cuenta nace sin confirmar, `signInWithPassword` falla hasta que abra el enlace, y por eso **`registrarClientePortal` ya no inicia sesión al terminar** — la pantalla dice «revisa tu correo». Requiere SMTP configurado en el panel de Supabase: el envío por defecto corta a **2 correos por hora**.
+
+Y abre un riesgo que hay que conocer: alguien puede registrar con el CI y el WhatsApp de otro usando un correo falso. No entrará, pero la ficha queda reclamada y **bloquea al dueño real** (el automático exige `.is('usuario_id', null)`). Es asumible solo porque desde `0028` se puede deshacer — ver «Vincular y desvincular» más abajo.
 
 `signUp` desde el navegador falla de tres maneras a la vez con esa opción activa, y las tres están documentadas en la cabecera de [supabase/functions/crear-cuenta/](supabase/functions/crear-cuenta/): manda un correo de confirmación que sobra, **oculta que el correo ya existe** (devuelve un usuario falso con un uuid inventado, que al insertarse en `usuarios.id` —FK a `auth.users`— revienta con un 23503 con la clínica ya creada), y sustituye la sesión de quien opera. Si añades un alta, replica el patrón; no reintroduzcas `signUp`.
 
 `crear-cuenta` **exige que quien llama sea un superadmin activo** (valida el JWT y lee el rol con el cliente admin): crea credenciales, así que no puede ser pública. Su acción `borrar` solo toca cuentas **sin fila en `usuarios`** — es el rollback de un perfil que no llegó a crearse, no un «borrar cualquier cuenta»; las cuentas con perfil se desactivan (`activo = false`), que para eso firman historiales y cobros.
 
 **Borrar una clínica entera es aparte, en `eliminar-clinica`** (para cuando el cliente da de baja el servicio, no para el rollback de un alta). Mismo guard de superadmin, pero hace tres cosas que `crear-cuenta` no hace: vacía los buckets privados (`estudios`, `comprobantes`, `catalogo`) de esa clínica, borra la fila de `clinicas` —que en cascada de FK se lleva sola las ~20 tablas del inquilino—, y solo entonces borra la cuenta de `auth.users` de cada uno de sus usuarios (borrar `usuarios` por cascada no toca `auth.users`; la flecha corre al revés). Es irreversible a propósito, distinto de `cambiarEstadoClinica` (suspender), que no borra nada.
+
+### Vincular y desvincular una cuenta del portal
+
+El vínculo entre una cuenta del portal y la ficha de `clientes` que tiene las mascotas se resuelve por tres caminos: automático en `registro-portal` (CI+WhatsApp, o WhatsApp solo si la ficha no tiene CI y es la única candidata), y dos manuales —la sugerencia de «Clientes» y «Vincular cuenta del portal» desde la ficha del paciente.
+
+**Los dos manuales pasan por `vincular_cuenta_portal()` (migración `0028`), y su gemela `desvincular_cuenta_portal()` es la reparación.** Antes de esa migración:
+
+- **No se podía deshacer.** Ningún punto del código escribía `usuario_id = null`, y como el camino manual **borraba** la ficha del portal, el estado anterior tampoco era reconstruible. Un vínculo mal hecho dejaba a alguien viendo el expediente de una mascota ajena, para siempre.
+- **No había guarda.** El `UPDATE` era `.eq('id', …)` a secas: vincular sobre una ficha ya reclamada pisaba el `usuario_id` anterior en silencio y dejaba a esa cuenta sin ninguna fila en `clientes` — invisible para la propia pantalla que sirve para recuperarla.
+- **No había transacción.** `DELETE` y luego `UPDATE` en dos viajes desde el navegador; un fallo entre medias dejaba la cuenta huérfana.
+
+Las dos funciones son **SQL sin `security definer`, a propósito**: corren con los privilegios de quien llama, así que `clientes_personal` sigue aplicando entera y esto no abre ninguna puerta lateral. Lo que aportan es atomicidad y tener las comprobaciones en un solo sitio. Al desvincular se le devuelve a la cuenta **una ficha propia y vacía**, que no es un extra: sin ella la cuenta no aparecería en ninguna pantalla —`listClientesDeClinica` lista `clientes`— y desvincular la haría desaparecer en vez de devolverla a la cola de sugerencias.
+
+⚠️ Al añadir un RPC hay que declararlo también en [types/supabase.ts](src/types/supabase.ts): ese fichero se genera desde la base, y `supabase.rpc()` rechaza por tipos cualquier nombre que no esté en su unión `Functions`.
+
+**El superadmin ve el estado, y solo eso.** `cuentas-portal` (Edge Function, `service_role`, guard de superadmin) devuelve por cada cuenta **un booleano y un conteo** — ni nombres, ni CI, ni nada clínico. Es lo justo para responder «¿su cuenta quedó suelta?» en un soporte sin abrir el expediente de nadie: la RLS le sigue negando `clientes`, y eso no cambia. **No lo conviertas en un lector de fichas**; para el volcado completo ya está `respaldo-clinica`, que es explícito sobre lo que hace. Y no puede *editar* cuentas del portal: `actualizarUsuario` lo rechaza, porque el desplegable de roles solo tiene los de clínica y ascender a un dueño a `admin` le daría el sistema entero.
 
 **Borrar un usuario suelto, sin borrar la clínica entera, es `eliminar-usuario`** — corrige la frase de arriba: "las cuentas con perfil se desactivan" ya no es una regla absoluta. Antes de borrar comprueba, con `service_role` (el superadmin no tiene RLS sobre esas tablas, no puede ver datos clínicos de ningún inquilino), que el usuario no tenga ninguna fila en `citas`/`historial_clinico`/`internaciones`/`notas_internacion`/`turnos_caja`/`cobros` — ninguna de esas seis tiene cascada a propósito (son historiales y cobros inmutables), así que Postgres bloquearía el `DELETE` de todos modos, pero la función lo comprueba antes para devolver un mensaje claro en vez de un 23503 críptico. También rechaza borrar al único admin activo de una clínica, mismo chequeo que ya hacía `alternarActivoUsuario()` — ahora extraído a `exigirOtroAdminActivo()` en `services/plataforma.ts`, reusado también por `actualizarUsuario()` al degradar el rol de un admin activo.
 

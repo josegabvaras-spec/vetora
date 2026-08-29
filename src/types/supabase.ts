@@ -1652,6 +1652,14 @@ export type Database = {
       consumir_cuota_whatsapp: { Args: never; Returns: number }
       espacio_estudios_bytes: { Args: never; Returns: number }
       get_citas_end_time: { Args: { start_time: string }; Returns: string }
+      // Migración 0028. Añadidas a mano: este fichero se genera desde la base,
+      // y hasta que alguien vuelva a generarlo `supabase.rpc()` rechaza por
+      // tipos cualquier función que no esté en esta unión.
+      vincular_cuenta_portal: {
+        Args: { p_ficha_destino: string; p_ficha_portal: string }
+        Returns: string
+      }
+      desvincular_cuenta_portal: { Args: { p_ficha: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

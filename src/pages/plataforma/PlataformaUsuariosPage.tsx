@@ -11,9 +11,11 @@ import {
   alternarActivoUsuario,
   borrarCuentaHuerfana,
   borrarUsuario,
+  estadoCuentasPortal,
   listCuentasHuerfanas,
   listUsuariosPlataforma,
   type CuentaHuerfana,
+  type EstadoCuentaPortal,
   type UsuarioPlataforma,
 } from '../../services/plataforma'
 import { EditarUsuarioModal } from '../../features/plataforma/EditarUsuarioModal'
@@ -43,6 +45,9 @@ const ROL_LABEL: Record<string, string> = {
 export function PlataformaUsuariosPage() {
   const [filasTodas, setFilasTodas] = useState<UsuarioPlataforma[]>([])
   const [huerfanas, setHuerfanas] = useState<CuentaHuerfana[]>([])
+  // Solo booleano y conteo por cuenta: la RLS no deja al superadmin leer
+  // `clientes`, y eso no cambia. Ver `estadoCuentasPortal`.
+  const [estadoPortal, setEstadoPortal] = useState<Record<string, EstadoCuentaPortal>>({})
   const [busqueda, setBusqueda] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
@@ -57,12 +62,17 @@ export function PlataformaUsuariosPage() {
 
   const recargar = useCallback(async () => {
     setFilasTodas(await listUsuariosPlataforma())
-    // Las huérfanas van aparte y no deben tumbar la lista principal si la Edge
-    // Function no está desplegada todavía.
+    // Las dos consultas de apoyo van aparte y no deben tumbar la lista
+    // principal si su Edge Function no está desplegada todavía.
     try {
       setHuerfanas(await listCuentasHuerfanas())
     } catch {
       setHuerfanas([])
+    }
+    try {
+      setEstadoPortal(await estadoCuentasPortal())
+    } catch {
+      setEstadoPortal({})
     }
   }, [])
 
@@ -198,6 +208,7 @@ export function PlataformaUsuariosPage() {
           // portal: el desplegable de `EditarUsuarioModal` solo tiene roles de
           // clínica, y no pertenece a ninguna.
           const sinAcciones = esPortal || u.rol === 'superadmin'
+          const portal = estadoPortal[u.id]
 
           return (
             <li
@@ -217,50 +228,78 @@ export function PlataformaUsuariosPage() {
                       Desactivado
                     </Badge>
                   )}
+                  {/* Lo justo para responder «¿por qué no ve su mascota?» sin
+                      abrir el expediente de nadie. */}
+                  {esPortal &&
+                    (portal?.vinculada ? (
+                      <Badge tone="emerald" size="sm">
+                        Vinculada · {portal.mascotas} mascota(s)
+                      </Badge>
+                    ) : (
+                      <Badge tone="amber" size="sm">
+                        Sin vincular
+                      </Badge>
+                    ))}
                 </div>
                 <p className="text-xs text-slate-500">{esPortal ? 'Dueño de mascota' : ROL_LABEL[u.rol] ?? u.rol}</p>
                 <p className="font-mono text-[11px] text-slate-400">
                   {u.email} · {u.whatsapp}
                 </p>
               </div>
-              {/* Sin acciones para las cuentas del portal: el desplegable de
-                  edición solo tiene roles de personal —convertir a un dueño de
-                  mascota en «Administrador» le daría acceso al sistema clínico
-                  entero—, y el enlace de acceso es para el alta de personal. */}
-              <div className={clsx('flex items-center gap-2', sinAcciones && 'hidden')}>
-                {u.activo && (
-                  <Button
-                    variant="secondary"
-                    className="px-3 py-1.5 text-xs"
-                    onClick={() => setEnviandoAcceso(fila)}
-                  >
-                    <MessageCircle size={13} /> Enviar acceso
-                  </Button>
-                )}
-                <Button
-                  variant={u.activo ? 'secondary' : 'success'}
-                  className="px-3 py-1.5 text-xs"
-                  onClick={() => ejecutar(() => alternarActivoUsuario(u.id))}
-                >
-                  {u.activo ? 'Desactivar' : 'Activar'}
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="px-2 py-1.5 text-xs"
-                  onClick={() => setEditando(fila)}
-                  title="Editar"
-                >
-                  <Pencil size={13} />
-                </Button>
+              {/* Una cuenta del portal solo se borra. NO se edita: el
+                  desplegable de `EditarUsuarioModal` solo tiene roles de
+                  clínica —ascender a un dueño de mascota a «Administrador» le
+                  daría el sistema clínico entero— y `actualizarUsuario` ya lo
+                  rechaza; y «Enviar acceso» es para el alta de personal.
+
+                  Los botones ya no se tapan con `hidden`: antes se renderizaban
+                  con su `onClick` y solo se ocultaban por CSS. Cuando una
+                  acción no aplica, no se pinta. */}
+              {esPortal ? (
                 <button
                   type="button"
                   onClick={() => setBorrando(fila)}
                   className="p-1.5 text-slate-400 hover:text-rose-600"
-                  title="Eliminar"
+                  title="Eliminar cuenta del portal"
                 >
                   <Trash2 size={15} />
                 </button>
-              </div>
+              ) : sinAcciones ? null : (
+                <div className="flex items-center gap-2">
+                  {u.activo && (
+                    <Button
+                      variant="secondary"
+                      className="px-3 py-1.5 text-xs"
+                      onClick={() => setEnviandoAcceso(fila)}
+                    >
+                      <MessageCircle size={13} /> Enviar acceso
+                    </Button>
+                  )}
+                  <Button
+                    variant={u.activo ? 'secondary' : 'success'}
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() => ejecutar(() => alternarActivoUsuario(u.id))}
+                  >
+                    {u.activo ? 'Desactivar' : 'Activar'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="px-2 py-1.5 text-xs"
+                    onClick={() => setEditando(fila)}
+                    title="Editar"
+                  >
+                    <Pencil size={13} />
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setBorrando(fila)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600"
+                    title="Eliminar"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              )}
             </li>
           )
         })}
@@ -305,7 +344,15 @@ export function PlataformaUsuariosPage() {
       {borrando && (
         <ConfirmDialog
           title={`Eliminar a ${borrando.usuario.nombre}`}
-          description="Borra su cuenta de acceso por completo. Si ya registró actividad clínica o de caja, se rechaza —desactívalo en vez de borrarlo—; si no, no se puede deshacer."
+          description={
+            borrando.usuario.rol === 'cliente'
+              ? // La FK `clientes.usuario_id` es `on delete set null`: la ficha
+                // y sus mascotas sobreviven, y quedan libres para vincularse
+                // con la cuenta correcta. Conviene decirlo, porque «eliminar»
+                // suena a que se pierde el expediente.
+                'Borra su cuenta de acceso al portal. Su ficha y sus mascotas NO se borran: quedan en la clínica, sin cuenta vinculada, listas para unirse a la correcta. No se puede deshacer.'
+              : 'Borra su cuenta de acceso por completo. Si ya registró actividad clínica o de caja, se rechaza —desactívalo en vez de borrarlo—; si no, no se puede deshacer.'
+          }
           confirmLabel="Eliminar"
           loading={eliminando}
           onCancel={() => setBorrando(null)}

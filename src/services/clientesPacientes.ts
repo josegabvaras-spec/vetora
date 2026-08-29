@@ -486,30 +486,20 @@ export async function vincularCuentaPortal(clienteId: string, clinicaId: string,
   if (!fichaDuplicada) throw new Error('Esa cuenta no tiene ninguna ficha para unir')
   if (fichaDuplicada.id === clienteId) throw new Error('Esa cuenta ya está vinculada a esta ficha')
 
-  // Comprobación antes de tocar nada: si la ficha "duplicada" en realidad ya
-  // tiene sus propias mascotas, no es el duplicado vacío que se espera —
-  // fusionarla a ciegas borraría ese registro real.
-  const { count, error: errorPacientes } = await supabase
-    .from('pacientes')
-    .select('id', { count: 'exact', head: true })
-    .eq('cliente_id', fichaDuplicada.id)
+  // El resto —que la ficha del portal esté vacía, que la destino esté LIBRE, y
+  // que soltar y tomar ocurran de una pieza— lo hace el RPC (0028). Aquí solo
+  // se resuelve el correo tecleado, que es lo propio de este camino.
+  //
+  // Antes esto era un DELETE y luego un UPDATE desde el navegador, sin
+  // transacción y sin comprobar que la ficha destino estuviera libre: pisaba un
+  // vínculo existente en silencio, y si el segundo viaje fallaba dejaba la
+  // cuenta sin ninguna ficha.
+  const { error } = await supabase.rpc('vincular_cuenta_portal', {
+    p_ficha_destino: clienteId,
+    p_ficha_portal: fichaDuplicada.id,
+  })
 
-  if (errorPacientes) throw new Error(`No se pudo comprobar la ficha: ${errorPacientes.message}`)
-  if (count && count > 0) {
-    throw new Error('Esa cuenta ya tiene sus propias mascotas registradas: no se puede unir automáticamente')
-  }
-
-  const { error: errorBorrado } = await supabase.from('clientes').delete().eq('id', fichaDuplicada.id)
-  if (errorBorrado) throw new Error(`No se pudo soltar la ficha duplicada: ${errorBorrado.message}`)
-
-  const { data: actualizado, error: errorVinculo } = await supabase
-    .from('clientes')
-    .update({ usuario_id: usuario.id })
-    .eq('id', clienteId)
-    .select('id')
-
-  if (errorVinculo) throw new Error(`No se pudo vincular la cuenta: ${errorVinculo.message}`)
-  if (!actualizado || actualizado.length === 0) throw new Error('No tienes permiso para vincular esta ficha')
+  if (error) throw new Error(error.message)
 }
 
 /** Un dueño de la clínica, con lo que hace falta para gestionarlo desde «Clientes». */
@@ -575,8 +565,12 @@ export interface SugerenciaVinculo {
   cuenta: ClienteConEstado
   /** Ficha con mascotas, sin cuenta, cuyo CI o WhatsApp coincide. */
   posible: ClienteConEstado
-  /** Por qué se sugiere, para que quien aprueba sepa qué está confirmando. */
-  coincide: 'ci' | 'whatsapp'
+  /**
+   * Por qué se sugiere, para que quien aprueba sepa qué está confirmando.
+   * `ci_y_whatsapp` es el mismo listón que el vínculo automático; los otros dos
+   * son una pista con un solo dato, y solo se emiten si no hay ambigüedad.
+   */
+  coincide: 'ci_y_whatsapp' | 'ci' | 'whatsapp'
 }
 
 /**
@@ -601,15 +595,32 @@ export function sugerenciasDeVinculo(clientes: ClienteConEstado[]): SugerenciaVi
 
   return sueltas.flatMap((cuenta): SugerenciaVinculo[] => {
     const suCi = cedula(cuenta.ci ?? '')
-    if (suCi) {
-      const porCi = conMascotas.find((f) => cedula(f.ci ?? '') === suCi)
-      if (porCi) return [{ cuenta, posible: porCi, coincide: 'ci' }]
+    const suMovil = movil(cuenta.whatsapp)
+
+    // Se busca por cada dato POR SEPARADO y se exige unicidad en el que gane.
+    // Antes se usaba `.find()`, que devuelve la primera por orden alfabético:
+    // con dos fichas compartiendo el teléfono —un matrimonio, una familia— se
+    // sugería una de las dos sin decir que había otra, y el vínculo que salía
+    // de ahí no se podía deshacer.
+    const porCi = suCi ? conMascotas.filter((f) => cedula(f.ci ?? '') === suCi) : []
+    const porMovil = suMovil ? conMascotas.filter((f) => movil(f.whatsapp) === suMovil) : []
+
+    // Los dos datos a la vez y sobre la misma ficha: el mismo listón que el
+    // automático de `registro-portal`, y la única que se sugiere sin reservas.
+    const ambos = porCi.filter((f) => porMovil.some((m) => m.id === f.id))
+    if (ambos.length === 1) return [{ cuenta, posible: ambos[0], coincide: 'ci_y_whatsapp' }]
+
+    // Un solo dato: vale como pista, pero solo si no hay ninguna ambigüedad.
+    // Con dos candidatas no se propone ninguna — quien aprueba no puede
+    // distinguirlas, y la pantalla lo dirá.
+    if (porCi.length === 1 && porMovil.length === 0) {
+      return [{ cuenta, posible: porCi[0], coincide: 'ci' }]
+    }
+    if (porMovil.length === 1 && porCi.length === 0) {
+      return [{ cuenta, posible: porMovil[0], coincide: 'whatsapp' }]
     }
 
-    const suMovil = movil(cuenta.whatsapp)
-    if (!suMovil) return []
-    const porMovil = conMascotas.find((f) => movil(f.whatsapp) === suMovil)
-    return porMovil ? [{ cuenta, posible: porMovil, coincide: 'whatsapp' }] : []
+    return []
   })
 }
 
@@ -623,42 +634,33 @@ export function sugerenciasDeVinculo(clientes: ClienteConEstado[]): SugerenciaVi
  * ficha del paciente, donde solo se sabe el correo.
  */
 export async function vincularPorIds(clienteConMascotasId: string, clienteDelPortalId: string): Promise<void> {
-  if (clienteConMascotasId === clienteDelPortalId) throw new Error('Es la misma ficha')
+  const { error } = await supabase.rpc('vincular_cuenta_portal', {
+    p_ficha_destino: clienteConMascotasId,
+    p_ficha_portal: clienteDelPortalId,
+  })
 
-  const { data: portal, error: errorPortal } = await supabase
-    .from('clientes')
-    .select('id, usuario_id')
-    .eq('id', clienteDelPortalId)
-    .maybeSingle()
+  if (error) throw new Error(error.message)
+}
 
-  if (errorPortal) throw new Error(`No se pudo leer la cuenta: ${errorPortal.message}`)
-  if (!portal?.usuario_id) throw new Error('Esa ficha ya no tiene una cuenta del portal')
-
-  // La ficha del portal debe estar vacía: si tiene mascotas propias no es el
-  // duplicado que se espera, y fusionarla borraría un registro real.
-  const { count, error: errorPacientes } = await supabase
-    .from('pacientes')
-    .select('id', { count: 'exact', head: true })
-    .eq('cliente_id', clienteDelPortalId)
-
-  if (errorPacientes) throw new Error(`No se pudo comprobar la ficha: ${errorPacientes.message}`)
-  if (count && count > 0) {
-    throw new Error('Esa cuenta ya tiene sus propias mascotas registradas: no se puede unir automáticamente')
-  }
-
-  // Soltar antes de tomar: el índice único parcial `clientes_por_usuario`
-  // (0004) no deja que dos fichas compartan la misma cuenta a la vez.
-  const { error: errorBorrado } = await supabase.from('clientes').delete().eq('id', clienteDelPortalId)
-  if (errorBorrado) throw new Error(`No se pudo soltar la ficha del portal: ${errorBorrado.message}`)
-
-  const { data: actualizado, error: errorVinculo } = await supabase
-    .from('clientes')
-    .update({ usuario_id: portal.usuario_id })
-    .eq('id', clienteConMascotasId)
-    .select('id')
-
-  if (errorVinculo) throw new Error(`No se pudo vincular la cuenta: ${errorVinculo.message}`)
-  if (!actualizado || actualizado.length === 0) throw new Error('No tienes permiso para vincular esta ficha')
+/**
+ * Suelta la cuenta del portal de una ficha, y le devuelve una ficha propia.
+ *
+ * **La reparación que no existía.** Ningún punto del código escribía
+ * `clientes.usuario_id = null`: los cuatro que tocan esa columna asignan un id.
+ * Un vínculo mal hecho —y `ClientesPage` los propone a partir de coincidencias
+ * de teléfono— era irreversible desde la interfaz, dejando a alguien viendo el
+ * historial, las recetas y los estudios de una mascota ajena. La única salida
+ * era borrar la cuenta entera, porque la FK es `on delete set null`.
+ *
+ * Deja a la cuenta en el mismo estado en que la deja `registro-portal` cuando
+ * no encuentra a quién vincularla: con su propia ficha vacía, visible en
+ * «Clientes» y candidata a una sugerencia nueva. Eso lo hace el RPC en la misma
+ * transacción; ver `0028_vinculo_portal.sql` para por qué esa ficha nueva no es
+ * opcional.
+ */
+export async function desvincularCuentaPortal(clienteId: string): Promise<void> {
+  const { error } = await supabase.rpc('desvincular_cuenta_portal', { p_ficha: clienteId })
+  if (error) throw new Error(error.message)
 }
 
 /**

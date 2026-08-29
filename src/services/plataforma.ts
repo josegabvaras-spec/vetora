@@ -109,6 +109,36 @@ export async function listUsuariosPlataforma(): Promise<UsuarioPlataforma[]> {
   }))
 }
 
+/** Lo único que la plataforma sabe de una cuenta del portal, a propósito. */
+export interface EstadoCuentaPortal {
+  vinculada: boolean
+  mascotas: number
+}
+
+/**
+ * Estado de vinculación de las cuentas del portal, indexado por `usuario_id`.
+ *
+ * Responde a la única pregunta que el soporte necesita —«¿su cuenta quedó
+ * vinculada o suelta?»— sin abrir el expediente de nadie: la Edge Function
+ * devuelve **solo un booleano y un número** por cuenta. La RLS no le deja al
+ * superadmin leer `clientes`, y eso sigue siendo así; lo que hay es una puerta
+ * estrecha y acotada, no una excepción en las policies.
+ *
+ * Una cuenta ausente del mapa es una cuenta sin ficha: se trata como no
+ * vinculada.
+ */
+export async function estadoCuentasPortal(): Promise<Record<string, EstadoCuentaPortal>> {
+  const { data, error } = await supabase.functions.invoke<{
+    error?: string
+    estado?: Record<string, EstadoCuentaPortal>
+  }>('cuentas-portal', { body: {} })
+
+  if (error) throw new Error((await motivoDelFallo(error)) ?? 'No se pudo consultar el estado de las cuentas')
+  if (!data || data.error) throw new Error(data?.error ?? 'No se pudo consultar el estado de las cuentas')
+
+  return data.estado ?? {}
+}
+
 /** Una cuenta de Supabase Auth que no tiene fila en `usuarios`. */
 export interface CuentaHuerfana {
   id: string
