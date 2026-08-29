@@ -1,7 +1,7 @@
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import {
-  MapPin, CalendarPlus,
+  ShoppingBag, CalendarPlus,
   MessageCircle, Home as HomeIcon, CalendarDays,
 } from 'lucide-react'
 
@@ -47,7 +47,7 @@ export function PortalDashboardPage() {
           </div>
         </Link>
 
-        {/* ── Tarjeta 2: Encontrar Tiendas de Mascotas ── */}
+        {/* ── Tarjeta 2: Tiendas de Mascotas ── */}
         <Link
           to="/portal-cliente/tienda"
           className="portal-card relative aspect-[3/4] sm:aspect-[4/5] overflow-hidden rounded-2xl sm:rounded-3xl p-3 sm:p-4 flex flex-col justify-between group shadow-sm hover:shadow-xl transition-all"
@@ -61,15 +61,15 @@ export function PortalDashboardPage() {
 
           <div className="relative z-10 text-center">
             <h3 className="text-sm sm:text-base font-black text-slate-800 leading-tight font-display drop-shadow-[0_1px_3px_rgba(255,255,255,0.9)]">
-              Encontrar Tiendas de Mascotas
+              Tiendas de Mascotas
             </h3>
           </div>
 
           {/* Botón */}
           <div className="relative z-10 mt-auto pt-2">
             <div className="bg-blue-600/95 hover:bg-blue-600 backdrop-blur-md rounded-full py-2 px-3 sm:px-4 text-center shadow-md flex items-center justify-center gap-1.5 transition-colors">
-              <MapPin size={14} className="text-white" />
-              <span className="text-xs sm:text-sm font-bold text-white">Buscar Cerca</span>
+              <ShoppingBag size={14} className="text-white" />
+              <span className="text-xs sm:text-sm font-bold text-white">Ver Catálogo</span>
             </div>
           </div>
         </Link>
