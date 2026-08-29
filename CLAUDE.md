@@ -25,7 +25,7 @@ No hay runner de tests configurado. La verificación real es `npm run build` (ty
 
 **No queda modo mock.** `src/mocks/db.ts` y `seed.ts` fueron eliminados en la migración; hoy son ficheros vacíos que solo existen por un motivo de build (ver más abajo). `isMockMode` sigue exportándose en [src/lib/supabase.ts](src/lib/supabase.ts) pero es `const false`: cualquier `if (isMockMode)` es código muerto.
 
-- [supabase/migrations/](supabase/migrations/) es el esquema de verdad y **es normativo** — pero eso es las **veinte** migraciones, no solo la primera. `0001_init.sql` es la base (20 tablas, RLS habilitada en las 20, 35 policies, 3 triggers, 4 funciones `SECURITY DEFINER`); `0002` a `0010` son correcciones de seguridad reales y features que ya están aplicadas encima (RLS de `historial_update`/`internaciones_update`, índices, cuota de WhatsApp, portal del cliente, `pacientes.codigo`/`foto`, venta directa, recetario, tipo de cita `peluqueria`, inventario fraccionado). Leer solo `0001` da una foto vieja del esquema — antes de decir "esta tabla/columna no existe" o "esta policy no tiene `with check`", revisa si una migración posterior ya lo tocó.
+- [supabase/migrations/](supabase/migrations/) es el esquema de verdad y **es normativo** — pero eso es las **treinta y una** migraciones, no solo la primera. `0001_init.sql` es la base (20 tablas, RLS habilitada en las 20, 35 policies, 3 triggers, 4 funciones `SECURITY DEFINER`); `0002` a `0010` son correcciones de seguridad reales y features que ya están aplicadas encima (RLS de `historial_update`/`internaciones_update`, índices, cuota de WhatsApp, portal del cliente, `pacientes.codigo`/`foto`, venta directa, recetario, tipo de cita `peluqueria`, inventario fraccionado). Leer solo `0001` da una foto vieja del esquema — antes de decir "esta tabla/columna no existe" o "esta policy no tiene `with check`", revisa si una migración posterior ya lo tocó.
 - [src/types/database.ts](src/types/database.ts) pretende reflejar fila por fila las tablas del SQL, y [src/types/supabase.ts](src/types/supabase.ts) es el tipo generado desde la base real. Cuando discrepen, **gana el SQL**.
 
 **Regla estructural: solo `src/services/*.ts` habla con Supabase.** Las páginas y los `features` nunca llaman a `supabase` directamente; consumen servicios, que devuelven los tipos de `types/views.ts`. La única excepción legítima es `useTable` (abajo), que es infraestructura de reactividad, no de negocio.
@@ -33,7 +33,7 @@ No hay runner de tests configurado. La verificación real es `npm run build` (ty
 La deuda que sigue viva:
 
 - [lib/exportacion.ts](src/lib/exportacion.ts) e [lib/importacion.ts](src/lib/importacion.ts) — son `lib/` pero leen y escriben tablas enteras, y con `any`. El respaldo no puede salir de ahí.
-- **`apply_migrations.cjs` y `set_limit.cjs` (raíz del repo, versionados) llevan una contraseña de Postgres de producción en texto plano** en la cadena de conexión. Son scripts sueltos de una sola vez, no parte del flujo normal — no los uses como plantilla ni los ejecutes contra producción sin que esa contraseña se haya rotado ya.
+- **La contraseña de Postgres de producción sigue en el historial de git.** `apply_migrations.cjs` y `set_limit.cjs` ya **no están** en la raíz —se sacaron en `91725ff`— pero eso no la borró: sigue siendo legible con `git show fd6ad0d:apply_migrations.cjs`. Quitar un fichero del árbol no lo quita de la historia. **Solo se cierra rotando la credencial en Supabase**; no hay arreglo posible desde el código.
 
 Cuando toques una regla de negocio, tiene que quedar en los **tres** sitios: el SQL (constraint/trigger/policy), el servicio que la aplica, y el tipo si cambia la forma de la fila. **Un `as any` de por medio significa que los tres no están alineados**: esos casts son exactamente lo que permitió que el esquema y los tipos derivaran sin romper el build.
 
@@ -85,6 +85,22 @@ El peluquero comparte la misma pantalla y el mismo componente que el veterinario
 - **Todo se deriva, igual que `listProgramados`.** Una fila desaparece sola cuando deja de ser cierta: se cerró la consulta, se firmó el consentimiento, se escribió la evolución. No hay nada que marcar como hecho.
 - `listConsultasAbiertas()` ([services/historial.ts](src/services/historial.ts)) es lo único que hubo que escribir: `CitaConDetalle.historial_id` dice que hay historial pero no si sigue abierto, y un borrador de ayer sin cerrar tiene que seguir apareciendo. `historial_clinico` **no tiene `sucursal_id`** — la sucursal se resuelve por la cita.
 - Las otras dos secciones salen de `listCitas` y `listInternaciones` con el `veterinarioId` que ya aceptan. Para el peluquero quedan naturalmente vacías: nunca tiene historiales ni internaciones a su nombre — da de alta pacientes, pero no abre consultas ni interna (ver el reparto de `RolRoute` más abajo).
+
+## Los módulos de Peluquería y Petshop
+
+Dos paneles propios y completos (13 pantallas cada uno, en `src/pages/peluqueria/` y `src/pages/petshop/`), con su layout y su navegación aparte del área clínica. Van detrás de `ModuloRoute modulo="peluqueria"` y `modulo="petshop"`, y el admin de un negocio no clínico **aterriza directamente ahí** ([InicioSegunRol](src/components/layout/InicioSegunRol.tsx)) en vez de en la agenda.
+
+⚠️ **Añadir un valor a `ModuloVetora` NO lo hace alcanzable. Hacen falta TRES cosas, y si falta una las pantallas quedan muertas:**
+
+1. **Que algún plan lo traiga** en `planes.modulos_habilitados`.
+2. **Que [PlataformaPlanesPage](src/pages/plataforma/PlataformaPlanesPage.tsx) lo ofrezca** en su lista `MODULOS`; si no, el superadmin no puede marcarlo ni en un plan nuevo.
+3. La ruta con su `ModuloRoute` y el enlace en el `Sidebar`.
+
+Esto falló dos veces. Con `catalogo` quedó anotado; con `peluqueria` y `petshop` volvió a pasar y **26 pantallas estuvieron construidas y sin ninguna puerta**: `0026` creó los planes «Peluquería» y «PetShop» antes de que existieran los módulos (`0029`/`0030`), esas dos migraciones no tocaron `planes`, y el editor omitía las casillas. `tieneModulo('peluqueria')` era siempre falso y `ModuloRoute` rebotaba a `/agenda`, así que todo negocio veía la interfaz de veterinaria. Lo arregla `0031`.
+
+**El plan manda, aunque venga vacío.** `AuthContext` aplica `modulos_habilitados` tal cual; `MODULOS_VETERINARIA_COMPLETA` es solo el respaldo de cuando **no se pudo leer** el plan (red, RLS, clínica sin plan). Antes la guarda era `.length > 0` sin `else`, así que un plan con `[]` no se aplicaba nunca y dejaba el menú **completo** — al revés de lo que espera quien desmarca todas las casillas.
+
+**`tipo_negocio` no participa en nada de esto.** Es descriptivo: se fija en el panel de plataforma y se enseña como etiqueta en la Tienda del portal, pero ninguna pantalla de la clínica lo consulta. Lo que segmenta el producto es el par **rol + módulo del plan**. Hubo tres comentarios que afirmaban que decidía la interfaz —el `COMMENT` de `0023`, el docstring de `TipoNegocio` y uno en `InicioSegunRol`— y los tres eran falsos; corregidos, porque son la razón de que se esperara que cambiar el tipo de negocio cambiara algo.
 
 ## El catálogo y la Tienda
 

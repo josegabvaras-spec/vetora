@@ -26,7 +26,15 @@ export type EstadoComprobante = 'pendiente' | 'aprobado' | 'rechazado'
 
 /**
  * Segmento de negocio del establecimiento (migración 0023).
- * Determina qué módulos se muestran y qué flujo es el principal.
+ *
+ * **Es descriptivo: no decide nada en la aplicación.** Se fija en el panel de
+ * plataforma y se enseña como etiqueta en la Tienda del portal; ninguna
+ * pantalla de la clínica lo consulta para cambiar su comportamiento.
+ *
+ * Quien decide qué se ve es el par **rol + `planes.modulos_habilitados`**
+ * (migración 0024). Este comentario decía antes que «determina qué módulos se
+ * muestran», y era falso: hizo esperar que cambiar el tipo de negocio cambiara
+ * la interfaz, cuando lo que hay que cambiar es el plan.
  */
 export type TipoNegocio =
   | 'veterinaria'           // Clínica médica completa (predeterminado)

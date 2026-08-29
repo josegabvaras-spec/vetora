@@ -29,6 +29,37 @@ import type { Database } from '../../types/supabase'
 
 type Plan = Database['public']['Tables']['planes']['Row'] & { uso_clinicas?: number }
 
+/**
+ * Todos los módulos que se pueden contratar, con su rótulo.
+ *
+ * ⚠️ Tiene que cubrir **todos** los valores de `ModuloVetora`. Un módulo que
+ * exista en el tipo pero no esté aquí no se puede marcar en ningún plan, y sus
+ * pantallas quedan inalcanzables por muy construidas que estén: `ModuloRoute`
+ * rebota a `/agenda` sin él. Le pasó a `peluqueria` y `petshop` —26 páginas sin
+ * ninguna puerta— y antes a `catalogo`.
+ *
+ * Vive a nivel de módulo, no dentro del formulario, porque lo usan las dos
+ * cosas: las casillas del editor y las insignias de la tarjeta de cada plan.
+ */
+const MODULOS: { key: ModuloVetora; label: string }[] = [
+  { key: 'agenda', label: 'Agenda' },
+  { key: 'caja', label: 'Caja' },
+  { key: 'inventario', label: 'Inventario' },
+  { key: 'historial_clinico', label: 'Historial Clínico (SOAP)' },
+  { key: 'internacion', label: 'Internación' },
+  { key: 'asistente_ia', label: 'Asistente IA' },
+  { key: 'portal_cliente', label: 'Portal del Cliente' },
+  { key: 'whatsapp', label: 'WhatsApp' },
+  { key: 'metricas', label: 'Métricas' },
+  { key: 'catalogo', label: 'Catálogo' },
+  { key: 'peluqueria', label: 'Peluquería (panel propio)' },
+  { key: 'petshop', label: 'Pet Shop (panel propio)' },
+]
+
+const MODULO_LABEL: Record<string, string> = Object.fromEntries(
+  MODULOS.map((m) => [m.key, m.label]),
+)
+
 export function PlataformaPlanesPage() {
   const [planes, setPlanes] = useState<Plan[]>([])
   const [config, setConfig] = useState<ConfiguracionPlataforma>({
@@ -118,6 +149,27 @@ export function PlataformaPlanesPage() {
                   {p.whatsapp_limite} mensajes de WhatsApp al mes
                 </div>
               </dl>
+
+              {/* Los módulos no se veían en ninguna parte, y por eso este fallo
+                  fue indiagnosticable: se crearon los planes de peluquería y
+                  petshop, no cambió nada, y no había dónde mirar para descubrir
+                  que les faltaba su propio módulo. */}
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Módulos</p>
+                {p.modulos_habilitados.length === 0 ? (
+                  <p className="mt-1.5 text-xs font-semibold text-rose-600">
+                    Ninguno: quien lo contrate se queda sin las secciones del menú.
+                  </p>
+                ) : (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {p.modulos_habilitados.map((m) => (
+                      <Badge key={m} tone="slate" size="sm">
+                        {MODULO_LABEL[m] ?? m}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <p className="mt-3 text-[11px] font-semibold text-slate-400">
                 {contratado === 0
@@ -394,18 +446,7 @@ function PlanModal({
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const TODOS_MODULOS: { key: ModuloVetora; label: string }[] = [
-    { key: 'agenda', label: 'Agenda' },
-    { key: 'caja', label: 'Caja' },
-    { key: 'inventario', label: 'Inventario' },
-    { key: 'historial_clinico', label: 'Historial Clínico (SOAP)' },
-    { key: 'internacion', label: 'Internación' },
-    { key: 'asistente_ia', label: 'Asistente IA' },
-    { key: 'portal_cliente', label: 'Portal del Cliente' },
-    { key: 'whatsapp', label: 'WhatsApp' },
-    { key: 'metricas', label: 'Métricas' },
-    { key: 'catalogo', label: 'Catálogo' },
-  ]
+  const TODOS_MODULOS = MODULOS
 
   function toggleModulo(modulo: ModuloVetora) {
     setModulos((prev) =>

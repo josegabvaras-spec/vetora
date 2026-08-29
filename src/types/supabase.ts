@@ -1209,7 +1209,7 @@ export type Database = {
       productos: {
         Row: {
           activo: boolean
-          categoria_retail: string | null
+          categoria_retail: string
           codigo_barras: string | null
           clinica_id: string
           composicion: string
@@ -1217,7 +1217,7 @@ export type Database = {
           costo_bs: number
           created_at: string
           id: string
-          marca: string | null
+          marca: string
           nombre: string
           precio_bs: number
           presentacion: string
@@ -1225,15 +1225,15 @@ export type Database = {
           requiere_lote: boolean
           sku: string
           stock_actual: number
-          stock_maximo: number | null
+          stock_maximo: number
           stock_minimo: number
           sucursal_id: string
-          ubicacion: string | null
+          ubicacion: string
           unidad_medida: string
         }
         Insert: {
           activo?: boolean
-          categoria_retail?: string | null
+          categoria_retail?: string
           codigo_barras?: string | null
           clinica_id?: string
           composicion?: string
@@ -1241,7 +1241,7 @@ export type Database = {
           costo_bs?: number
           created_at?: string
           id?: string
-          marca?: string | null
+          marca?: string
           nombre: string
           precio_bs?: number
           presentacion?: string
@@ -1249,15 +1249,15 @@ export type Database = {
           requiere_lote?: boolean
           sku: string
           stock_actual?: number
-          stock_maximo?: number | null
+          stock_maximo?: number
           stock_minimo?: number
           sucursal_id: string
-          ubicacion?: string | null
+          ubicacion?: string
           unidad_medida?: string
         }
         Update: {
           activo?: boolean
-          categoria_retail?: string | null
+          categoria_retail?: string
           codigo_barras?: string | null
           clinica_id?: string
           composicion?: string
@@ -1265,7 +1265,7 @@ export type Database = {
           costo_bs?: number
           created_at?: string
           id?: string
-          marca?: string | null
+          marca?: string
           nombre?: string
           precio_bs?: number
           presentacion?: string
@@ -1273,10 +1273,10 @@ export type Database = {
           requiere_lote?: boolean
           sku?: string
           stock_actual?: number
-          stock_maximo?: number | null
+          stock_maximo?: number
           stock_minimo?: number
           sucursal_id?: string
-          ubicacion?: string | null
+          ubicacion?: string
           unidad_medida?: string
         }
         Relationships: [
@@ -1787,15 +1787,14 @@ export type Database = {
           precio_estimado_bs: number
           precio_final_bs: number
           insumos_descontados: boolean
-          comision_generada: boolean
           observaciones_recepcion: string | null
           observaciones_peluquero: string | null
           hora_ingreso: string
           hora_inicio: string | null
           hora_fin: string | null
           hora_entrega: string | null
+          creado_por: string | null
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
@@ -1819,15 +1818,14 @@ export type Database = {
           precio_estimado_bs?: number
           precio_final_bs?: number
           insumos_descontados?: boolean
-          comision_generada?: boolean
           observaciones_recepcion?: string | null
           observaciones_peluquero?: string | null
           hora_ingreso?: string
           hora_inicio?: string | null
           hora_fin?: string | null
           hora_entrega?: string | null
+          creado_por?: string | null
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
@@ -1851,15 +1849,14 @@ export type Database = {
           precio_estimado_bs?: number
           precio_final_bs?: number
           insumos_descontados?: boolean
-          comision_generada?: boolean
           observaciones_recepcion?: string | null
           observaciones_peluquero?: string | null
           hora_ingreso?: string
           hora_inicio?: string | null
           hora_fin?: string | null
           hora_entrega?: string | null
+          creado_por?: string | null
           created_at?: string
-          updated_at?: string
         }
         Relationships: [
           {

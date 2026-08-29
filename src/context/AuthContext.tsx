@@ -5,7 +5,16 @@ import { supabase } from '../lib/supabase'
 import { limpiarTablasCacheadas } from '../mocks/useDb'
 import type { ModuloVetora, TipoNegocio, Usuario } from '../types/database'
 
-/** Módulos completos que corresponden a una veterinaria sin restricciones. */
+/**
+ * Módulos completos que corresponden a una veterinaria sin restricciones.
+ *
+ * Es el respaldo para cuando NO se pudo leer el plan (fallo de red, RLS, una
+ * clínica sin plan asignado): quedarse sin menú por eso dejaría a la clínica
+ * sin poder trabajar. No es «todo lo que existe», y por eso no incluye
+ * `catalogo`, `peluqueria` ni `petshop` — esos tres son módulos que se
+ * contratan aparte, y darlos por defecto los regalaría a cualquiera cuyo plan
+ * no se pudiera leer.
+ */
 const MODULOS_VETERINARIA_COMPLETA: ModuloVetora[] = [
   'agenda', 'caja', 'inventario', 'historial_clinico',
   'internacion', 'asistente_ia', 'portal_cliente', 'whatsapp', 'metricas',
@@ -98,7 +107,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('id', clinica.plan_id)
           .single()
 
-        if (plan?.modulos_habilitados && plan.modulos_habilitados.length > 0) {
+        // Un plan que se lee bien MANDA, aunque venga vacío.
+        //
+        // Antes la condición era `.length > 0`, sin `else`: un plan con `[]`
+        // no se aplicaba nunca y el estado conservaba
+        // `MODULOS_VETERINARIA_COMPLETA`. Es decir, desmarcar todas las
+        // casillas en el editor de planes no dejaba el menú vacío — lo dejaba
+        // COMPLETO, justo al revés de lo que cualquiera esperaría.
+        //
+        // Lo que sí justifica el fallback es no haber podido leer el plan
+        // (el `catch` de abajo, o una clínica sin plan): ahí quedarse sin menú
+        // dejaría a la clínica sin poder trabajar por un fallo de red.
+        if (plan?.modulos_habilitados) {
           setModulosHabilitados(plan.modulos_habilitados as ModuloVetora[])
         }
       }
