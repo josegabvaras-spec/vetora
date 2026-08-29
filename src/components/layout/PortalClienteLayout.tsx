@@ -13,6 +13,21 @@ const TABS = [
   { to: '/portal-cliente/perfil', label: 'Perfil', icon: User },
 ] as const
 
+/**
+ * Ancla del tour para cada pestaña: `portal-tab-mascotas`, `portal-tab-perfil`…
+ *
+ * Las anclas del tutorial del dueño tienen que vivir **aquí**, en la barra que
+ * está en todas las rutas del portal, y no en el cuerpo de una página. Cuando
+ * colgaban de `PortalMascotasPage` y `PortalPerfilPage`, el tour arrancaba en el
+ * dashboard —donde el dueño siempre aterriza—, no las encontraba, y las daba por
+ * «secciones que este rol no tiene»: se saltaba los dos pasos con contenido y
+ * llegaba solo al final en poco más de un segundo. Es el mismo criterio que en
+ * la clínica, donde todas las anclas están en `Sidebar`/`Topbar`/`MobileNav`.
+ */
+function anclaDePestana(to: string): string {
+  return `portal-tab-${to.split('/').pop()}`
+}
+
 export function PortalClienteLayout() {
   const { usuario } = useAuth()
   const location = useLocation()
@@ -77,6 +92,7 @@ export function PortalClienteLayout() {
               <NavLink
                 key={to}
                 to={to}
+                data-tour={anclaDePestana(to)}
                 className="flex flex-1 flex-col items-center justify-center gap-0.5 py-1"
               >
                 <div

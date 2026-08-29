@@ -114,7 +114,6 @@ export function PortalPerfilPage() {
       {/* Versión y cerrar sesión */}
       <div className="space-y-3">
         <button
-          data-tour="portal-salir"
           onClick={logout}
           className="w-full flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors"
         >

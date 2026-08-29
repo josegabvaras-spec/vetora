@@ -167,6 +167,18 @@ export function Tour({
       // Pasado ese margen, de verdad no está: este rol no tiene esa sección. Se
       // avanza en la misma dirección en la que se venía, para que «Atrás» no
       // se quede atascado rebotando contra un paso ausente.
+      //
+      // El aviso no cambia el comportamiento, lo hace visible: saltar es
+      // legítimo cuando el rol no tiene la sección, pero es indistinguible de un
+      // ancla mal puesta. El tutorial del portal se saltó sus dos únicos pasos
+      // con contenido desde que se escribió —sus anclas estaban en páginas que
+      // no se ven al arrancar— y nada lo delató hasta que un usuario lo contó.
+      console.warn(
+        `[tour] El paso «${paso!.titulo}» no encontró su ancla «${paso!.ancla}» y se salta. ` +
+          'Si esa sección sí existe para este rol, el ancla está mal puesta: ' +
+          'tiene que colgar de un elemento presente en la pantalla donde corre el tour.',
+      )
+
       const siguiente = indice + direccion.current
       if (siguiente >= 0 && siguiente < aplicables.length) setIndice(siguiente)
       else cerrar()

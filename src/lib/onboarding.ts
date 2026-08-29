@@ -169,16 +169,22 @@ export const PASOS_PORTAL: PasoTour[] = [
       'Este es tu portal: desde aquí sigues la salud de tus mascotas. Te lo enseñamos en treinta segundos.',
     etiquetaSiguiente: 'Comenzar',
   },
+  // Las anclas apuntan a la barra inferior (`PortalClienteLayout`), que está en
+  // todas las rutas del portal. Antes señalaban elementos del cuerpo de
+  // `PortalMascotasPage` y `PortalPerfilPage`, que no existen en el dashboard
+  // —donde el tour siempre arranca—, así que el motor los daba por ausentes y se
+  // saltaba los dos pasos seguidos.
   {
-    ancla: 'portal-mascotas',
+    ancla: 'portal-tab-mascotas',
     titulo: 'Tus mascotas',
     texto:
-      'Aquí están todas tus mascotas. Toca cualquiera para ver su historial, sus vacunas y las recetas que le dio el veterinario.',
+      'Desde esta pestaña llegas a todas tus mascotas. Toca cualquiera para ver su historial, sus vacunas y las recetas que le dio el veterinario.',
   },
   {
-    ancla: 'portal-salir',
-    titulo: 'Cerrar sesión',
-    texto: 'Cuando termines, sal desde aquí. Sobre todo si usas un dispositivo compartido.',
+    ancla: 'portal-tab-perfil',
+    titulo: 'Tu perfil',
+    texto:
+      'Aquí están tus datos y el botón para cerrar sesión. Sal siempre al terminar si usas un dispositivo compartido.',
   },
   {
     titulo: '🎉 ¡Listo!',

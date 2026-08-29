@@ -76,7 +76,7 @@ export function PortalMascotasPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-tour="portal-mascotas">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {pacientes.map((paciente) => (
             <Link
               key={paciente.id}
