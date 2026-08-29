@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -10,7 +10,7 @@ import {
   Edit2,
   RefreshCw,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { formatBs } from '../../lib/currency'
 import {
   listProductosPetshop,
@@ -35,14 +35,32 @@ export function PetshopProductosPage() {
   const [modalNuevo, setModalNuevo] = useState(false)
   const [productoAEditar, setProductoAEditar] = useState<ProductoConLotes | null>(null)
 
-  async function recargar() {
+  /**
+   * Texto de búsqueda ya reposado.
+   *
+   * `busqueda` se resuelve en el SERVIDOR (`listProductosPetshop`), pero nada
+   * disparaba la recarga al escribir: el efecto solo escuchaba a la sucursal y
+   * los filtros, así que **el buscador de esta pantalla no funcionaba** — se
+   * tecleaba y la lista no cambiaba hasta tocar otro filtro. Lo destapó el
+   * aviso de `exhaustive-deps`.
+   *
+   * El retardo es el mismo criterio que en `PacientesListPage`: sin él se
+   * lanzaría una consulta por tecla.
+   */
+  const [busquedaAplicada, setBusquedaAplicada] = useState('')
+  useEffect(() => {
+    const id = setTimeout(() => setBusquedaAplicada(busqueda), 300)
+    return () => clearTimeout(id)
+  }, [busqueda])
+
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const [prods, provs] = await Promise.all([
         listProductosPetshop({
           sucursalId: sucursalActivaId || undefined,
           categoriaRetail: categoriaFiltro || undefined,
-          busqueda: busqueda || undefined,
+          busqueda: busquedaAplicada || undefined,
           soloStockBajo,
           soloActivos: true,
         }),
@@ -53,11 +71,11 @@ export function PetshopProductosPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId, categoriaFiltro, soloStockBajo, busquedaAplicada])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, categoriaFiltro, soloStockBajo])
+  }, [recargar])
 
   return (
     <div className="space-y-6">

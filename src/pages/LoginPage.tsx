@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FieldGroup, Input } from '../components/ui/Field'

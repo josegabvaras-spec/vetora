@@ -25,7 +25,7 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Seccion } from '../components/ui/Seccion'
 import { FieldGroup, Input } from '../components/ui/Field'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { useSuscripcionTabla, useTable } from '../mocks/useDb'
 import {
   abrirTurno,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -23,7 +23,7 @@ import type { PeluqueriaOrdenConDetalle } from '../../types/views'
 import { FichaGroomingModal } from '../peluqueria/FichaGroomingModal'
 import { OrdenDetalleModal } from '../peluqueria/OrdenDetalleModal'
 import { NuevaOrdenModal } from '../peluqueria/NuevaOrdenModal'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 
 interface PeluqueriaTabPacienteProps {
   pacienteId: string
@@ -40,7 +40,7 @@ export function PeluqueriaTabPaciente({ pacienteId, paciente }: PeluqueriaTabPac
   const [modalNuevaOrden, setModalNuevaOrden] = useState(false)
   const [ordenSeleccionada, setOrdenSeleccionada] = useState<PeluqueriaOrdenConDetalle | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     try {
       const [f, ords, fts] = await Promise.all([
         getFichaGrooming(pacienteId),
@@ -53,11 +53,11 @@ export function PeluqueriaTabPaciente({ pacienteId, paciente }: PeluqueriaTabPac
     } finally {
       // Done
     }
-  }
+  }, [pacienteId])
 
   useEffect(() => {
     recargar()
-  }, [pacienteId])
+  }, [recargar])
 
   return (
     <div className="space-y-6">

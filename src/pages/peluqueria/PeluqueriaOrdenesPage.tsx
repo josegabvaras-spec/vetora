@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -9,7 +9,7 @@ import {
   LayoutGrid,
   List,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
 import { formatClinicTime } from '../../lib/datetime'
@@ -52,7 +52,7 @@ export function PeluqueriaOrdenesPage() {
   const [ordenSeleccionada, setOrdenSeleccionada] = useState<PeluqueriaOrdenConDetalle | null>(null)
   const [ordenEvaluando, setOrdenEvaluando] = useState<PeluqueriaOrdenConDetalle | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     try {
       const res = await listOrdenes({
         sucursalId: sucursalActivaId || undefined,
@@ -64,11 +64,11 @@ export function PeluqueriaOrdenesPage() {
     } finally {
       // Cargado
     }
-  }
+  }, [sucursalActivaId, peluqueroId, estadoFiltro, busqueda])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, peluqueroId, estadoFiltro, busqueda])
+  }, [recargar])
 
   async function handleMoverEstado(ordenId: string, nuevoEstado: EstadoOrdenPeluqueria) {
     try {

@@ -6,16 +6,15 @@ import { useEsEscritorio } from '../hooks/useMediaQuery'
 import {
   AccionesFirmaInforme,
   FirmasInformeImpresas,
-  useFirmaInforme,
 } from '../features/pacientes/FirmaInforme'
+import { useFirmaInforme } from '../features/pacientes/useFirmaInforme'
 import { cargarFichaDeDocumento, volverDeDocumento } from '../services/documentos'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { calcularEdad } from '../lib/paciente'
 import { formatClinicDate, formatClinicDateTime } from '../lib/datetime'
 import { formatBs } from '../lib/currency'
-import { etiquetaClinica } from '../lib/anamnesis'
 import { TIPO_LABEL } from '../lib/citas'
-import type { FichaPaciente, HistorialConDetalle } from '../types/views'
+import type { FichaPaciente } from '../types/views'
 
 const ESPECIE_LABEL: Record<string, string> = {
   canino: 'Canino',
@@ -28,7 +27,8 @@ const ESPECIE_LABEL: Record<string, string> = {
 const VACIO = '—'
 
 /** Una fila de la ficha: siempre se imprime, aunque el dato no se haya registrado. */
-type Fila = [etiqueta: string, valor: string | null | undefined]
+import type { Fila } from './filasHistorial'
+import { anamnesisFilas, examenFilas } from './filasHistorial'
 
 // `w-40` solo desde `md`. Con dos pares por fila eran 320 px de etiqueta en un
 // celular de 375: quedaban 23 px para los dos valores, así que el texto se
@@ -126,41 +126,6 @@ export function TablaListado({
       </div>
     </section>
   )
-}
-
-export function anamnesisFilas(h: HistorialConDetalle): Fila[] {
-  return [
-    ['Motivo', h.motivo],
-    ['Tiempo de evolución', h.tiempo_evolucion],
-    ['Apetito', etiquetaClinica('apetito', h.apetito)],
-    ['Consumo de agua', etiquetaClinica('consumo_agua', h.consumo_agua)],
-    ['Vómitos', etiquetaClinica('vomitos', h.vomitos)],
-    ['Orina', etiquetaClinica('orina', h.orina)],
-    ['Heces: consistencia', etiquetaClinica('heces_consistencia', h.heces_consistencia)],
-    ['Heces: color', etiquetaClinica('heces_color', h.heces_color)],
-    [
-      'Desparasitación al día',
-      h.desparasitacion_al_dia === null || h.desparasitacion_al_dia === undefined
-        ? null
-        : h.desparasitacion_al_dia
-          ? 'Sí'
-          : 'No',
-    ],
-  ]
-}
-
-export function examenFilas(h: HistorialConDetalle): Fila[] {
-  return [
-    ['Peso (kg)', h.peso_kg?.toString()],
-    ['Temperatura (°C)', h.temperatura_c?.toString()],
-    ['Frec. cardíaca (lpm)', h.frecuencia_cardiaca?.toString()],
-    ['Frec. respiratoria (rpm)', h.frecuencia_respiratoria?.toString()],
-    ['Deshidratación', etiquetaClinica('deshidratacion', h.deshidratacion)],
-    ['Mucosas', etiquetaClinica('mucosas', h.mucosas)],
-    ['Llenado capilar (TLLC)', etiquetaClinica('tllc', h.tllc)],
-    ['Estado de conciencia', etiquetaClinica('estado_conciencia', h.estado_conciencia)],
-    ['Condición corporal', h.condicion_corporal ? `${h.condicion_corporal}/9` : null],
-  ]
 }
 
 export function HistorialImprimirPage() {

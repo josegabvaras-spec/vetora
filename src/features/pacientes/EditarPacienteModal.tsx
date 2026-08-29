@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { actualizarClienteYPaciente } from '../../services/clientesPacientes'
-import { FormularioPaciente, type DatosPaciente } from './FormularioPaciente'
+import { FormularioPaciente } from './FormularioPaciente'
+import type { DatosPaciente } from './datosPaciente'
 import type { PacienteConDueno } from '../../types/views'
 
 export function EditarPacienteModal({

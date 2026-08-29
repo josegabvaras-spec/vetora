@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { debeVerElTour, getEstadoOnboarding, marcarOnboardingVisto } from '../../services/onboarding'
 
 /**

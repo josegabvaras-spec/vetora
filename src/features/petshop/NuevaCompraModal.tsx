@@ -6,7 +6,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { crearOrdenCompra, type ItemOrdenCompraInput } from '../../services/compras'
 import type { Producto, Proveedor } from '../../types/database'
 import { formatBs } from '../../lib/currency'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 
 interface NuevaCompraModalProps {
   sucursalId: string

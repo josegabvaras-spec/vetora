@@ -4,7 +4,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { FirmaDigital } from '../../components/ui/FirmaDigital'
 import { firmarInforme, type InformeFirmado, type TipoInforme } from '../../services/informes'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 
 /**
  * Recoge las dos firmas que un informe necesita antes de imprimirse.

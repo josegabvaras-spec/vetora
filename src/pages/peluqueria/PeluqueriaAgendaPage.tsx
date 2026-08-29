@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -10,7 +10,7 @@ import {
   Clock,
   Plus,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate, formatClinicTime } from '../../lib/datetime'
@@ -36,7 +36,7 @@ export function PeluqueriaAgendaPage() {
   const [modalNueva, setModalNueva] = useState(false)
   const [ordenSeleccionada, setOrdenSeleccionada] = useState<PeluqueriaOrdenConDetalle | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     try {
       const ords = await listOrdenes({
         sucursalId: sucursalActivaId || undefined,
@@ -46,11 +46,11 @@ export function PeluqueriaAgendaPage() {
     } finally {
       // Done
     }
-  }
+  }, [sucursalActivaId, peluqueroFiltro])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, peluqueroFiltro])
+  }, [recargar])
 
   function avanzar() {
     if (vista === 'dia') setFechaActual(addDays(fechaActual, 1))

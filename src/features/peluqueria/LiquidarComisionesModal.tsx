@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate } from '../../lib/datetime'
 import { liquidarComisiones } from '../../services/comisiones'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import type { PeluqueriaComisionConDetalle } from '../../types/views'
 
 interface LiquidarComisionesModalProps {

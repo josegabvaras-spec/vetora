@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Field'
@@ -6,7 +6,7 @@ import {
   Calendar,
   RefreshCw,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { formatBs } from '../../lib/currency'
 import { getReportePeluqueria, type ReporteOperativoPeluqueria } from '../../services/reportesPeluqueria'
 
@@ -22,7 +22,7 @@ export function PeluqueriaReportesPage() {
   const [reporte, setReporte] = useState<ReporteOperativoPeluqueria | null>(null)
   const [cargando, setCargando] = useState(true)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const res = await getReportePeluqueria(sucursalActivaId || undefined, desde, hasta)
@@ -30,11 +30,11 @@ export function PeluqueriaReportesPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId, desde, hasta])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, desde, hasta])
+  }, [recargar])
 
   return (
     <div className="space-y-6">

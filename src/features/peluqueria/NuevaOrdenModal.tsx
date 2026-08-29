@@ -3,7 +3,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { FieldGroup, Input, Select, Textarea } from '../../components/ui/Field'
 import { Badge } from '../../components/ui/Badge'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { useTable } from '../../mocks/useDb'
 import { puedeHacerPeluqueria } from '../../lib/personal'
 import { listPacientes } from '../../services/clientesPacientes'
@@ -56,9 +56,12 @@ export function NuevaOrdenModal({
   useEffect(() => {
     listPacientes(sucursalId || undefined).then((res) => {
       setPacientes(res)
-      if (!pacienteId && res.length > 0) {
-        setPacienteId(res[0].id)
-      }
+      // Se preselecciona el primero SOLO si no hay ninguno elegido ya (puede
+      // venir por `pacientePreseleccionadoId`, o haberlo tocado el usuario
+      // mientras cargaba). Va con la forma funcional para no tener que leer
+      // `pacienteId` aquí: si lo leyera, sería una dependencia del efecto y
+      // este se relanzaría al preseleccionar, volviendo a pedir la lista.
+      if (res.length > 0) setPacienteId((actual) => actual || res[0].id)
     })
     listServiciosPeluqueria().then((res) => {
       setServicios(res)
@@ -70,7 +73,7 @@ export function NuevaOrdenModal({
     getConfiguracionPeluqueria().then((cfg) => {
       setSuplementosDisponibles(cfg.suplementos_predeterminados || [])
     })
-  }, [])
+  }, [sucursalId])
 
   const pacienteSeleccionado = pacientes.find((p) => p.id === pacienteId)
 

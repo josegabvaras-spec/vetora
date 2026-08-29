@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import { Select } from '../../components/ui/Field'
 import { CheckCircle2, RefreshCw } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate } from '../../lib/datetime'
@@ -27,7 +27,7 @@ export function PeluqueriaComisionesPage() {
 
   const [modalLiquidar, setModalLiquidar] = useState(false)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const res = await listComisiones({
@@ -39,11 +39,11 @@ export function PeluqueriaComisionesPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId, peluqueroId, estadoFiltro])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, peluqueroId, estadoFiltro])
+  }, [recargar])
 
   const totalPendienteBs = comisiones
     .filter((c) => c.estado === 'pendiente')

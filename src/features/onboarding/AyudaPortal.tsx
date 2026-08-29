@@ -1,5 +1,5 @@
 import { HelpCircle } from 'lucide-react'
-import { useTourManual } from './OnboardingProvider'
+import { useTourManual } from './useTourManual'
 
 /**
  * Botón de ayuda del portal del dueño.

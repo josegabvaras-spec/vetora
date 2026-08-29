@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -14,7 +14,7 @@ export function PeluqueriaInsumosPage() {
   const [servicioSeleccionado, setServicioSeleccionado] = useState<PeluqueriaServicioConConfig | null>(null)
   const productos = useTable('productos')
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const res = await listServiciosPeluqueria()
@@ -22,11 +22,11 @@ export function PeluqueriaInsumosPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     recargar()
-  }, [])
+  }, [recargar])
 
   return (
     <div className="space-y-6">

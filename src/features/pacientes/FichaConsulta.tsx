@@ -11,7 +11,8 @@ import {
   registrarRecetaItem,
 } from '../../services/historial'
 import { formatClinicDateTime } from '../../lib/datetime'
-import { FormularioClinico, aCamposHistorial, datosClinicosDesde } from './FormularioClinico'
+import { FormularioClinico } from './FormularioClinico'
+import { aCamposHistorial, datosClinicosDesde } from './datosClinicos'
 import { SeccionesConsulta } from './SeccionesConsulta'
 import { RecetarioModal } from './RecetarioModal'
 import type { HistorialConDetalle, PacienteConDueno } from '../../types/views'

@@ -8,7 +8,7 @@ import {
 } from '../../services/devoluciones'
 import type { EstadoProductoDevolucion, Producto } from '../../types/database'
 import { formatBs } from '../../lib/currency'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 
 interface DevolucionModalProps {
   sucursalId: string

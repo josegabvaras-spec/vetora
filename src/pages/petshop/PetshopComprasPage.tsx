@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -9,7 +9,7 @@ import {
   PackageCheck,
   RefreshCw,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate } from '../../lib/datetime'
 import { listOrdenesCompra, listProveedores } from '../../services/compras'
@@ -39,7 +39,7 @@ export function PetshopComprasPage() {
   const [modalNueva, setModalNueva] = useState(false)
   const [ordenARecibir, setOrdenARecibir] = useState<OrdenCompraConDetalle | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const [ords, provs, prods] = await Promise.all([
@@ -57,11 +57,11 @@ export function PetshopComprasPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId, estadoFiltro, proveedorFiltro])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, estadoFiltro, proveedorFiltro])
+  }, [recargar])
 
   return (
     <div className="space-y-6">

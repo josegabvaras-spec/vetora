@@ -9,7 +9,7 @@ import { enviarAviso } from '../../services/programados'
 import { TIPO_AVISO_LABEL, cuandoLegible } from '../../lib/asistente'
 import type { Programado } from '../../types/views'
 
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 
 /**
  * Revisar y enviar un aviso. El texto llega redactado pero **editable**: quien

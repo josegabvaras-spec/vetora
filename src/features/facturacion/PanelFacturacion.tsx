@@ -7,7 +7,7 @@ import { Card } from '../../components/ui/Card'
 import { FieldGroup, Input, Select } from '../../components/ui/Field'
 import { Seccion } from '../../components/ui/Seccion'
 import { TablaResponsive, type Columna } from '../../components/ui/Tabla'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import {
   enviarComprobante,
   getDatosDePago,

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { PenLine, Printer } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { FirmarInformeModal } from './FirmarInformeModal'
-import { getFirmaInforme, type InformeFirmado, type TipoInforme } from '../../services/informes'
+import type { InformeFirmado, TipoInforme } from '../../services/informes'
 import { formatClinicDateTime } from '../../lib/datetime'
 
 /**
@@ -136,34 +136,3 @@ export function FirmasInformeImpresas({
   )
 }
 
-/**
- * Carga la firma vigente del documento.
- *
- * `undefined` mientras se consulta y `null` cuando no hay ninguna: con un solo
- * valor, la pantalla enseñaría «sin firmar» durante la carga y el botón de
- * firmar parpadearía en cada apertura.
- */
-export function useFirmaInforme(
-  pacienteId: string | null | undefined,
-  tipo: TipoInforme,
-  itemId: string | null,
-) {
-  const [firma, setFirma] = useState<InformeFirmado | null | undefined>(undefined)
-
-  useEffect(() => {
-    // Hace falta al menos un identificador. Los recibos van sin paciente y se
-    // localizan por su cobro (`itemId`); el resto, al revés.
-    if (!pacienteId && !itemId) return
-    let montado = true
-    getFirmaInforme(pacienteId ?? null, tipo, itemId)
-      .then((f) => {
-        if (montado) setFirma(f)
-      })
-      .catch(() => {
-        if (montado) setFirma(null)
-      })
-    return () => { montado = false }
-  }, [pacienteId, tipo, itemId])
-
-  return { firma, setFirma }
-}

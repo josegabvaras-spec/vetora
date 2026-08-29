@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -11,7 +11,7 @@ import {
   DollarSign,
   RefreshCw,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { formatBs } from '../../lib/currency'
 import {
   getTurnoAbierto,
@@ -35,7 +35,7 @@ export function PeluqueriaCajaPage() {
   const [errorCobro, setErrorCobro] = useState<string | null>(null)
   const [ultimoCobroId, setUltimoCobroId] = useState<string | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const [tur, atens] = await Promise.all([
@@ -48,11 +48,11 @@ export function PeluqueriaCajaPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId])
+  }, [recargar])
 
   async function handleConfirmarCobro(e: React.FormEvent) {
     e.preventDefault()

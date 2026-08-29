@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -39,7 +39,7 @@ export function PeluqueriaServiciosPage() {
   const [guardando, setGuardando] = useState(false)
   const [errorModal, setErrorModal] = useState<string | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const res = await listServiciosPeluqueria()
@@ -47,11 +47,11 @@ export function PeluqueriaServiciosPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     recargar()
-  }, [])
+  }, [recargar])
 
   async function handleCrearServicio(e: React.FormEvent) {
     e.preventDefault()

@@ -5,15 +5,16 @@ import { useTable } from '../mocks/useDb'
 import {
   AccionesFirmaInforme,
   FirmasInformeImpresas,
-  useFirmaInforme,
 } from '../features/pacientes/FirmaInforme'
+import { useFirmaInforme } from '../features/pacientes/useFirmaInforme'
 import type { TipoInforme } from '../services/informes'
 import { cargarFichaDeDocumento, volverDeDocumento } from '../services/documentos'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { calcularEdad } from '../lib/paciente'
 import { formatClinicDate, formatClinicDateTime } from '../lib/datetime'
 import type { FichaPaciente } from '../types/views'
-import { TablaFicha, TablaListado, anamnesisFilas, examenFilas } from './HistorialImprimirPage'
+import { TablaFicha, TablaListado } from './HistorialImprimirPage'
+import { anamnesisFilas, examenFilas } from './filasHistorial'
 
 /**
  * Marca de campo sin dato en un informe impreso.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -10,7 +10,7 @@ import {
   RotateCcw,
   RefreshCw,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { supabase } from '../../lib/supabase'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDateTime } from '../../lib/datetime'
@@ -31,7 +31,7 @@ export function PetshopOrdenesPage() {
   const [ticketCobroId, setTicketCobroId] = useState<string | null>(null)
   const [modalDevolucionCobroId, setModalDevolucionCobroId] = useState<string | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       let query = supabase
@@ -60,11 +60,11 @@ export function PetshopOrdenesPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId, fecha])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, fecha])
+  }, [recargar])
 
   const ventasFiltradas = ventas.filter((v) => {
     if (!busqueda.trim()) return true

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -14,7 +14,7 @@ import {
   Banknote,
   Barcode,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { formatBs } from '../../lib/currency'
 import {
   buscarProductoPOS,
@@ -66,25 +66,39 @@ export function PetshopPosPage() {
   const [errorVenta, setErrorVenta] = useState<string | null>(null)
   const [ventaExitosaCobroId, setVentaExitosaCobroId] = useState<string | null>(null)
 
-  // Cargar catálogo inicial
-  async function cargarCatalogo() {
+  /**
+   * Texto de búsqueda ya reposado.
+   *
+   * `busqueda` se resuelve en el SERVIDOR, pero el efecto solo escuchaba a la
+   * sucursal y la categoría: **el buscador del punto de venta no funcionaba**
+   * — se tecleaba un producto y el catálogo no cambiaba. Lo destapó el aviso
+   * de `exhaustive-deps`. El retardo evita una consulta por tecla, mismo
+   * criterio que en `PacientesListPage`.
+   */
+  const [busquedaAplicada, setBusquedaAplicada] = useState('')
+  useEffect(() => {
+    const id = setTimeout(() => setBusquedaAplicada(busqueda), 300)
+    return () => clearTimeout(id)
+  }, [busqueda])
+
+  const cargarCatalogo = useCallback(async () => {
     setCargandoCatalogo(true)
     try {
       const prods = await listProductosPetshop({
         sucursalId: sucursalActivaId || undefined,
         categoriaRetail: categoriaSeleccionada !== 'todos' ? categoriaSeleccionada : undefined,
-        busqueda: busqueda || undefined,
+        busqueda: busquedaAplicada || undefined,
         soloActivos: true,
       })
       setProductosCatalogo(prods)
     } finally {
       setCargandoCatalogo(false)
     }
-  }
+  }, [sucursalActivaId, categoriaSeleccionada, busquedaAplicada])
 
   useEffect(() => {
     cargarCatalogo()
-  }, [sucursalActivaId, categoriaSeleccionada])
+  }, [cargarCatalogo])
 
   useEffect(() => {
     listPacientes(sucursalActivaId || undefined).then((res) => setPacientes(res))

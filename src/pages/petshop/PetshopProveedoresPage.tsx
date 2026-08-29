@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -23,7 +23,7 @@ export function PetshopProveedoresPage() {
   const [modalNuevo, setModalNuevo] = useState(false)
   const [proveedorAEditar, setProveedorAEditar] = useState<Proveedor | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const data = await listProveedores()
@@ -31,11 +31,11 @@ export function PetshopProveedoresPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     recargar()
-  }, [])
+  }, [recargar])
 
   function abrirWhatsApp(numero: string) {
     const limpio = numero.replace(/\D/g, '')

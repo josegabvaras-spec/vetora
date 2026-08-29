@@ -5,7 +5,7 @@ import { Input } from '../../components/ui/Field'
 import { recibirOrdenCompra, type ItemRecepcionInput } from '../../services/compras'
 import type { OrdenCompraConDetalle } from '../../types/views'
 import { formatBs } from '../../lib/currency'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 
 interface RecepcionCompraModalProps {
   orden: OrdenCompraConDetalle

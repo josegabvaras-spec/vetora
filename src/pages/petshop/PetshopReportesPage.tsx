@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -11,7 +11,7 @@ import {
   ArrowUpRight,
   Package,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { formatBs } from '../../lib/currency'
 import { getReporteRentabilidad } from '../../services/reportesPetshop'
 import { CATEGORIA_RETAIL_LABEL } from '../../services/petshop'
@@ -27,7 +27,7 @@ export function PetshopReportesPage() {
   const [reporte, setReporte] = useState<ReporteRentabilidadPetshop | null>(null)
   const [cargando, setCargando] = useState(true)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const data = await getReporteRentabilidad(
@@ -39,11 +39,11 @@ export function PetshopReportesPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId, fechaDesde, fechaHasta])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, fechaDesde, fechaHasta])
+  }, [recargar])
 
   return (
     <div className="space-y-6">

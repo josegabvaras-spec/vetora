@@ -17,7 +17,7 @@ import {
 } from '../../services/plataformaAvisos'
 import { EnviarAccesoModal } from '../../features/plataforma/EnviarAccesoModal'
 import { ComprobanteModal } from '../../features/plataforma/ComprobanteModal'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { enlaceWhatsapp } from '../../lib/whatsapp'
 import { formatClinicDate } from '../../lib/datetime'
 import {

@@ -16,7 +16,7 @@ import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Field'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { useSuscripcionTabla } from '../mocks/useDb'
 import {
   desvincularCuentaPortal,

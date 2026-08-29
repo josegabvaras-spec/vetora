@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Field'
@@ -7,7 +7,7 @@ import {
   Clock,
   Search,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate } from '../../lib/datetime'
 import {
@@ -23,7 +23,7 @@ export function PeluqueriaFidelizacionPage() {
   const [filtroPendientes, setFiltroPendientes] = useState(false)
   const [cargando, setCargando] = useState(true)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const res = await listClientesFidelizacion(sucursalActivaId || undefined)
@@ -31,11 +31,11 @@ export function PeluqueriaFidelizacionPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId])
+  }, [recargar])
 
   const filtrados = clientes
     .filter((c) => !filtroPendientes || c.recordatorio_pendiente)

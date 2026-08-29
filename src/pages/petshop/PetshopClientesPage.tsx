@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -9,7 +9,7 @@ import {
   PawPrint,
   RefreshCw,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { supabase } from '../../lib/supabase'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate } from '../../lib/datetime'
@@ -32,7 +32,7 @@ export function PetshopClientesPage() {
   const [clientes, setClientes] = useState<ClienteComercial[]>([])
   const [cargando, setCargando] = useState(true)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const [pacientesRes, cobrosRes] = await Promise.all([
@@ -82,11 +82,11 @@ export function PetshopClientesPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId])
+  }, [recargar])
 
   const filtrados = clientes.filter((c) => {
     if (!busqueda.trim()) return true

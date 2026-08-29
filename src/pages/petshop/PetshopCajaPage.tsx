@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -10,7 +10,7 @@ import {
   RefreshCw,
   ShoppingCart,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDateTime } from '../../lib/datetime'
 import { getTurnoAbierto } from '../../services/caja'
@@ -24,7 +24,7 @@ export function PetshopCajaPage() {
   const [ventasPetshop, setVentasPetshop] = useState<any[]>([])
   const [cargando, setCargando] = useState(true)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       if (sucursalActivaId) {
@@ -48,11 +48,11 @@ export function PetshopCajaPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId])
+  }, [recargar])
 
   const totalVentasTurno = ventasPetshop.reduce((acc, v) => acc + (Number(v.total_bs) || 0), 0)
   const totalEfectivo = ventasPetshop

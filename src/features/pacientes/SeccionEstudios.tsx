@@ -4,7 +4,7 @@ import { Seccion } from '../../components/ui/Seccion'
 import { Button } from '../../components/ui/Button'
 import { FieldGroup, Input, Select } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import {
   eliminarEstudio,
   listEstudiosDePaciente,

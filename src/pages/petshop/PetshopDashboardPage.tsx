@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -10,7 +10,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDateTime } from '../../lib/datetime'
 import { getResumenDashboardPetshop } from '../../services/reportesPetshop'
@@ -24,7 +24,7 @@ export function PetshopDashboardPage() {
   const [resumen, setResumen] = useState<ResumenDashboardPetshop | null>(null)
   const [cargando, setCargando] = useState(true)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const data = await getResumenDashboardPetshop(sucursalActivaId || undefined, fecha)
@@ -32,11 +32,11 @@ export function PetshopDashboardPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId, fecha])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, fecha])
+  }, [recargar])
 
   const crecimientoVentas =
     resumen && resumen.ventas_ayer_bs > 0

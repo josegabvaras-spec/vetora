@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import {
   Users,
   Phone,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
 import { puedeHacerPeluqueria } from '../../lib/personal'
@@ -19,7 +19,7 @@ export function PeluqueriaPeluquerosPage() {
   const [resumenComisiones, setResumenComisiones] = useState<ResumenComisionesPeluquero[]>([])
   const [cargando, setCargando] = useState(true)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const res = await getResumenComisionesPorPeluquero(sucursalActivaId || undefined)
@@ -27,11 +27,11 @@ export function PeluqueriaPeluquerosPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId])
+  }, [recargar])
 
   return (
     <div className="space-y-6">

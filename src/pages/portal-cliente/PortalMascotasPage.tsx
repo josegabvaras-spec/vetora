@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { getPacientesPortal } from '../../services/portalCliente'
 import type { Paciente } from '../../types/database'
 import { Activity, Bone, FileText, ArrowLeft } from 'lucide-react'

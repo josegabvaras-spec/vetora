@@ -6,7 +6,7 @@ import {
   suscribirseAlPrompt,
   yaEstaInstalada,
 } from '../../lib/pwa'
-import { useTourManual } from '../../features/onboarding/OnboardingProvider'
+import { useTourManual } from '../../features/onboarding/useTourManual'
 
 /**
  * Un respiro entre que el tour se apaga y esta tarjeta entra.

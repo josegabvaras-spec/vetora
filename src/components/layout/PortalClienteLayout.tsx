@@ -1,5 +1,5 @@
 import { Outlet, Navigate, NavLink, useLocation } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { clsx } from 'clsx'
 import { Home, PawPrint, CalendarCheck, Store, User } from 'lucide-react'
 import { OnboardingProvider } from '../../features/onboarding/OnboardingProvider'

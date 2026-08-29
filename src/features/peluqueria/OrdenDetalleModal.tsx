@@ -20,7 +20,7 @@ import {
   guardarFotoOrden,
 } from '../../services/peluqueria'
 import { generarEnlaceMascotaListaWhatsApp } from '../../services/fidelizacion'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import type { PeluqueriaOrdenConDetalle } from '../../types/views'
 import type { EstadoOrdenPeluqueria, TipoFotoGrooming } from '../../types/database'
 import { redimensionarImagen } from '../../lib/imagen'

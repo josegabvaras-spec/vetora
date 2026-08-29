@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -10,7 +10,7 @@ import {
   Filter,
   RefreshCw,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate, formatClinicTime } from '../../lib/datetime'
@@ -43,7 +43,7 @@ export function PeluqueriaDashboardPage() {
   const [ordenSeleccionada, setOrdenSeleccionada] = useState<PeluqueriaOrdenConDetalle | null>(null)
   const [ordenEvaluando, setOrdenEvaluando] = useState<PeluqueriaOrdenConDetalle | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const [res, ords] = await Promise.all([
@@ -60,11 +60,11 @@ export function PeluqueriaDashboardPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId, fecha, peluqueroId, estadoFiltro])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, fecha, peluqueroId, estadoFiltro])
+  }, [recargar])
 
   return (
     <div className="space-y-6">

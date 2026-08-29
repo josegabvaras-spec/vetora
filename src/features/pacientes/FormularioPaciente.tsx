@@ -1,37 +1,7 @@
 import { FieldGroup, Input, Select, Textarea } from '../../components/ui/Field'
 import { Seccion } from '../../components/ui/Seccion'
 import type { Especie, Sexo } from '../../types/database'
-
-/** Datos de identificación del paciente y su dueño/a, usados en el alta. */
-export interface DatosPaciente {
-  clienteNombre: string
-  clienteWhatsapp: string
-  clienteCi: string
-  pacienteNombre: string
-  foto: string // base64
-  fechaNacimiento: string
-  especie: Especie
-  raza: string
-  sexo: Sexo
-  alergias: string
-  antecedentes: string
-}
-
-export function datosPacienteVacios(): DatosPaciente {
-  return {
-    clienteNombre: '',
-    clienteWhatsapp: '',
-    clienteCi: '',
-    pacienteNombre: '',
-    foto: '',
-    fechaNacimiento: '',
-    especie: 'canino',
-    raza: '',
-    sexo: 'macho',
-    alergias: '',
-    antecedentes: '',
-  }
-}
+import type { DatosPaciente } from './datosPaciente'
 
 export function FormularioPaciente({
   datos,

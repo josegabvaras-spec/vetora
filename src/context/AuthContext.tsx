@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
+import { AuthContext, type AuthContextValue } from './useAuth'
 import { motivoDeBloqueo } from '../services/sesion'
 import { verificarCredenciales } from '../services/cuentas'
 import { supabase } from '../lib/supabase'
@@ -19,39 +20,6 @@ const MODULOS_VETERINARIA_COMPLETA: ModuloVetora[] = [
   'agenda', 'caja', 'inventario', 'historial_clinico',
   'internacion', 'asistente_ia', 'portal_cliente', 'whatsapp', 'metricas',
 ]
-
-interface AuthContextValue {
-  usuario: Usuario | null
-  /** Usuario de plataforma: administra clínicas y planes, no datos clínicos. */
-  esPlataforma: boolean
-  sucursalActivaId: string | null
-  /**
-   * Segmento de negocio del establecimiento. Es 'veterinaria' para el superadmin
-   * y para clínicas que no tienen el campo todavía (compatibilidad hacia atrás).
-   */
-  tipoNegocio: TipoNegocio
-  /**
-   * Módulos habilitados según el plan contratado. Permite mostrar/ocultar
-   * secciones de la UI sin consultar el servidor en cada render.
-   */
-  modulosHabilitados: ModuloVetora[]
-  /**
-   * Comprueba si un módulo concreto está disponible en el plan activo.
-   * Uso: `const { tieneModulo } = useAuth(); if (tieneModulo('asistente_ia')) ...`
-   */
-  tieneModulo: (modulo: ModuloVetora) => boolean
-  /** Inicio de sesión normal. Asíncrono porque verificar el hash lo es. */
-  entrarConCredenciales: (email: string, password: string) => Promise<void>
-  /**
-   * Abre sesión con un usuario ya verificado. Lo usa la pantalla del enlace de
-   * acceso, justo después de que la persona cree su contraseña.
-   */
-  entrarComo: (usuario: Usuario) => Promise<void>
-  logout: () => Promise<void>
-  setSucursalActivaId: (id: string | null) => void
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null)
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -167,7 +135,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [cargarContextoClinica])
 
-
   async function abrirSesion(verificado: Usuario) {
     const bloqueo = await motivoDeBloqueo(verificado)
     if (bloqueo) {
@@ -215,8 +182,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth debe usarse dentro de <AuthProvider>')
-  return ctx
-}

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Home, LayoutGrid, Tag, Info, MessageCircle, Menu, X, LogIn, LayoutDashboard, ChevronRight } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { useBloqueoScroll } from '../../hooks/useBloqueoScroll'
 import { rutaDeInicio } from '../../lib/personal'
 import { FuncionalidadesModal } from './FuncionalidadesModal'

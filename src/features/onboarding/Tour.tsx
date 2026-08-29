@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { useEsEscritorio } from '../../hooks/useMediaQuery'
 import { pasosParaFormato, pasosParaRol, type PasoTour } from '../../lib/onboarding'
 

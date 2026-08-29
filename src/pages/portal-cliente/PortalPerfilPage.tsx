@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Link } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { supabase } from '../../lib/supabase'
 import type { Clinica } from '../../types/database'
 import { ArrowLeft, LogOut, User, Building2, Mail, Shield, PawPrint } from 'lucide-react'

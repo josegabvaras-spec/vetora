@@ -4,12 +4,12 @@ import { GraduationCap, MailCheck } from 'lucide-react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { Seccion } from '../../components/ui/Seccion'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { solicitarRecuperacion } from '../../services/cuentas'
 import { Badge } from '../../components/ui/Badge'
 import { useTable } from '../../mocks/useDb'
 import { PanelFacturacion } from '../facturacion/PanelFacturacion'
-import { useTourManual } from '../onboarding/OnboardingProvider'
+import { useTourManual } from '../onboarding/useTourManual'
 
 const ROL_LABEL: Record<string, string> = {
   admin: 'Administrador',

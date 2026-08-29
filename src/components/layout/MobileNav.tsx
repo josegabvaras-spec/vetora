@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { Menu } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
-import { enlacesVisibles } from './Sidebar'
+import { useAuth } from '../../context/useAuth'
+import { enlacesVisibles } from './enlacesClinicos'
 
 /** Cuántos accesos directos caben sin apretar junto al botón de menú. */
 const MAX_PESTANAS = 3

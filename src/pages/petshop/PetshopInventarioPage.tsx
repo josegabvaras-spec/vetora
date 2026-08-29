@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -9,7 +9,7 @@ import {
   Truck,
   RefreshCw,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate } from '../../lib/datetime'
 import {
@@ -37,7 +37,7 @@ export function PetshopInventarioPage() {
 
   const [modalLote, setModalLote] = useState(false)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const [lts, sugs, prods, provs] = await Promise.all([
@@ -56,11 +56,11 @@ export function PetshopInventarioPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId, estadoFiltroLote])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId, estadoFiltroLote])
+  }, [recargar])
 
   const vencidosCount = lotes.filter((l) => l.estado_vencimiento === 'vencido').length
   const proximosCount = lotes.filter((l) => l.estado_vencimiento === 'proximo').length

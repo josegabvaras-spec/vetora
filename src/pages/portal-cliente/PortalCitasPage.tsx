@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { getNotificacionesPortal, type NotificacionPortal } from '../../services/portalCliente'
 import { ArrowLeft, Bell, Calendar, AlertTriangle, Bone, CheckCircle, Clock } from 'lucide-react'
 import { format } from 'date-fns'

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -15,7 +15,7 @@ import { listPacientes } from '../../services/clientesPacientes'
 import type { PacienteConDueno } from '../../types/views'
 import { FichaGroomingModal } from '../../features/peluqueria/FichaGroomingModal'
 import { NuevaOrdenModal } from '../../features/peluqueria/NuevaOrdenModal'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 
 export function PeluqueriaMascotasPage() {
   const { sucursalActivaId } = useAuth()
@@ -26,7 +26,7 @@ export function PeluqueriaMascotasPage() {
   const [pacienteFicha, setPacienteFicha] = useState<any | null>(null)
   const [pacienteNuevaOrden, setPacienteNuevaOrden] = useState<string | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const res = await listPacientes(sucursalActivaId || undefined)
@@ -34,11 +34,11 @@ export function PeluqueriaMascotasPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [sucursalActivaId])
 
   useEffect(() => {
     recargar()
-  }, [sucursalActivaId])
+  }, [recargar])
 
   const filtrados = pacientes.filter(
     (p) =>

@@ -3,7 +3,7 @@ import { Activity } from 'lucide-react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { FieldGroup, Input, Textarea } from '../../components/ui/Field'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 import { registrarNotaInternacion } from '../../services/internacion'
 import { aNumeroOpcional } from '../../lib/numeros'
 

@@ -2,11 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useTable } from '../mocks/useDb'
-import {
-  AccionesFirmaInforme,
-  FirmasInformeImpresas,
-  useFirmaInforme,
-} from '../features/pacientes/FirmaInforme'
+import { AccionesFirmaInforme, FirmasInformeImpresas } from '../features/pacientes/FirmaInforme'
+import { useFirmaInforme } from '../features/pacientes/useFirmaInforme'
 import { getCobro } from '../services/caja'
 import { formatBs } from '../lib/currency'
 import { formatClinicDateTime } from '../lib/datetime'

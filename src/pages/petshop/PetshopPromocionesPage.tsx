@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
@@ -26,7 +26,7 @@ export function PetshopPromocionesPage() {
   const [modalNueva, setModalNueva] = useState(false)
   const [promocionAEditar, setPromocionAEditar] = useState<PetshopPromocion | null>(null)
 
-  async function recargar() {
+  const recargar = useCallback(async () => {
     setCargando(true)
     try {
       const data = await listPromociones(false)
@@ -34,11 +34,11 @@ export function PetshopPromocionesPage() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     recargar()
-  }, [])
+  }, [recargar])
 
   async function toggleActivo(promo: PetshopPromocion) {
     await actualizarPromocion(promo.id, { activo: !promo.activo })

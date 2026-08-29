@@ -4,13 +4,14 @@ import { ArrowLeft, Printer } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { useTable } from '../mocks/useDb'
 import { cargarFichaDeDocumento, volverDeDocumento } from '../services/documentos'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { calcularEdad } from '../lib/paciente'
 import { formatClinicDate, formatClinicDateTime } from '../lib/datetime'
 import { formatBs } from '../lib/currency'
 import { TIPO_LABEL } from '../lib/citas'
 import type { FichaPaciente } from '../types/views'
-import { TablaFicha, TablaListado, anamnesisFilas, examenFilas } from './HistorialImprimirPage'
+import { TablaFicha, TablaListado } from './HistorialImprimirPage'
+import { anamnesisFilas, examenFilas } from './filasHistorial'
 
 const ESPECIE_LABEL: Record<string, string> = {
   canino: 'Canino',
