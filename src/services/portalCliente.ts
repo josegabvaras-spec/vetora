@@ -112,14 +112,17 @@ export async function registrarClientePortal(datos: DatosRegistroPortal): Promis
   }
   if (data?.error) throw new Error(data.error)
 
-  // Ya NO se inicia sesión aquí, y no es una simplificación: la cuenta nace
-  // sin confirmar (`registro-portal` dejó de usar `email_confirm`), así que
-  // `signInWithPassword` fallaría siempre. Quien acaba de registrarse tiene que
-  // abrir el enlace que Supabase le manda por correo.
-  //
-  // El resultado sigue diciendo si se vinculó, porque la pantalla lo cuenta en
-  // el mismo momento: «revisa tu correo» y, si hace falta, «además, habla con
-  // tu clínica para que unan tu cuenta con tu mascota».
+  const { error: errorSesion } = await supabase.auth.signInWithPassword({
+    email: datos.email.trim().toLowerCase(),
+    password: datos.password,
+  })
+  if (errorSesion) {
+    throw new Error('Tu cuenta se creó, pero no se pudo iniciar sesión. Entra desde el inicio de sesión.')
+  }
+
+  // Una cuenta creada sin vincular es un éxito a medias: la sesión funciona,
+  // pero el portal sale vacío. Sin esto el dueño no tenía forma de saber que
+  // faltaba algo ni a quién pedírselo.
   return { vinculado: data?.vinculado === true, motivo: data?.motivo ?? 'sin_coincidencia' }
 }
 

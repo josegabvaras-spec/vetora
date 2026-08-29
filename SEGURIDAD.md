@@ -116,16 +116,21 @@ sustituye** la prueba en vivo con dos sesiones (ver abajo).
   siempre en el nivel 1. Pero **la columna sigue siendo nullable** y `registrarClienteYPaciente`
   acepta `ci: … || null`: quien llame al servicio por otra vía puede seguir creando fichas sin CI.
   El nivel 2 sigue haciendo falta, y no solo para el histórico.
-- **Confirmación de correo (posterior).** El registro del portal dejó de usar `email_confirm: true`:
-  la cuenta nace sin confirmar y Supabase manda el enlace. Es lo único que prueba que la dirección
-  es de quien se registra —el formulario es público y cualquiera escribe cualquier correo— y de paso
-  frena el alta automatizada, porque cada una necesita una bandeja real. `crear-cuenta` y `acceso`
-  **conservan** `email_confirm`: ahí la prueba es el enlace de WhatsApp que la persona ya recibió.
+- **Confirmación de correo: se intentó y se revirtió el mismo día.** El registro del portal dejó de
+  usar `email_confirm: true` para que Supabase exigiera confirmar la dirección — lo único que
+  probaría que el correo es de quien se registra, ya que el formulario es público. **Se desplegó sin
+  un servidor de correo detrás.** El servicio por defecto de Supabase es de desarrollo: va limitado
+  a unos pocos envíos por hora y solo entrega a direcciones de miembros del proyecto. El correo no
+  llegó a nadie, sin ningún error visible, y **el registro del portal quedó roto para todos** hasta
+  que se restauró `email_confirm`.
 
-  Efecto secundario que hay que tener presente: alguien puede registrar con el CI y el WhatsApp de
-  otro usando un correo falso. No entrará —no puede confirmar—, pero la ficha queda reclamada y
-  **bloquea al dueño real**, porque el automático exige `.is('usuario_id', null)`. Lo que lo hace
-  asumible es que ahora se puede deshacer: ver el punto siguiente.
+  La lección no es que la idea fuera mala, es el orden: **primero el canal, después el requisito**, y
+  con una prueba de envío a una dirección ajena al equipo antes de dar por buena ninguna de las dos
+  cosas. Los pasos para retomarlo están en `CLAUDE.md`, §«Crear cuentas de Auth».
+
+  El riesgo que iba a mitigar —registrar con el CI y el WhatsApp de otro para reclamar su ficha—
+  queda cubierto por lo que sí funcionó de ese trabajo: ahora se puede **desvincular**. Ver el punto
+  siguiente.
 - **Un vínculo mal hecho ya se puede deshacer.** Hasta la migración `0028` no existía: ningún punto
   del código escribía `clientes.usuario_id = null`, y como `vincularPorIds` **borraba** la ficha del
   portal, el estado anterior tampoco era reconstruible. La única salida era borrar la cuenta entera.

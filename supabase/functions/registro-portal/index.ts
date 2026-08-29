@@ -119,23 +119,31 @@ Deno.serve(async (peticion) => {
       return responder({ error: 'No se pudo crear la cuenta con esos datos' }, 409)
     }
 
-    // SIN `email_confirm`, y es la diferencia con las otras dos altas.
+    // `email_confirm: true`, igual que `crear-cuenta` y `acceso`: la cuenta
+    // nace utilizable y quien se registra entra directo.
     //
-    // En `crear-cuenta` y en `acceso` se marca el correo como confirmado a
-    // propósito: quien demuestra que es suyo es el enlace de WhatsApp que ya
-    // recibió. Aquí no hay nada equivalente — el formulario es público y
-    // cualquiera escribe cualquier dirección—, así que la confirmación de
-    // Supabase es lo único que prueba que esa cuenta pertenece a alguien.
+    // ⚠️ ESTO SE QUITÓ UNA VEZ Y HUBO QUE REVERTIRLO. La idea era buena —el
+    // formulario es público, cualquiera escribe cualquier dirección, y la
+    // confirmación es lo único que prueba que el correo es suyo— pero se
+    // desplegó SIN un servidor de correo detrás. El servicio por defecto de
+    // Supabase es de desarrollo: va limitado a unos pocos envíos por hora y
+    // solo entrega a direcciones de miembros del propio proyecto. Resultado:
+    // el correo no llegaba a nadie, sin ningún error visible, y el registro
+    // del portal quedó roto por completo.
     //
-    // Es también el freno al registro automatizado: cada alta necesita una
-    // bandeja de entrada real y alcanzable.
+    // NO lo vuelvas a quitar hasta que, EN ESTE ORDEN: haya un SMTP de verdad
+    // configurado en Authentication → Emails, el dominio esté verificado con
+    // SPF/DKIM (si no, llega a spam), las URL de redirección apunten a
+    // vetora.online, y se haya probado un envío a una dirección que NO sea del
+    // equipo. Ese último paso es el que habría detectado esto.
     //
-    // Consecuencia: la cuenta nace SIN confirmar y `signInWithPassword`
-    // fallará hasta que abra el enlace. Por eso el frontend ya no inicia
-    // sesión al terminar; ver `registrarClientePortal`.
+    // Mientras tanto, el agujero que la confirmación iba a tapar —reclamar la
+    // ficha de otro— lo cubre `desvincular_cuenta_portal` (0028): un vínculo
+    // mal hecho ya se puede deshacer, que era lo que de verdad faltaba.
     const { data: creado, error: errorAuth } = await admin.auth.admin.createUser({
       email,
       password,
+      email_confirm: true,
     })
 
     if (errorAuth || !creado.user) {

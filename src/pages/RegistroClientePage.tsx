@@ -37,10 +37,9 @@ export function RegistroClientePage() {
   
   const [error, setError] = useState<string | null>(null)
   const [registrando, setRegistrando] = useState(false)
-  // Cuenta creada. `motivo` va relleno solo si además no se encontró su ficha.
-  const [registrado, setRegistrado] = useState<{ email: string; motivo: MotivoVinculo | null } | null>(
-    null,
-  )
+  // Solo se rellena cuando la cuenta se creó pero NO se pudo vincular: ese caso
+  // no navega, se explica.
+  const [sinVincular, setSinVincular] = useState<MotivoVinculo | null>(null)
 
   useEffect(() => {
     let montado = true
@@ -79,52 +78,45 @@ export function RegistroClientePage() {
         whatsapp: form.whatsapp,
       })
 
-      // Ya no se entra al portal: la cuenta nace sin confirmar y hay que abrir
-      // el enlace del correo. Se para siempre aquí, y de paso se aprovecha para
-      // avisar si tampoco se encontró la ficha de su mascota — son el mismo
-      // momento y no tiene sentido contárselo en dos pantallas.
-      setRegistrado({ email: form.email.trim().toLowerCase(), motivo: vinculado ? null : motivo })
-      setRegistrando(false)
+      // Si no se vinculó, el portal saldría vacío y sin ninguna pista de por
+      // qué. Se para aquí y se explica, con la sesión ya iniciada.
+      if (!vinculado) {
+        setSinVincular(motivo)
+        setRegistrando(false)
+        return
+      }
+
+      navigate('/portal-cliente/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ocurrió un error al registrarse.')
       setRegistrando(false)
     }
   }
 
-  if (registrado) {
+  if (sinVincular) {
     return (
       <div className="relative flex min-h-screen items-center justify-center bg-slate-50 p-6">
         <Card className="relative z-10 w-full max-w-md p-8">
           <div className="text-center">
-            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
               <MailCheck size={28} />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900">Revisa tu correo</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Tu cuenta ya está lista</h1>
             <p className="mt-2 text-sm text-slate-500">
-              Te enviamos un enlace a <span className="font-semibold text-slate-700">{registrado.email}</span>.
-              Ábrelo para activar tu cuenta y poder entrar.
+              Pero todavía no encontramos la ficha de tu mascota.
             </p>
           </div>
 
-          <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
-            Si no lo ves en unos minutos, mira en la carpeta de correo no deseado.
-          </p>
+          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm text-amber-900">{EXPLICACION[sinVincular]}</p>
+            <p className="mt-3 text-sm font-semibold text-amber-900">
+              Escribe a tu clínica y pídeles que unan tu cuenta ({form.email}) con la ficha de tu mascota. Lo
+              hacen en un clic desde su sección «Clientes».
+            </p>
+          </div>
 
-          {/* La cuenta se creó, pero su mascota no apareció. Se le dice ahora,
-              en el mismo sitio: activar el correo no lo va a resolver. */}
-          {registrado.motivo && (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <p className="text-sm font-semibold text-amber-900">Una cosa más</p>
-              <p className="mt-1 text-sm text-amber-900">{EXPLICACION[registrado.motivo]}</p>
-              <p className="mt-3 text-sm font-semibold text-amber-900">
-                Escribe a tu clínica y pídeles que unan tu cuenta ({registrado.email}) con la ficha de tu
-                mascota. Lo hacen en un clic desde su sección «Clientes».
-              </p>
-            </div>
-          )}
-
-          <Button variant="secondary" className="mt-6 w-full" onClick={() => navigate('/login')}>
-            Ir al inicio de sesión
+          <Button className="mt-6 w-full" onClick={() => navigate('/portal-cliente/dashboard', { replace: true })}>
+            Ir a mi portal
           </Button>
         </Card>
       </div>

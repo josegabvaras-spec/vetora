@@ -252,15 +252,17 @@ El proyecto tiene **«Confirm email» activado** en Supabase Auth, y eso decide 
 |---|---|---|
 | Personal (clínica nueva o usuario nuevo) | `crear-cuenta` | `admin.createUser` + `email_confirm` |
 | Canje del enlace de acceso | `acceso` | `admin.updateUserById` + `email_confirm` |
-| Cliente del portal (`/registro-cliente`) | `registro-portal` | `admin.createUser`, **sin** `email_confirm` |
+| Cliente del portal (`/registro-cliente`) | `registro-portal` | `admin.createUser` + `email_confirm` |
 
-Las dos primeras marcan `email_confirm: true` porque **quien demuestra que el correo es suyo es el enlace de WhatsApp que la persona ya recibió**, no un clic en la bandeja de entrada.
+Las tres marcan `email_confirm: true`, y en las dos primeras el motivo es que **quien demuestra que el correo es suyo es el enlace de WhatsApp que la persona ya recibió**, no un clic en la bandeja de entrada.
 
-**El registro del portal es la excepción, y por lo mismo:** ahí no hay ningún enlace previo. El formulario es público y cualquiera escribe cualquier dirección, así que la confirmación de Supabase es lo único que prueba que esa cuenta pertenece a alguien — y de paso es el freno al alta automatizada, porque cada una necesita una bandeja real (se eligió sobre un captcha: Supabase no tiene uno propio, su `[auth.captcha]` es un conector a hCaptcha/Turnstile y aquí ni se dispararía, porque el alta no pasa por `signUp`).
+**En el registro del portal no hay tal enlace, y aun así se marca. Es una deuda consciente, no un olvido.** Se intentó quitarlo —el formulario es público, cualquiera escribe cualquier dirección, y la confirmación sería lo único que probara que la cuenta pertenece a alguien— y **hubo que revertirlo el mismo día**: se desplegó sin un servidor de correo detrás. El servicio por defecto de Supabase es de desarrollo, va limitado a unos pocos envíos por hora y **solo entrega a direcciones de miembros del proyecto**; el correo no llegaba a nadie, sin ningún error visible, y el registro del portal quedó completamente roto.
 
-Consecuencia: la cuenta nace sin confirmar, `signInWithPassword` falla hasta que abra el enlace, y por eso **`registrarClientePortal` ya no inicia sesión al terminar** — la pantalla dice «revisa tu correo». Requiere SMTP configurado en el panel de Supabase: el envío por defecto corta a **2 correos por hora**.
+Para retomarlo hace falta, **en este orden**: un SMTP de verdad (Resend/SendGrid) en Authentication → Emails, el dominio verificado con SPF/DKIM (si no, cae en spam), `Site URL` y `Redirect URLs` apuntando a `vetora.online`, y **una prueba de envío a una dirección que no sea del equipo** — ese último paso es el que lo habría detectado. Solo entonces se quita `email_confirm` de `registro-portal`.
 
-Y abre un riesgo que hay que conocer: alguien puede registrar con el CI y el WhatsApp de otro usando un correo falso. No entrará, pero la ficha queda reclamada y **bloquea al dueño real** (el automático exige `.is('usuario_id', null)`). Es asumible solo porque desde `0028` se puede deshacer — ver «Vincular y desvincular» más abajo.
+Mientras tanto, el riesgo que la confirmación iba a mitigar —registrar con el CI y el WhatsApp de otro para reclamar su ficha— lo cubre lo que sí funcionó: desde `0028` un vínculo mal hecho **se puede deshacer**, que era el agujero de verdad. Ver «Vincular y desvincular» más abajo.
+
+(Un captcha tampoco es la alternativa: Supabase no tiene uno propio, su `[auth.captcha]` es un conector a hCaptcha/Turnstile, y aquí ni se dispararía porque el alta no pasa por `signUp`.)
 
 `signUp` desde el navegador falla de tres maneras a la vez con esa opción activa, y las tres están documentadas en la cabecera de [supabase/functions/crear-cuenta/](supabase/functions/crear-cuenta/): manda un correo de confirmación que sobra, **oculta que el correo ya existe** (devuelve un usuario falso con un uuid inventado, que al insertarse en `usuarios.id` —FK a `auth.users`— revienta con un 23503 con la clínica ya creada), y sustituye la sesión de quien opera. Si añades un alta, replica el patrón; no reintroduzcas `signUp`.
 
