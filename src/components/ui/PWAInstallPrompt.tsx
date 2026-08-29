@@ -6,6 +6,16 @@ import {
   suscribirseAlPrompt,
   yaEstaInstalada,
 } from '../../lib/pwa'
+import { useTourManual } from '../../features/onboarding/OnboardingProvider'
+
+/**
+ * Un respiro entre que el tour se apaga y esta tarjeta entra.
+ *
+ * Sin él, la tarjeta salta en el mismo fotograma en que se quita el foco del
+ * tutorial y parece que un aviso sustituye a otro, que es justo la sensación
+ * que se quería evitar.
+ */
+const RESPIRO_TRAS_TOUR_MS = 1200
 
 /**
  * Aviso para instalar la aplicación.
@@ -13,16 +23,33 @@ import {
  * No escucha el evento por su cuenta: lo captura `lib/pwa.ts` al arrancar. Este
  * componente se monta después de iniciar sesión, y para entonces
  * `beforeinstallprompt` ya se disparó — por eso antes no aparecía nunca.
+ *
+ * **Cede el paso al tour de bienvenida.** En `AppLayout` los dos son hermanos y
+ * ninguno sabía del otro, así que a quien entraba por primera vez le salían
+ * encimados. Ahora espera a que el tour esté resuelto: quien lo ve, recibe el
+ * aviso al cerrarlo; quien ya lo vio, lo recibe sin esperar nada.
  */
 export function PWAInstallPrompt() {
+  const { tourOcupaPantalla } = useTourManual()
   const [disponible, setDisponible] = useState(() => promptDeInstalacion() !== null)
   const [descartado, setDescartado] = useState(
     () => sessionStorage.getItem('pwaPromptDismissed') === 'true',
   )
+  const [turnoLibre, setTurnoLibre] = useState(false)
 
   useEffect(() => suscribirseAlPrompt(() => setDisponible(promptDeInstalacion() !== null)), [])
 
-  if (!disponible || descartado || yaEstaInstalada()) return null
+  useEffect(() => {
+    if (tourOcupaPantalla) {
+      // Vuelve a esperar si el tour se relanza desde «Mi cuenta».
+      setTurnoLibre(false)
+      return
+    }
+    const id = setTimeout(() => setTurnoLibre(true), RESPIRO_TRAS_TOUR_MS)
+    return () => clearTimeout(id)
+  }, [tourOcupaPantalla])
+
+  if (!disponible || descartado || !turnoLibre || yaEstaInstalada()) return null
 
   function descartar() {
     setDescartado(true)

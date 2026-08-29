@@ -20,16 +20,25 @@ import type { PasoTour } from '../../lib/onboarding'
 interface TourManual {
   /** Vuelve a lanzar el tour a petición del usuario. */
   abrirTour: () => void
+  /**
+   * El tour ocupa la pantalla ahora, o todavía no se sabe si va a ocuparla.
+   *
+   * Lo mira quien tenga que esperar su turno para no salir encima: hoy el aviso
+   * de instalar la PWA, que es hermano del tour en `AppLayout` y se pintaba a la
+   * vez, uno sobre otro.
+   */
+  tourOcupaPantalla: boolean
 }
 
-const Contexto = createContext<TourManual>({ abrirTour: () => {} })
+const Contexto = createContext<TourManual>({ abrirTour: () => {}, tourOcupaPantalla: false })
 
 /**
- * Para el botón de «ver otra vez».
+ * Para el botón de «ver otra vez» y para quien espere a que el tour termine.
  *
- * Fuera de un `OnboardingProvider` devuelve una función vacía en vez de lanzar:
- * el panel de cuenta es el mismo componente en las dos áreas, y que un botón no
- * haga nada es mejor que reventar la pantalla de perfil.
+ * Fuera de un `OnboardingProvider` devuelve una función vacía y
+ * `tourOcupaPantalla: false`, en vez de lanzar: el panel de cuenta es el mismo
+ * componente en las dos áreas, y el aviso de la PWA se monta además en el login
+ * y en el área de plataforma, donde no hay tour ninguno que esperar.
  */
 export function useTourManual(): TourManual {
   return useContext(Contexto)
@@ -47,9 +56,12 @@ export function OnboardingProvider({
   abrirMenu?: () => void
   cerrarMenu?: () => void
 }) {
-  const { abierto, abrir, cerrar } = useOnboarding()
+  const { abierto, abrir, cerrar, ocupaPantalla } = useOnboarding()
 
-  const valor = useMemo(() => ({ abrirTour: abrir }), [abrir])
+  const valor = useMemo(
+    () => ({ abrirTour: abrir, tourOcupaPantalla: ocupaPantalla }),
+    [abrir, ocupaPantalla],
+  )
 
   return (
     <Contexto.Provider value={valor}>
