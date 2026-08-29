@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { FieldGroup, Input } from '../components/ui/Field'
 import { useAuth } from '../context/AuthContext'
+import { rutaDeInicio } from '../lib/personal'
 import { establecerPasswordConInvitacion, validarInvitacion } from '../services/invitaciones'
 import type { AccesoResuelto } from '../services/invitaciones'
 import { PASSWORD_MINIMO } from '../services/cuentas'
@@ -52,7 +53,11 @@ export function AccesoPage() {
     try {
       const { usuario } = await establecerPasswordConInvitacion(token, password)
       await entrarComo(usuario)
-      navigate('/', { replace: true })
+      // A su pantalla, no a `/`: esa ruta la sirve la landing pública
+      // (`HomePage` gana el emparejamiento), así que quien acababa de crear su
+      // contraseña quedaba con la sesión abierta mirando la página de
+      // marketing, como si no hubiera entrado.
+      navigate(rutaDeInicio(usuario), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear la contraseña')
       setGuardando(false)

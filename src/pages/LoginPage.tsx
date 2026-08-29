@@ -6,9 +6,10 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FieldGroup, Input } from '../components/ui/Field'
 import { PWAInstallPrompt } from '../components/ui/PWAInstallPrompt'
+import { rutaDeInicio } from '../lib/personal'
 
 export function LoginPage() {
-  const { usuario, esPlataforma, entrarConCredenciales } = useAuth()
+  const { usuario, entrarConCredenciales } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
@@ -20,11 +21,7 @@ export function LoginPage() {
   const location = useLocation()
   const passwordActualizada = (location.state as { passwordActualizada?: boolean } | null)?.passwordActualizada
 
-  if (usuario) {
-    if (esPlataforma) return <Navigate to="/plataforma" replace />
-    if (usuario.rol === 'cliente') return <Navigate to="/portal-cliente/dashboard" replace />
-    return <Navigate to="/agenda" replace />
-  }
+  if (usuario) return <Navigate to={rutaDeInicio(usuario)} replace />
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

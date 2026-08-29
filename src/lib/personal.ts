@@ -69,6 +69,32 @@ export function peluqueroAcotado(
 }
 
 /**
+ * A dónde pertenece cada quien al entrar: su pantalla de inicio real.
+ *
+ * Existe porque esto mismo estaba escrito **cuatro veces** —`InicioSegunRol`,
+ * `LoginPage`, el botón de sesión de `HomeHeader` y el canje del enlace de
+ * acceso—, y la cuarta se había escrito mal: `/acceso/:token` mandaba a `/`
+ * después de crear la contraseña, y `/` es la **landing pública**. Quien
+ * acababa de darse de alta quedaba con la sesión abierta pero mirando la
+ * página de marketing, sin ni una pista de que ya estaba dentro.
+ *
+ * `/` no vale como destino aunque haya un `InicioSegunRol` montado ahí: hay dos
+ * rutas con ese path (la pública y la del área clínica) y gana la primera del
+ * árbol, que es `HomePage`. Hay que nombrar el destino.
+ *
+ * `esPlataforma` del contexto es exactamente `rol === 'superadmin'`, así que
+ * con el rol basta y esto se queda como función pura.
+ */
+export function rutaDeInicio(usuario: { rol: string } | null | undefined): string {
+  if (!usuario) return '/login'
+  if (usuario.rol === 'superadmin') return '/plataforma'
+  if (usuario.rol === 'cliente') return '/portal-cliente/dashboard'
+  // El resto del personal aterriza en la agenda, incluido cualquier rol nuevo:
+  // es el destino al que `RolRoute` rebota cuando el rol no encaja.
+  return '/agenda'
+}
+
+/**
  * Quién ve el expediente clínico: historial, esquema sanitario e internaciones.
  *
  * El `peluquero` es el único rol de personal que queda fuera. Sí da de alta

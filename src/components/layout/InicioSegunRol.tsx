@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { rutaDeInicio } from '../../lib/personal'
 
 /**
  * A dónde va cada quien al entrar o al pedir una ruta que no existe. El dueño
@@ -10,9 +11,9 @@ import { useAuth } from '../../context/AuthContext'
  * dentro de ella (solo citas de tipo 'peluqueria', sin historial clínico).
  */
 export function InicioSegunRol() {
-  const { usuario, esPlataforma } = useAuth()
-  if (!usuario) return <Navigate to="/login" replace />
-  if (esPlataforma) return <Navigate to="/plataforma" replace />
-  if (usuario.rol === 'cliente') return <Navigate to={`/portal-cliente/dashboard`} replace />
-  return <Navigate to="/agenda" replace />
+  const { usuario } = useAuth()
+  // El destino lo decide `rutaDeInicio` (lib/personal), que es la fuente única:
+  // esto mismo estaba escrito aquí, en `LoginPage`, en `HomeHeader` y en el
+  // canje del enlace de acceso, y esa cuarta copia se había escrito mal.
+  return <Navigate to={rutaDeInicio(usuario)} replace />
 }

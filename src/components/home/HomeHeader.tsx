@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { Home, LayoutGrid, Tag, Info, MessageCircle, Menu, X, LogIn, LayoutDashboard, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useBloqueoScroll } from '../../hooks/useBloqueoScroll'
+import { rutaDeInicio } from '../../lib/personal'
 import { FuncionalidadesModal } from './FuncionalidadesModal'
 import { PlanesModal } from './PlanesModal'
 import { AcercaDeModal } from './AcercaDeModal'
@@ -24,7 +25,7 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 export function HomeHeader() {
-  const { usuario, esPlataforma } = useAuth()
+  const { usuario } = useAuth()
   const location = useLocation()
   const [drawerAbierto, setDrawerAbierto] = useState(false)
   const [modalAbierto, setModalAbierto] = useState<ModalMenu | null>(null)
@@ -35,12 +36,9 @@ export function HomeHeader() {
   // quedaba trabado para siempre.
   useBloqueoScroll(drawerAbierto)
 
-  // Determinar la ruta de panel según el rol para usuarios autenticados
-  const rutaDestino = esPlataforma
-    ? '/plataforma'
-    : usuario?.rol === 'cliente'
-    ? '/portal-cliente/dashboard'
-    : '/agenda'
+  // Misma fuente que `InicioSegunRol`, `LoginPage` y el canje del enlace de
+  // acceso: cuatro copias de esto es como una acabó mandando a la landing.
+  const rutaDestino = rutaDeInicio(usuario)
 
   return (
     <header className="relative z-30 pt-3 pb-3 sm:pt-4 sm:pb-4">
