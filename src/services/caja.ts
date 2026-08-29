@@ -52,9 +52,6 @@ function conImporteAjustado(linea: LineaCobro, importe: number | undefined): Lin
   return {
     ...linea,
     subtotal_bs: subtotal,
-    // Se recalcula para que la fila siga siendo coherente: `cobro_lineas` exige
-    // el precio unitario y el recibo ya no lo enseña, pero el kardex del cobro
-    // sí lo conserva. Con cantidad 0 se guarda el importe tal cual.
     precio_unitario_bs: linea.cantidad > 0 ? Number((subtotal / linea.cantidad).toFixed(2)) : subtotal,
   }
 }
@@ -84,6 +81,36 @@ export async function lineasDeInternacion(internacion: Internacion): Promise<Lin
 
   const consumos = await lineasDeConsumo('internacion_id', internacion.id)
   return [estadia, ...consumos]
+}
+
+export async function lineasDePeluqueria(orden: any): Promise<LineaCobro[]> {
+  const lineas: LineaCobro[] = []
+  const servNombre = orden.servicio?.nombre || 'Servicio de Peluquería'
+  const precioBase = Number(orden.precio_estimado_bs) || Number(orden.precio_final_bs) || 0
+
+  lineas.push({
+    concepto: `Peluquería · ${servNombre}`,
+    cantidad: 1,
+    precio_unitario_bs: precioBase,
+    subtotal_bs: precioBase,
+    servicio_id: orden.servicio_id ?? null,
+  })
+
+  if (Array.isArray(orden.suplementos)) {
+    for (const sup of orden.suplementos) {
+      if (sup && sup.concepto && Number(sup.monto_bs) > 0) {
+        const m = Number(sup.monto_bs)
+        lineas.push({
+          concepto: `Suplemento: ${sup.concepto}`,
+          cantidad: 1,
+          precio_unitario_bs: m,
+          subtotal_bs: m,
+        })
+      }
+    }
+  }
+
+  return lineas
 }
 
 export interface ServicioSeleccionado {
@@ -183,11 +210,6 @@ export async function cerrarTurno(turnoId: string, saldoDeclarado: number): Prom
 
   const { esperado_en_caja_bs } = await resumenTurno(turnoId)
   
-  // `.eq('estado', 'abierto')` es la parte que cierra la carrera: la comprobación
-  // de arriba y este update son dos viajes, así que dos pestañas podían cerrar
-  // el mismo turno y la segunda sobrescribía `saldo_declarado_bs` y
-  // `diferencia_bs` de un arqueo ya firmado. `turnos_caja_all` no tiene
-  // predicado de estado, así que la condición tiene que ir aquí.
   const { data: cerrado, error } = await supabase
     .from('turnos_caja')
     .update({
@@ -202,7 +224,6 @@ export async function cerrarTurno(turnoId: string, saldoDeclarado: number): Prom
     .single()
 
   if (error || !cerrado) {
-    // PGRST116 = 0 filas: otra pestaña ganó la carrera y ya lo cerró.
     if ((error as { code?: string } | null)?.code === 'PGRST116') {
       throw new Error('Esta caja acaba de ser cerrada desde otra sesión. Recarga para ver el arqueo.')
     }
@@ -211,15 +232,8 @@ export async function cerrarTurno(turnoId: string, saldoDeclarado: number): Prom
   return cerrado as TurnoCaja
 }
 
-/**
- * Concepto de una cita cuando el nombre del servicio YA está resuelto.
- *
- * Se separa de `conceptoDeCita` para que el lote no tenga que preguntar por el
- * servicio una vez por cobro: `componerDetalleDeCobros` los trae todos de una.
- */
 function conceptoDeCitaConServicio(cita: Cita, servicioNombre?: string): string {
   const etiqueta = TIPO_LABEL[cita.tipo_cita as keyof typeof TIPO_LABEL]
-  // servicio_id es opcional en la cita: sin él, el concepto es solo el tipo.
   if (!cita.servicio_id) return etiqueta
   return servicioNombre ? `${etiqueta} - ${servicioNombre}` : etiqueta
 }
@@ -250,6 +264,14 @@ export async function listAtencionesPorCobrar(sucursalId?: string): Promise<Aten
   let intQuery = supabase.from('internaciones').select('*, paciente:pacientes(*, cliente:clientes(*)), veterinario:usuarios(*)').eq('estado', 'alta')
   if (sucursalId) intQuery = intQuery.eq('sucursal_id', sucursalId)
   const { data: internaciones } = await intQuery
+
+  let pelQuery = supabase
+    .from('peluqueria_ordenes')
+    .select('*, paciente:pacientes(*, cliente:clientes(*)), peluquero:usuarios(*), servicio:servicios(*)')
+    .in('estado', ['terminada', 'lista_recoger', 'entregada'])
+    .is('cobro_id', null)
+  if (sucursalId) pelQuery = pelQuery.eq('sucursal_id', sucursalId)
+  const { data: peluquerias } = await pelQuery
 
   const atenciones: AtencionPorCobrar[] = []
 
@@ -287,20 +309,30 @@ export async function listAtencionesPorCobrar(sucursalId?: string): Promise<Aten
     })
   }
 
+  for (const pel of (peluquerias || [])) {
+    const lineasFijas = await lineasDePeluqueria(pel)
+    atenciones.push({
+      tipo: 'peluqueria',
+      referencia_id: pel.id,
+      paciente_nombre: pel.paciente?.nombre ?? 'Mascota',
+      cliente_nombre: pel.paciente?.cliente?.nombre ?? '—',
+      veterinario_nombre: pel.peluquero?.nombre ?? 'Peluquero',
+      concepto: `Peluquería · Orden #${pel.numero_orden} (${pel.servicio?.nombre || 'Grooming'})`,
+      fecha: pel.hora_fin ?? pel.hora_ingreso ?? pel.created_at,
+      lineasFijas,
+      subtotal_fijo_bs: totalDe(lineasFijas),
+      servicio_sugerido_id: pel.servicio_id ?? null,
+    })
+  }
+
   return atenciones.sort((a, b) => a.fecha.localeCompare(b.fecha))
 }
 
 export type ReferenciaAtencion =
   | { tipo: 'cita'; id: string }
   | { tipo: 'internacion'; id: string }
+  | { tipo: 'peluqueria'; id: string }
 
-/**
- * @param ajustes Importes que caja fijó a mano para las líneas de producto,
- *   indexados por `movimiento_id`. Las líneas sin ajuste conservan el cálculo
- *   del catálogo, y la estadía de una internación nunca se ajusta: no tiene
- *   `movimiento_id`, porque su precio ya viene congelado en la propia
- *   internación (`precio_dia_bs`).
- */
 export async function registrarCobro(
   atencion: ReferenciaAtencion,
   metodoPago: MetodoPago,
@@ -318,7 +350,7 @@ export async function registrarCobro(
     if (existente) throw new Error('Esta cita ya fue cobrada')
     sucursalId = cita.sucursal_id
     lineasFijas = await lineasDeProductos(cita as any)
-  } else {
+  } else if (atencion.tipo === 'internacion') {
     const { data: internacion } = await supabase.from('internaciones').select('*').eq('id', atencion.id).single()
     if (!internacion) throw new Error('Internación no encontrada')
     if (internacion.estado !== 'alta') {
@@ -328,6 +360,16 @@ export async function registrarCobro(
     if (existente) throw new Error('Esta internación ya fue cobrada')
     sucursalId = internacion.sucursal_id
     lineasFijas = await lineasDeInternacion(internacion as any)
+  } else {
+    const { data: orden } = await supabase
+      .from('peluqueria_ordenes')
+      .select('*, servicio:servicios(*)')
+      .eq('id', atencion.id)
+      .single()
+    if (!orden) throw new Error('Orden de peluquería no encontrada')
+    if (orden.cobro_id) throw new Error('Esta orden ya fue cobrada')
+    sucursalId = orden.sucursal_id
+    lineasFijas = await lineasDePeluqueria(orden)
   }
 
   const turno = await getTurnoAbierto(sucursalId)
@@ -353,6 +395,10 @@ export async function registrarCobro(
     .single()
 
   if (error || !cobro) throw new Error(`Error al cobrar: ${error?.message || 'desconocido'}`)
+
+  if (atencion.tipo === 'peluqueria') {
+    await supabase.from('peluqueria_ordenes').update({ cobro_id: cobro.id }).eq('id', atencion.id)
+  }
 
   const persistidas = lineas.map((l) => ({
     cobro_id: cobro.id,
@@ -388,7 +434,6 @@ export interface DatosVentaDirecta {
 export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<Cobro> {
   const turno = await getTurnoAbierto(datos.sucursalId)
   if (!turno) throw new Error('Abre la caja antes de registrar ventas de medicamentos')
-  if (datos.items.length === 0) throw new Error('Selecciona al menos un medicamento o producto')
 
   const lineas: LineaCobro[] = []
 

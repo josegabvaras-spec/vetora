@@ -39,7 +39,17 @@ import {
   ShieldCheck,
   Download,
   Printer,
+  Scissors,
+  Camera,
 } from 'lucide-react'
+import {
+  getFichaGrooming,
+  listOrdenes,
+  listFotosDePaciente,
+} from '../../services/peluqueria'
+import type { PeluqueriaFicha, PeluqueriaFoto } from '../../types/database'
+import type { PeluqueriaOrdenConDetalle } from '../../types/views'
+import { formatBs } from '../../lib/currency'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
@@ -58,6 +68,9 @@ export function PortalPacientePage() {
   // bienvenida se las promete al dueño desde que existe.
   const [recetas, setRecetas] = useState<RecetaItem[]>([])
   const [informes, setInformes] = useState<InformeFirmado[]>([])
+  const [fichaPeluqueria, setFichaPeluqueria] = useState<PeluqueriaFicha | null>(null)
+  const [ordenesPeluqueria, setOrdenesPeluqueria] = useState<PeluqueriaOrdenConDetalle[]>([])
+  const [fotosPeluqueria, setFotosPeluqueria] = useState<PeluqueriaFoto[]>([])
   const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
@@ -73,6 +86,9 @@ export function PortalPacientePage() {
             estudiosData,
             recetasData,
             informesData,
+            fichaPelData,
+            ordenesPelData,
+            fotosPelData,
           ] = await Promise.all([
             getPacientesPortal(clinicaId, usuario.id),
             getHistorialPacientePortal(clinicaId, pacienteId),
@@ -81,6 +97,9 @@ export function PortalPacientePage() {
             getEstudiosPacientePortal(clinicaId, pacienteId),
             getRecetasPacientePortal(clinicaId, pacienteId),
             getInformesPacientePortal(pacienteId),
+            getFichaGrooming(pacienteId),
+            listOrdenes({ pacienteId }),
+            listFotosDePaciente(pacienteId),
           ])
 
           const pacienteActual = pacientesData.find(p => p.id === pacienteId)
@@ -92,6 +111,9 @@ export function PortalPacientePage() {
             setEstudios(estudiosData)
             setRecetas(recetasData)
             setInformes(informesData)
+            setFichaPeluqueria(fichaPelData)
+            setOrdenesPeluqueria(ordenesPelData)
+            setFotosPeluqueria(fotosPelData)
           }
         } catch (e) {
           console.error(e)
@@ -361,6 +383,91 @@ export function PortalPacientePage() {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+
+          {/* Sección de Peluquería y Estética para el Propietario */}
+          <div className="mt-8 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <Scissors className="h-5 w-5 text-teal-600" />
+                  Peluquería y Estética
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Estilo de corte, sesiones realizadas y galería de fotos del servicio.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Preferencias de Corte */}
+              {fichaPeluqueria && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Estilo Habitual</p>
+                    <p className="font-bold text-slate-800 mt-0.5">{fichaPeluqueria.corte_habitual || 'Estándar'}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Largo Preferido</p>
+                    <p className="font-semibold text-slate-800 mt-0.5">{fichaPeluqueria.longitud_preferida || 'A criterio'}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Frecuencia</p>
+                    <p className="font-semibold text-slate-800 mt-0.5">Cada {fichaPeluqueria.frecuencia_dias || 30} días</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Galería de Fotos de Sesiones */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3 flex items-center gap-1.5">
+                  <Camera size={15} className="text-teal-600" />
+                  <span>Fotos de Peluquería ({fotosPeluqueria.length})</span>
+                </h4>
+
+                {fotosPeluqueria.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No hay fotos de sesiones de peluquería guardadas aún.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {fotosPeluqueria.map((f) => (
+                      <div key={f.id} className="relative rounded-xl overflow-hidden border border-slate-200 shadow-sm group">
+                        <img src={f.foto_url} alt={f.tipo} className="h-28 w-full object-cover group-hover:scale-105 transition-transform" />
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 text-white text-[9px] flex justify-between items-center">
+                          <span className="capitalize font-bold">{f.tipo}</span>
+                          <span className="text-slate-300">{format(new Date(f.created_at), 'd MMM', { locale: es })}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Lista de Sesiones de Peluquería */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                  Historial de Baños y Cortes
+                </h4>
+                {ordenesPeluqueria.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No hay servicios registrados.</p>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {ordenesPeluqueria.map((o) => (
+                      <div key={o.id} className="py-2.5 flex items-center justify-between text-xs">
+                        <div>
+                          <p className="font-semibold text-slate-800">
+                            {o.servicio?.nombre || 'Grooming'}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {format(new Date(o.hora_ingreso || o.created_at), "d 'de' MMMM, yyyy", { locale: es })} · Atendió: {o.peluquero?.nombre}
+                          </p>
+                        </div>
+                        <span className="font-bold text-teal-800">{formatBs(o.precio_final_bs)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

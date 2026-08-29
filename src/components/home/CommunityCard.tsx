@@ -12,7 +12,7 @@ export function CommunityCard() {
         {/* Imagen 3D completa de la tarjeta de comunidad */}
         <div className="relative w-full aspect-[3/4] sm:aspect-[4/3] md:aspect-auto overflow-hidden">
           <img
-            src="/tarjeta3.jpg"
+            src="/seccion4.jpg"
             alt="Foro y Comunidad de mascotas"
             className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
           />

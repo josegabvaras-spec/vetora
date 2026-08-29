@@ -18,9 +18,22 @@ import type {
   Plan,
   Producto,
   RecetaItem,
+  Servicio,
   TipoCita,
   Usuario,
   VacunaAplicada,
+  PeluqueriaOrden,
+  PeluqueriaFoto,
+  PeluqueriaFicha,
+  PeluqueriaServicioConfig,
+  PeluqueriaServicioInsumo,
+  PeluqueriaComision,
+  Proveedor,
+  ProductoLote,
+  OrdenCompra,
+  OrdenCompraDetalle,
+  PetshopDevolucion,
+  CategoriaRetail,
 } from './database'
 
 /** Consumo frente al tope del plan. El panel y las validaciones leen lo mismo. */
@@ -219,8 +232,8 @@ export interface LineaCobro {
   movimiento_id?: string | null
 }
 
-/** Lo que se cobra: una cita atendida o una internación dada de alta. */
-export type TipoAtencion = 'cita' | 'internacion'
+/** Lo que se cobra: una cita atendida, una internación dada de alta o una orden de peluquería terminada. */
+export type TipoAtencion = 'cita' | 'internacion' | 'peluqueria'
 
 export interface AtencionPorCobrar {
   tipo: TipoAtencion
@@ -336,3 +349,154 @@ export interface MovimientoUnificado {
   monto_bs: number | null
   metodo_pago?: MetodoPago | null
 }
+
+/** Vistas compuestas del Módulo de Peluquería */
+
+export interface PeluqueriaOrdenConDetalle extends PeluqueriaOrden {
+  paciente: Paciente
+  cliente: Cliente
+  peluquero: Usuario
+  servicio?: Servicio | null
+  fotos: PeluqueriaFoto[]
+  cita?: Cita | null
+}
+
+export interface InsumoConProducto extends PeluqueriaServicioInsumo {
+  producto: Producto
+}
+
+export interface PeluqueriaServicioConConfig extends Servicio {
+  config?: PeluqueriaServicioConfig | null
+  insumos: InsumoConProducto[]
+}
+
+export interface PeluqueriaFichaConPaciente extends PeluqueriaFicha {
+  paciente: Paciente & { cliente: Cliente }
+  ultima_orden?: PeluqueriaOrdenConDetalle | null
+}
+
+export interface PeluqueriaComisionConDetalle extends PeluqueriaComision {
+  peluquero: Usuario
+  orden: PeluqueriaOrden & {
+    paciente: Paciente
+    cliente: Cliente
+    servicio?: Servicio | null
+  }
+}
+
+export interface ResumenDashboardPeluqueria {
+  citas_hoy: number
+  servicios_pendientes: number
+  servicios_en_proceso: number
+  mascotas_listas: number
+  mascotas_entregadas: number
+  canceladas_hoy: number
+  no_asistio_hoy: number
+  ingresos_hoy_bs: number
+  servicios_realizados_hoy: number
+  comisiones_hoy_bs: number
+  proximos_servicios: PeluqueriaOrdenConDetalle[]
+}
+
+export interface ClienteFidelizacionGrooming {
+  cliente_id: string
+  cliente_nombre: string
+  whatsapp: string
+  ci: string | null
+  paciente_id: string
+  paciente_nombre: string
+  especie: Especie
+  raza: string | null
+  total_visitas: number
+  gasto_acumulado_bs: number
+  ultimo_servicio_fecha: string
+  ultimo_servicio_nombre: string
+  servicio_habitual_nombre: string
+  dias_desde_ultimo_servicio: number
+  proximo_servicio_sugerido_dias: number
+  recordatorio_pendiente: boolean
+}
+
+/** Pet Shop View Models */
+
+export interface ProductoLoteConDetalle extends ProductoLote {
+  producto?: Producto
+  proveedor?: Proveedor | null
+  dias_para_vencer: number
+  estado_vencimiento: 'normal' | 'proximo' | 'vencido'
+}
+
+export interface ProductoConLotes extends Producto {
+  proveedor?: Proveedor | null
+  lotes?: ProductoLote[]
+  lotes_proximos_vencer?: number
+  lotes_vencidos?: number
+}
+
+export interface OrdenCompraConDetalle extends OrdenCompra {
+  proveedor?: Proveedor
+  detalles?: (OrdenCompraDetalle & { producto?: Producto })[]
+  creador?: Usuario | null
+  receptor?: Usuario | null
+}
+
+export interface PetshopDevolucionConDetalle extends PetshopDevolucion {
+  producto?: Producto
+  cobro?: Cobro | null
+  usuario?: Usuario | null
+  autorizado?: Usuario | null
+}
+
+export interface ItemCarritoPOS {
+  producto: Producto
+  cantidad: number
+  precio_unitario_bs: number
+  descuento_porcentaje?: number
+  descuento_monto_bs?: number
+  subtotal_bs: number
+  lote_id?: string
+  mascota_id?: string
+  promocion_id?: string
+}
+
+export interface ResumenDashboardPetshop {
+  ventas_hoy_bs: number
+  ventas_ayer_bs: number
+  transacciones_hoy: number
+  transacciones_ayer: number
+  ticket_promedio_hoy_bs: number
+  productos_vendidos_hoy: number
+  productos_stock_bajo: number
+  productos_por_vencer: number
+  ventas_mes_actual_bs: number
+  ventas_mes_anterior_bs: number
+  ventas_por_categoria: { categoria: CategoriaRetail; total_bs: number; cantidad: number }[]
+  productos_mas_vendidos: { producto_id: string; nombre: string; cantidad: number; total_bs: number }[]
+  ultimas_ventas: {
+    id: string
+    numero_recibo: number
+    cliente_nombre: string
+    total_bs: number
+    metodo_pago: MetodoPago
+    created_at: string
+    items_count: number
+  }[]
+}
+
+export interface ReporteRentabilidadPetshop {
+  total_ventas_bs: number
+  total_costo_bs: number
+  margen_bruto_bs: number
+  margen_bruto_pct: number
+  total_articulos_vendidos: number
+  total_transacciones: number
+  desglose_por_categoria: {
+    categoria: CategoriaRetail
+    ventas_bs: number
+    costo_bs: number
+    margen_bs: number
+    margen_pct: number
+    unidades: number
+  }[]
+}
+

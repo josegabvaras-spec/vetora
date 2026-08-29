@@ -50,6 +50,8 @@ export type ModuloVetora =
   | 'whatsapp'           // Recordatorios y avisos automáticos por WhatsApp
   | 'metricas'           // Reportes de ingresos, citas y rendimiento
   | 'catalogo'           // Vitrina de productos, visible en la Tienda del portal
+  | 'peluqueria'         // Módulo profesional de peluquería canina y felina
+  | 'petshop'            // Módulo profesional de Pet Shop y Retail
 
 /**
  * Comprobante de pago de la suscripción.
@@ -470,6 +472,17 @@ export interface ConsentimientoCirugia {
 
 /** 4. Inventario */
 
+export type CategoriaRetail =
+  | 'alimento'
+  | 'medicamento'
+  | 'antiparasitario'
+  | 'suplemento'
+  | 'higiene'
+  | 'accesorio'
+  | 'juguete'
+  | 'ropa'
+  | 'otro'
+
 export interface Producto {
   id: string
   clinica_id: string
@@ -480,9 +493,18 @@ export interface Producto {
   composicion: string
   unidad_medida: string
   contenido_presentacion: number
+  costo_bs?: number | null
   precio_bs: number
+  codigo_barras?: string | null
+  categoria_retail?: CategoriaRetail | string | null
+  marca?: string | null
+  ubicacion?: string | null
+  proveedor_id?: string | null
+  requiere_lote?: boolean | null
   stock_actual: number // CHECK (stock_actual >= 0)
   stock_minimo: number
+  stock_maximo?: number | null
+  activo?: boolean | null
   created_at: string
 }
 
@@ -497,6 +519,9 @@ export interface MovimientoInventario {
   /** Consumo durante una internación; se factura al dar de alta. */
   internacion_id?: string | null
   usuario_id?: string | null
+  lote_id?: string | null
+  costo_unitario_bs?: number | null
+  documento_origen?: string | null
   created_at: string
 }
 
@@ -597,3 +622,265 @@ export interface CobroLinea {
   servicio_id?: string | null
   producto_id?: string | null
 }
+
+/** 7. Peluquería / Estética Canina y Felina */
+
+export type CategoriaGrooming = 'bano' | 'corte' | 'higiene' | 'tratamiento' | 'personalizado'
+export type ComportamientoGrooming = 'tranquilo' | 'nervioso' | 'agresivo' | 'miedo_secadora' | 'no_tolera_unas' | 'manejo_especial'
+export type NivelNudos = 'ninguno' | 'leve' | 'moderado' | 'severo'
+export type NivelSuciedad = 'normal' | 'alta' | 'extrema'
+export type EstadoOrdenPeluqueria =
+  | 'cita'
+  | 'recepcion'
+  | 'evaluacion'
+  | 'en_espera'
+  | 'en_proceso'
+  | 'terminada'
+  | 'lista_recoger'
+  | 'entregada'
+  | 'cancelada'
+
+export type TipoFotoGrooming = 'antes' | 'durante' | 'despues'
+export type TipoComision = 'porcentaje' | 'monto_fijo'
+export type EstadoComision = 'pendiente' | 'liquidada' | 'anulada'
+
+export interface SuplementoOrden {
+  concepto: string
+  monto_bs: number
+}
+
+export interface ReglaPrecioServicio {
+  tamano?: 'pequeno' | 'mediano' | 'grande' | 'gigante' | 'todos'
+  especie?: 'canino' | 'felino' | 'todos'
+  tipo_pelo?: string
+  precio_bs: number
+}
+
+export interface PeluqueriaFicha {
+  id: string
+  clinica_id: string
+  paciente_id: string
+  corte_habitual?: string | null
+  longitud_preferida?: string | null
+  frecuencia_dias?: number | null
+  productos_preferidos?: string | null
+  comportamiento: ComportamientoGrooming
+  alergias_sensibilidad?: string | null
+  observaciones?: string | null
+  updated_at: string
+  created_at: string
+}
+
+export interface PeluqueriaServicioConfig {
+  id: string
+  clinica_id: string
+  servicio_id: string
+  duracion_minutos: number
+  categoria_grooming: CategoriaGrooming
+  especie_permitida: 'todos' | 'canino' | 'felino'
+  tamano_permitido: 'todos' | 'pequeno' | 'mediano' | 'grande' | 'gigante'
+  comision_tipo: TipoComision
+  comision_valor: number
+  reglas_precio: ReglaPrecioServicio[]
+  activo: boolean
+  created_at: string
+}
+
+export interface PeluqueriaServicioInsumo {
+  id: string
+  clinica_id: string
+  servicio_id: string
+  producto_id: string
+  cantidad_dosis: number
+  created_at: string
+}
+
+export interface PeluqueriaOrden {
+  id: string
+  clinica_id: string
+  sucursal_id: string
+  numero_orden: number
+  cita_id?: string | null
+  paciente_id: string
+  cliente_id: string
+  peluquero_id: string
+  servicio_id?: string | null
+  estado: EstadoOrdenPeluqueria
+  condicion_pelaje?: string | null
+  nivel_nudos: NivelNudos
+  nivel_suciedad: NivelSuciedad
+  lesiones_visibles?: string | null
+  alerta_veterinaria: boolean
+  comportamiento_recepcion?: string | null
+  observaciones_recepcion?: string | null
+  observaciones_peluquero?: string | null
+  suplementos: SuplementoOrden[]
+  precio_estimado_bs: number
+  precio_final_bs: number
+  insumos_descontados: boolean
+  cobro_id?: string | null
+  hora_ingreso: string
+  hora_inicio?: string | null
+  hora_fin?: string | null
+  hora_entrega?: string | null
+  creado_por?: string | null
+  created_at: string
+}
+
+export interface PeluqueriaFoto {
+  id: string
+  clinica_id: string
+  orden_id: string
+  paciente_id: string
+  tipo: TipoFotoGrooming
+  foto_url: string
+  notas?: string | null
+  created_at: string
+}
+
+export interface PeluqueriaComision {
+  id: string
+  clinica_id: string
+  sucursal_id: string
+  orden_id: string
+  peluquero_id: string
+  monto_base_bs: number
+  porcentaje_o_fijo: TipoComision
+  monto_comision_bs: number
+  estado: EstadoComision
+  fecha_liquidacion?: string | null
+  liquidada_por?: string | null
+  created_at: string
+}
+
+export interface PeluqueriaConfiguracion {
+  clinica_id: string
+  tiempo_bloqueo_default_min: number
+  intervalo_recordatorio_dias: number
+  suplementos_predeterminados: SuplementoOrden[]
+  mensaje_listo_whatsapp: string
+  mensaje_recordatorio_whatsapp: string
+  updated_at: string
+}
+
+/** 10. Pet Shop & Retail */
+
+export interface Proveedor {
+  id: string
+  clinica_id: string
+  empresa: string
+  nit?: string | null
+  contacto?: string | null
+  telefono?: string | null
+  whatsapp?: string | null
+  direccion?: string | null
+  email?: string | null
+  notas?: string | null
+  saldo_pendiente_bs: number
+  activo: boolean
+  created_at: string
+}
+
+export interface ProductoLote {
+  id: string
+  clinica_id: string
+  sucursal_id: string
+  producto_id: string
+  numero_lote: string
+  fecha_vencimiento: string
+  cantidad_inicial: number
+  cantidad_actual: number
+  costo_unitario_bs: number
+  proveedor_id?: string | null
+  created_at: string
+}
+
+export type EstadoOrdenCompra = 'borrador' | 'solicitada' | 'recibida' | 'cancelada'
+
+export interface OrdenCompra {
+  id: string
+  clinica_id: string
+  sucursal_id: string
+  proveedor_id: string
+  numero_orden: string
+  estado: EstadoOrdenCompra
+  subtotal_bs: number
+  descuento_bs: number
+  total_bs: number
+  notas?: string | null
+  creado_por?: string | null
+  recibido_por?: string | null
+  fecha_solicitud?: string | null
+  fecha_recepcion?: string | null
+  created_at: string
+}
+
+export interface OrdenCompraDetalle {
+  id: string
+  clinica_id: string
+  orden_id: string
+  producto_id: string
+  cantidad_pedida: number
+  cantidad_recibida: number
+  costo_unitario_bs: number
+  subtotal_bs: number
+  lote?: string | null
+  fecha_vencimiento?: string | null
+  created_at: string
+}
+
+export type TipoPromocionPetshop = 'porcentaje' | 'monto_fijo' | 'dos_por_uno' | 'combo' | 'cupon'
+
+export interface CondicionesPromocion {
+  productos_incluidos?: string[]
+  categoria_retail?: CategoriaRetail
+  cliente_id?: string
+  combo_items?: { producto_id: string; cantidad: number }[]
+  monto_minimo_bs?: number
+}
+
+export interface PetshopPromocion {
+  id: string
+  clinica_id: string
+  titulo: string
+  descripcion?: string | null
+  tipo: TipoPromocionPetshop
+  codigo_cupon?: string | null
+  valor_descuento: number
+  fecha_inicio: string
+  fecha_fin: string
+  activo: boolean
+  limite_uso?: number | null
+  usos_actuales: number
+  condiciones: CondicionesPromocion
+  created_at: string
+}
+
+export type EstadoProductoDevolucion = 'reintegrable' | 'danado' | 'descarte'
+
+export interface PetshopDevolucion {
+  id: string
+  clinica_id: string
+  sucursal_id: string
+  cobro_id?: string | null
+  producto_id: string
+  cantidad: number
+  motivo: string
+  estado_producto: EstadoProductoDevolucion
+  monto_devuelto_bs: number
+  usuario_id?: string | null
+  autorizado_por?: string | null
+  created_at: string
+}
+
+export interface PetshopConfiguracion {
+  id: string
+  clinica_id: string
+  dias_alerta_vencimiento: number
+  permitir_venta_sin_stock: boolean
+  exigir_autorizacion_devolucion: boolean
+  impresion_ticket_automatica: boolean
+  mensaje_ticket_pie: string
+  created_at: string
+}
+

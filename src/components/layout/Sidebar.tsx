@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, Bot, ShoppingBag, Contact, X } from 'lucide-react'
+import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, Bot, ShoppingBag, Contact, X, Scissors, ShoppingCart } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { PanelLateral } from './PanelLateral'
 import type { ModuloVetora, Rol } from '../../types/database'
@@ -34,6 +34,20 @@ export interface EnlaceClinico {
 export const ENLACES_CLINICOS: EnlaceClinico[] = [
   { to: '/caja', label: 'Caja', icon: Wallet, roles: ['recepcion', 'admin'], modulo: 'caja' },
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
+  {
+    to: '/petshop/dashboard',
+    label: 'Pet Shop',
+    icon: ShoppingCart,
+    roles: ['admin', 'recepcion', 'veterinario'],
+    modulo: 'petshop',
+  },
+  {
+    to: '/peluqueria/dashboard',
+    label: 'Peluquería',
+    icon: Scissors,
+    roles: ['admin', 'recepcion', 'peluquero'],
+    modulo: 'peluqueria',
+  },
   // El peluquero entra: sin dar de alta a la mascota no hay a quién agendarle
   // ni qué enseñarle al dueño en el portal. Lo que no ve es el expediente
   // clínico — `FichaPacientePage` le oculta las pestañas (ver

@@ -1209,50 +1209,74 @@ export type Database = {
       productos: {
         Row: {
           activo: boolean
+          categoria_retail: string | null
+          codigo_barras: string | null
           clinica_id: string
           composicion: string
           contenido_presentacion: number
+          costo_bs: number
           created_at: string
           id: string
+          marca: string | null
           nombre: string
           precio_bs: number
           presentacion: string
+          proveedor_id: string | null
+          requiere_lote: boolean
           sku: string
           stock_actual: number
+          stock_maximo: number | null
           stock_minimo: number
           sucursal_id: string
+          ubicacion: string | null
           unidad_medida: string
         }
         Insert: {
           activo?: boolean
+          categoria_retail?: string | null
+          codigo_barras?: string | null
           clinica_id?: string
           composicion?: string
           contenido_presentacion?: number
+          costo_bs?: number
           created_at?: string
           id?: string
+          marca?: string | null
           nombre: string
           precio_bs?: number
           presentacion?: string
+          proveedor_id?: string | null
+          requiere_lote?: boolean
           sku: string
           stock_actual?: number
+          stock_maximo?: number | null
           stock_minimo?: number
           sucursal_id: string
+          ubicacion?: string | null
           unidad_medida?: string
         }
         Update: {
           activo?: boolean
+          categoria_retail?: string | null
+          codigo_barras?: string | null
           clinica_id?: string
           composicion?: string
           contenido_presentacion?: number
+          costo_bs?: number
           created_at?: string
           id?: string
+          marca?: string | null
           nombre?: string
           precio_bs?: number
           presentacion?: string
+          proveedor_id?: string | null
+          requiere_lote?: boolean
           sku?: string
           stock_actual?: number
+          stock_maximo?: number | null
           stock_minimo?: number
           sucursal_id?: string
+          ubicacion?: string | null
           unidad_medida?: string
         }
         Relationships: [
@@ -1619,6 +1643,830 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      peluqueria_fichas: {
+        Row: {
+          id: string
+          clinica_id: string
+          paciente_id: string
+          corte_habitual: string | null
+          longitud_preferida: string | null
+          frecuencia_dias: number
+          productos_preferidos: string | null
+          comportamiento: string
+          alergias_sensibilidad: string | null
+          observaciones: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          paciente_id: string
+          corte_habitual?: string | null
+          longitud_preferida?: string | null
+          frecuencia_dias?: number
+          productos_preferidos?: string | null
+          comportamiento?: string
+          alergias_sensibilidad?: string | null
+          observaciones?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          paciente_id?: string
+          corte_habitual?: string | null
+          longitud_preferida?: string | null
+          frecuencia_dias?: number
+          productos_preferidos?: string | null
+          comportamiento?: string
+          alergias_sensibilidad?: string | null
+          observaciones?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      peluqueria_servicios_config: {
+        Row: {
+          id: string
+          clinica_id: string
+          servicio_id: string
+          duracion_minutos: number
+          categoria_grooming: string
+          especie_permitida: string
+          tamano_permitido: string
+          comision_tipo: string
+          comision_valor: number
+          reglas_precio: Json
+          activo: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          servicio_id: string
+          duracion_minutos?: number
+          categoria_grooming?: string
+          especie_permitida?: string
+          tamano_permitido?: string
+          comision_tipo?: string
+          comision_valor?: number
+          reglas_precio?: Json
+          activo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          servicio_id?: string
+          duracion_minutos?: number
+          categoria_grooming?: string
+          especie_permitida?: string
+          tamano_permitido?: string
+          comision_tipo?: string
+          comision_valor?: number
+          reglas_precio?: Json
+          activo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      peluqueria_servicio_insumos: {
+        Row: {
+          id: string
+          clinica_id: string
+          servicio_id: string
+          producto_id: string
+          cantidad_dosis: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          servicio_id: string
+          producto_id: string
+          cantidad_dosis: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          servicio_id?: string
+          producto_id?: string
+          cantidad_dosis?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      peluqueria_ordenes: {
+        Row: {
+          id: string
+          clinica_id: string
+          sucursal_id: string
+          numero_orden: number
+          paciente_id: string
+          cliente_id: string
+          peluquero_id: string
+          servicio_id: string | null
+          cita_id: string | null
+          cobro_id: string | null
+          estado: string
+          condicion_pelaje: string | null
+          nivel_nudos: string
+          nivel_suciedad: string
+          lesiones_visibles: string | null
+          alerta_veterinaria: boolean
+          comportamiento_recepcion: string | null
+          suplementos: Json
+          precio_estimado_bs: number
+          precio_final_bs: number
+          insumos_descontados: boolean
+          comision_generada: boolean
+          observaciones_recepcion: string | null
+          observaciones_peluquero: string | null
+          hora_ingreso: string
+          hora_inicio: string | null
+          hora_fin: string | null
+          hora_entrega: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          sucursal_id: string
+          numero_orden?: number
+          paciente_id: string
+          cliente_id: string
+          peluquero_id: string
+          servicio_id?: string | null
+          cita_id?: string | null
+          cobro_id?: string | null
+          estado?: string
+          condicion_pelaje?: string | null
+          nivel_nudos?: string
+          nivel_suciedad?: string
+          lesiones_visibles?: string | null
+          alerta_veterinaria?: boolean
+          comportamiento_recepcion?: string | null
+          suplementos?: Json
+          precio_estimado_bs?: number
+          precio_final_bs?: number
+          insumos_descontados?: boolean
+          comision_generada?: boolean
+          observaciones_recepcion?: string | null
+          observaciones_peluquero?: string | null
+          hora_ingreso?: string
+          hora_inicio?: string | null
+          hora_fin?: string | null
+          hora_entrega?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          sucursal_id?: string
+          numero_orden?: number
+          paciente_id?: string
+          cliente_id?: string
+          peluquero_id?: string
+          servicio_id?: string | null
+          cita_id?: string | null
+          cobro_id?: string | null
+          estado?: string
+          condicion_pelaje?: string | null
+          nivel_nudos?: string
+          nivel_suciedad?: string
+          lesiones_visibles?: string | null
+          alerta_veterinaria?: boolean
+          comportamiento_recepcion?: string | null
+          suplementos?: Json
+          precio_estimado_bs?: number
+          precio_final_bs?: number
+          insumos_descontados?: boolean
+          comision_generada?: boolean
+          observaciones_recepcion?: string | null
+          observaciones_peluquero?: string | null
+          hora_ingreso?: string
+          hora_inicio?: string | null
+          hora_fin?: string | null
+          hora_entrega?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peluqueria_ordenes_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peluqueria_ordenes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peluqueria_ordenes_peluquero_id_fkey"
+            columns: ["peluquero_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peluqueria_ordenes_servicio_id_fkey"
+            columns: ["servicio_id"]
+            isOneToOne: false
+            referencedRelation: "servicios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peluqueria_ordenes_cita_id_fkey"
+            columns: ["cita_id"]
+            isOneToOne: false
+            referencedRelation: "citas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peluqueria_ordenes_cobro_id_fkey"
+            columns: ["cobro_id"]
+            isOneToOne: false
+            referencedRelation: "cobros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peluqueria_fotos: {
+        Row: {
+          id: string
+          clinica_id: string
+          orden_id: string
+          paciente_id: string
+          tipo: string
+          foto_url: string
+          descripcion: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          orden_id: string
+          paciente_id: string
+          tipo: string
+          foto_url: string
+          descripcion?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          orden_id?: string
+          paciente_id?: string
+          tipo?: string
+          foto_url?: string
+          descripcion?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peluqueria_fotos_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "peluqueria_ordenes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peluqueria_fotos_paciente_id_fkey"
+            columns: ["paciente_id"]
+            isOneToOne: false
+            referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peluqueria_comisiones: {
+        Row: {
+          id: string
+          clinica_id: string
+          sucursal_id: string
+          orden_id: string
+          peluquero_id: string
+          monto_base_bs: number
+          tipo_comision: string
+          valor_comision: number
+          monto_comision_bs: number
+          estado: string
+          liquidada_por: string | null
+          fecha_liquidacion: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          sucursal_id: string
+          orden_id: string
+          peluquero_id: string
+          monto_base_bs: number
+          tipo_comision: string
+          valor_comision: number
+          monto_comision_bs: number
+          estado?: string
+          liquidada_por?: string | null
+          fecha_liquidacion?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          sucursal_id?: string
+          orden_id?: string
+          peluquero_id?: string
+          monto_base_bs?: number
+          tipo_comision?: string
+          valor_comision?: number
+          monto_comision_bs?: number
+          estado?: string
+          liquidada_por?: string | null
+          fecha_liquidacion?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peluqueria_comisiones_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "peluqueria_ordenes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peluqueria_comisiones_peluquero_id_fkey"
+            columns: ["peluquero_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peluqueria_configuracion: {
+        Row: {
+          id: string
+          clinica_id: string
+          tiempo_bloqueo_default_min: number
+          intervalo_recordatorio_dias: number
+          suplementos_predeterminados: Json
+          mensaje_listo_whatsapp: string | null
+          mensaje_recordatorio_whatsapp: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          tiempo_bloqueo_default_min?: number
+          intervalo_recordatorio_dias?: number
+          suplementos_predeterminados?: Json
+          mensaje_listo_whatsapp?: string | null
+          mensaje_recordatorio_whatsapp?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          tiempo_bloqueo_default_min?: number
+          intervalo_recordatorio_dias?: number
+          suplementos_predeterminados?: Json
+          mensaje_listo_whatsapp?: string | null
+          mensaje_recordatorio_whatsapp?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      proveedores: {
+        Row: {
+          id: string
+          clinica_id: string
+          empresa: string
+          nit: string | null
+          contacto: string | null
+          telefono: string | null
+          whatsapp: string | null
+          direccion: string | null
+          email: string | null
+          notas: string | null
+          saldo_pendiente_bs: number
+          activo: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          empresa: string
+          nit?: string | null
+          contacto?: string | null
+          telefono?: string | null
+          whatsapp?: string | null
+          direccion?: string | null
+          email?: string | null
+          notas?: string | null
+          saldo_pendiente_bs?: number
+          activo?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          empresa?: string
+          nit?: string | null
+          contacto?: string | null
+          telefono?: string | null
+          whatsapp?: string | null
+          direccion?: string | null
+          email?: string | null
+          notas?: string | null
+          saldo_pendiente_bs?: number
+          activo?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proveedores_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      producto_lotes: {
+        Row: {
+          id: string
+          clinica_id: string
+          sucursal_id: string
+          producto_id: string
+          numero_lote: string
+          fecha_vencimiento: string
+          cantidad_inicial: number
+          cantidad_actual: number
+          costo_unitario_bs: number
+          proveedor_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          sucursal_id: string
+          producto_id: string
+          numero_lote: string
+          fecha_vencimiento: string
+          cantidad_inicial: number
+          cantidad_actual: number
+          costo_unitario_bs?: number
+          proveedor_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          sucursal_id?: string
+          producto_id?: string
+          numero_lote?: string
+          fecha_vencimiento?: string
+          cantidad_inicial?: number
+          cantidad_actual?: number
+          costo_unitario_bs?: number
+          proveedor_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "producto_lotes_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "producto_lotes_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "producto_lotes_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      ordenes_compra: {
+        Row: {
+          id: string
+          clinica_id: string
+          sucursal_id: string
+          proveedor_id: string
+          numero_orden: string
+          estado: string
+          subtotal_bs: number
+          descuento_bs: number
+          total_bs: number
+          notas: string | null
+          creado_por: string | null
+          recibido_por: string | null
+          fecha_solicitud: string | null
+          fecha_recepcion: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          sucursal_id: string
+          proveedor_id: string
+          numero_orden?: string
+          estado?: string
+          subtotal_bs?: number
+          descuento_bs?: number
+          total_bs?: number
+          notas?: string | null
+          creado_por?: string | null
+          recibido_por?: string | null
+          fecha_solicitud?: string | null
+          fecha_recepcion?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          sucursal_id?: string
+          proveedor_id?: string
+          numero_orden?: string
+          estado?: string
+          subtotal_bs?: number
+          descuento_bs?: number
+          total_bs?: number
+          notas?: string | null
+          creado_por?: string | null
+          recibido_por?: string | null
+          fecha_solicitud?: string | null
+          fecha_recepcion?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordenes_compra_proveedor_id_fkey"
+            columns: ["proveedor_id"]
+            isOneToOne: false
+            referencedRelation: "proveedores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordenes_compra_recibido_por_fkey"
+            columns: ["recibido_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      orden_compra_detalles: {
+        Row: {
+          id: string
+          clinica_id: string
+          orden_id: string
+          producto_id: string
+          cantidad_pedida: number
+          cantidad_recibida: number
+          costo_unitario_bs: number
+          subtotal_bs: number
+          lote: string | null
+          fecha_vencimiento: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          orden_id: string
+          producto_id: string
+          cantidad_pedida: number
+          cantidad_recibida?: number
+          costo_unitario_bs: number
+          subtotal_bs: number
+          lote?: string | null
+          fecha_vencimiento?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          orden_id?: string
+          producto_id?: string
+          cantidad_pedida?: number
+          cantidad_recibida?: number
+          costo_unitario_bs?: number
+          subtotal_bs?: number
+          lote?: string | null
+          fecha_vencimiento?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orden_compra_detalles_orden_id_fkey"
+            columns: ["orden_id"]
+            isOneToOne: false
+            referencedRelation: "ordenes_compra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orden_compra_detalles_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      petshop_promociones: {
+        Row: {
+          id: string
+          clinica_id: string
+          titulo: string
+          descripcion: string | null
+          tipo: string
+          codigo_cupon: string | null
+          valor_descuento: number
+          fecha_inicio: string
+          fecha_fin: string
+          activo: boolean
+          limite_uso: number | null
+          usos_actuales: number
+          condiciones: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          titulo: string
+          descripcion?: string | null
+          tipo: string
+          codigo_cupon?: string | null
+          valor_descuento?: number
+          fecha_inicio: string
+          fecha_fin: string
+          activo?: boolean
+          limite_uso?: number | null
+          usos_actuales?: number
+          condiciones?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          titulo?: string
+          descripcion?: string | null
+          tipo?: string
+          codigo_cupon?: string | null
+          valor_descuento?: number
+          fecha_inicio?: string
+          fecha_fin?: string
+          activo?: boolean
+          limite_uso?: number | null
+          usos_actuales?: number
+          condiciones?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
+      petshop_devoluciones: {
+        Row: {
+          id: string
+          clinica_id: string
+          sucursal_id: string
+          cobro_id: string | null
+          producto_id: string
+          cantidad: number
+          motivo: string
+          estado_producto: string
+          monto_devuelto_bs: number
+          usuario_id: string | null
+          autorizado_por: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          sucursal_id: string
+          cobro_id?: string | null
+          producto_id: string
+          cantidad: number
+          motivo: string
+          estado_producto: string
+          monto_devuelto_bs?: number
+          usuario_id?: string | null
+          autorizado_por?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          sucursal_id?: string
+          cobro_id?: string | null
+          producto_id?: string
+          cantidad?: number
+          motivo?: string
+          estado_producto?: string
+          monto_devuelto_bs?: number
+          usuario_id?: string | null
+          autorizado_por?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "petshop_devoluciones_cobro_id_fkey"
+            columns: ["cobro_id"]
+            isOneToOne: false
+            referencedRelation: "cobros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petshop_devoluciones_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petshop_devoluciones_sucursal_id_fkey"
+            columns: ["sucursal_id"]
+            isOneToOne: false
+            referencedRelation: "sucursales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "petshop_devoluciones_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      petshop_configuracion: {
+        Row: {
+          id: string
+          clinica_id: string
+          dias_alerta_vencimiento: number
+          permitir_venta_sin_stock: boolean
+          exigir_autorizacion_devolucion: boolean
+          impresion_ticket_automatica: boolean
+          mensaje_ticket_pie: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          dias_alerta_vencimiento?: number
+          permitir_venta_sin_stock?: boolean
+          exigir_autorizacion_devolucion?: boolean
+          impresion_ticket_automatica?: boolean
+          mensaje_ticket_pie?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          dias_alerta_vencimiento?: number
+          permitir_venta_sin_stock?: boolean
+          exigir_autorizacion_devolucion?: boolean
+          impresion_ticket_automatica?: boolean
+          mensaje_ticket_pie?: string
+          created_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

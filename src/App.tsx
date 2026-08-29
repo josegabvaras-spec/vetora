@@ -48,6 +48,34 @@ import { PortalPerfilPage } from './pages/portal-cliente/PortalPerfilPage'
 import { RegistroClientePage } from './pages/RegistroClientePage'
 import { HomePage } from './pages/HomePage'
 
+import { PeluqueriaLayout } from './pages/peluqueria/PeluqueriaLayout'
+import { PeluqueriaDashboardPage } from './pages/peluqueria/PeluqueriaDashboardPage'
+import { PeluqueriaAgendaPage } from './pages/peluqueria/PeluqueriaAgendaPage'
+import { PeluqueriaOrdenesPage } from './pages/peluqueria/PeluqueriaOrdenesPage'
+import { PeluqueriaServiciosPage } from './pages/peluqueria/PeluqueriaServiciosPage'
+import { PeluqueriaMascotasPage } from './pages/peluqueria/PeluqueriaMascotasPage'
+import { PeluqueriaPeluquerosPage } from './pages/peluqueria/PeluqueriaPeluquerosPage'
+import { PeluqueriaInsumosPage } from './pages/peluqueria/PeluqueriaInsumosPage'
+import { PeluqueriaComisionesPage } from './pages/peluqueria/PeluqueriaComisionesPage'
+import { PeluqueriaFidelizacionPage } from './pages/peluqueria/PeluqueriaFidelizacionPage'
+import { PeluqueriaCajaPage } from './pages/peluqueria/PeluqueriaCajaPage'
+import { PeluqueriaReportesPage } from './pages/peluqueria/PeluqueriaReportesPage'
+import { PeluqueriaConfiguracionPage } from './pages/peluqueria/PeluqueriaConfiguracionPage'
+
+import { PetshopLayout } from './pages/petshop/PetshopLayout'
+import { PetshopDashboardPage } from './pages/petshop/PetshopDashboardPage'
+import { PetshopPosPage } from './pages/petshop/PetshopPosPage'
+import { PetshopProductosPage } from './pages/petshop/PetshopProductosPage'
+import { PetshopInventarioPage } from './pages/petshop/PetshopInventarioPage'
+import { PetshopComprasPage } from './pages/petshop/PetshopComprasPage'
+import { PetshopProveedoresPage } from './pages/petshop/PetshopProveedoresPage'
+import { PetshopOrdenesPage } from './pages/petshop/PetshopOrdenesPage'
+import { PetshopClientesPage } from './pages/petshop/PetshopClientesPage'
+import { PetshopPromocionesPage } from './pages/petshop/PetshopPromocionesPage'
+import { PetshopCajaPage } from './pages/petshop/PetshopCajaPage'
+import { PetshopReportesPage } from './pages/petshop/PetshopReportesPage'
+import { PetshopConfiguracionPage } from './pages/petshop/PetshopConfiguracionPage'
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -157,6 +185,48 @@ export default function App() {
                 </Route>
                 <Route element={<ModuloRoute modulo="inventario" />}>
                   <Route path="/inventario" element={<InventarioPage />} />
+                </Route>
+              </Route>
+
+              {/* Módulo Profesional de Peluquería Canina y Felina */}
+              <Route element={<RolRoute roles={['admin', 'recepcion', 'peluquero']} />}>
+                <Route element={<ModuloRoute modulo="peluqueria" />}>
+                  <Route path="/peluqueria" element={<PeluqueriaLayout />}>
+                    <Route index element={<PeluqueriaDashboardPage />} />
+                    <Route path="dashboard" element={<PeluqueriaDashboardPage />} />
+                    <Route path="agenda" element={<PeluqueriaAgendaPage />} />
+                    <Route path="ordenes" element={<PeluqueriaOrdenesPage />} />
+                    <Route path="servicios" element={<PeluqueriaServiciosPage />} />
+                    <Route path="mascotas" element={<PeluqueriaMascotasPage />} />
+                    <Route path="peluqueros" element={<PeluqueriaPeluquerosPage />} />
+                    <Route path="insumos" element={<PeluqueriaInsumosPage />} />
+                    <Route path="comisiones" element={<PeluqueriaComisionesPage />} />
+                    <Route path="fidelizacion" element={<PeluqueriaFidelizacionPage />} />
+                    <Route path="caja" element={<PeluqueriaCajaPage />} />
+                    <Route path="reportes" element={<PeluqueriaReportesPage />} />
+                    <Route path="configuracion" element={<PeluqueriaConfiguracionPage />} />
+                  </Route>
+                </Route>
+              </Route>
+
+              {/* Módulo Profesional de Pet Shop y Retail */}
+              <Route element={<RolRoute roles={['admin', 'recepcion', 'veterinario']} />}>
+                <Route element={<ModuloRoute modulo="petshop" />}>
+                  <Route path="/petshop" element={<PetshopLayout />}>
+                    <Route index element={<PetshopDashboardPage />} />
+                    <Route path="dashboard" element={<PetshopDashboardPage />} />
+                    <Route path="pos" element={<PetshopPosPage />} />
+                    <Route path="productos" element={<PetshopProductosPage />} />
+                    <Route path="inventario" element={<PetshopInventarioPage />} />
+                    <Route path="compras" element={<PetshopComprasPage />} />
+                    <Route path="proveedores" element={<PetshopProveedoresPage />} />
+                    <Route path="ordenes" element={<PetshopOrdenesPage />} />
+                    <Route path="clientes" element={<PetshopClientesPage />} />
+                    <Route path="promociones" element={<PetshopPromocionesPage />} />
+                    <Route path="caja" element={<PetshopCajaPage />} />
+                    <Route path="reportes" element={<PetshopReportesPage />} />
+                    <Route path="configuracion" element={<PetshopConfiguracionPage />} />
+                  </Route>
                 </Route>
               </Route>
 

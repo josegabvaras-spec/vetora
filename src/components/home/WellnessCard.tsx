@@ -13,7 +13,7 @@ export function WellnessCard() {
         {/* Imagen 3D completa de la tarjeta de "Mi Mascota" */}
         <div className="relative w-full aspect-[3/4] sm:aspect-[4/3] md:aspect-auto overflow-hidden">
           <img
-            src="/tarjeta1.jpg"
+            src="/seccion1.jpg"
             alt="Mi Mascota en Vetora"
             className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
           />

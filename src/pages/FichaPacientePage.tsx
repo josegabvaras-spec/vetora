@@ -30,6 +30,7 @@ import { iniciarConsultaLibre, iniciarHistorialDesdeCita } from '../services/his
 import { FichaConsulta } from '../features/pacientes/FichaConsulta'
 import { EditarPacienteModal } from '../features/pacientes/EditarPacienteModal'
 import { EsquemaSanitario } from '../features/pacientes/EsquemaSanitario'
+import { PeluqueriaTabPaciente } from '../features/pacientes/PeluqueriaTabPaciente'
 import { useAuth } from '../context/AuthContext'
 import { useTable } from '../mocks/useDb'
 import { calcularEdad } from '../lib/paciente'
@@ -93,8 +94,8 @@ export function FichaPacientePage() {
   const [modalInternacion, setModalInternacion] = useState<any | null>(null)
   const [modalEvolucion, setModalEvolucion] = useState<{ internacionId: string; pacienteNombre: string } | null>(null)
   const [errorConsulta, setErrorConsulta] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'historial' | 'esquema' | 'internaciones' | 'documentos'>(
-    'historial',
+  const [activeTab, setActiveTab] = useState<'historial' | 'esquema' | 'internaciones' | 'documentos' | 'peluqueria'>(
+    verClinico ? 'historial' : 'peluqueria',
   )
   const [vinculandoPortal, setVinculandoPortal] = useState(false)
   // Los dos únicos datos que la ficha no cargaba ya: los informes firmados y
@@ -553,51 +554,66 @@ export function FichaPacientePage() {
           )}
 
           {/* Navegación por Pestañas */}
-          <div className={clsx('border-b border-slate-200', !verClinico && 'hidden')}>
+          <div className="border-b border-slate-200">
             <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
+              {verClinico && (
+                <>
+                  <button
+                    onClick={() => setActiveTab('historial')}
+                    className={clsx(
+                      activeTab === 'historial'
+                        ? 'border-teal-500 text-teal-600'
+                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                      'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors cursor-pointer'
+                    )}
+                  >
+                    Historial Clínico
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('esquema')}
+                    className={clsx(
+                      activeTab === 'esquema'
+                        ? 'border-teal-500 text-teal-600'
+                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                      'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors cursor-pointer'
+                    )}
+                  >
+                    Esquema Sanitario
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('internaciones')}
+                    className={clsx(
+                      activeTab === 'internaciones'
+                        ? 'border-teal-500 text-teal-600'
+                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                      'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors cursor-pointer'
+                    )}
+                  >
+                    Internaciones Pasadas
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('documentos')}
+                    className={clsx(
+                      activeTab === 'documentos'
+                        ? 'border-teal-500 text-teal-600'
+                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                      'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors cursor-pointer'
+                    )}
+                  >
+                    Documentos
+                  </button>
+                </>
+              )}
               <button
-                onClick={() => setActiveTab('historial')}
+                onClick={() => setActiveTab('peluqueria')}
                 className={clsx(
-                  activeTab === 'historial'
+                  activeTab === 'peluqueria'
                     ? 'border-teal-500 text-teal-600'
                     : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
-                  'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+                  'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors cursor-pointer'
                 )}
               >
-                Historial Clínico
-              </button>
-              <button
-                onClick={() => setActiveTab('esquema')}
-                className={clsx(
-                  activeTab === 'esquema'
-                    ? 'border-teal-500 text-teal-600'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
-                  'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
-                )}
-              >
-                Esquema Sanitario
-              </button>
-              <button
-                onClick={() => setActiveTab('internaciones')}
-                className={clsx(
-                  activeTab === 'internaciones'
-                    ? 'border-teal-500 text-teal-600'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
-                  'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
-                )}
-              >
-                Internaciones Pasadas
-              </button>
-              <button
-                onClick={() => setActiveTab('documentos')}
-                className={clsx(
-                  activeTab === 'documentos'
-                    ? 'border-teal-500 text-teal-600'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
-                  'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
-                )}
-              >
-                Documentos
+                Peluquería & Estética
               </button>
             </nav>
           </div>
@@ -864,6 +880,10 @@ export function FichaPacientePage() {
                 </Card>
               )}
             </div>
+          )}
+
+          {activeTab === 'peluqueria' && (
+            <PeluqueriaTabPaciente pacienteId={paciente.id} paciente={paciente} />
           )}
         </div>
       </div>
