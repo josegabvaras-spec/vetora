@@ -83,20 +83,29 @@ export default function App() {
           <Route path="/nueva-password" element={<NuevaPasswordPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/consentimientos/:citaId" element={<ConsentimientoPage />} />
-            {/* Los documentos clínicos en papel enseñan exactamente lo que las
-                pestañas del expediente, así que van tras la MISMA puerta que
-                `puedeVerHistorialClinico()`. Sin este RolRoute bastaba con
-                teclear la URL: colgaban solo de `ProtectedRoute`, y desde que
-                el peluquero tiene «Pacientes» en el menú también tiene a mano
-                los ids con los que construirla. El portal no enlaza ninguna de
-                estas rutas — usa sus propias pantallas—, así que cerrarlas al
-                personal clínico no le quita nada al dueño. */}
-            <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion']} />}>
+            {/* Los cuatro documentos del expediente los abren DOS roles: el
+                personal desde la ficha clínica, y el dueño desde su portal —
+                es su expediente, y poder descargárselo es justo el punto. Cada
+                página resuelve de dónde carga con `cargarFichaDeDocumento()`:
+                el dueño NO pasa por `getFichaPaciente`, que le bajaría el
+                directorio del personal (ver `services/documentos.ts`).
+
+                `peluquero` sigue fuera, y es lo mismo que le oculta las
+                pestañas del expediente (`puedeVerHistorialClinico`): sin este
+                RolRoute bastaba con teclear la URL, porque colgaban solo de
+                `ProtectedRoute`. La RLS no distingue aquí — `auth_es_personal()`
+                incluye al peluquero desde 0025—, así que esta es la barrera. */}
+            <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion', 'cliente']} />}>
               <Route path="/pacientes/:id/historial/imprimir" element={<HistorialImprimirPage />} />
               <Route path="/pacientes/:pacienteId/consulta/:consultaId/imprimir" element={<ConsultaImprimirPage />} />
               <Route path="/pacientes/:pacienteId/consulta/:consultaId/receta/imprimir" element={<RecetarioImprimirPage />} />
               <Route path="/pacientes/:pacienteId/reporte/:tipo" element={<InformeImprimirPage />} />
               <Route path="/pacientes/:pacienteId/reporte/:tipo/:itemId" element={<InformeImprimirPage />} />
+            </Route>
+            {/* La hoja de internación se queda solo para el personal: el dueño
+                no tiene policy de portal sobre `internaciones`, así que le
+                saldría vacía. */}
+            <Route element={<RolRoute roles={['admin', 'veterinario', 'recepcion']} />}>
               <Route path="/internaciones/:id/imprimir" element={<InternacionImprimirPage />} />
             </Route>
             <Route path="/recibos/:cobroId" element={<ReciboPage />} />

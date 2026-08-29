@@ -42,6 +42,36 @@ export interface FirmasInforme {
   veterinarioId?: string | null
 }
 
+/**
+ * Todos los informes firmados de una mascota, para la pestaña «Documentos».
+ *
+ * `getFirmaInforme` responde «¿está firmado ESTE documento?»; esta responde
+ * «¿qué documentos firmados tiene esta mascota?», que es lo que hace falta para
+ * enumerarlos sin saber de antemano cuáles existen.
+ *
+ * La tabla es INSERT-only y volver a firmar añade una fila, así que se agrupa
+ * por `(tipo, item_id)` y se conserva **la más reciente** de cada documento —
+ * mismo criterio que `getFirmaInforme` con su `limit(1)`. Sin esto, un informe
+ * firmado tres veces saldría tres veces en la lista.
+ */
+export async function listInformesDePaciente(pacienteId: string): Promise<InformeFirmado[]> {
+  const { data, error } = await supabase
+    .from('informes_firmados')
+    .select('*')
+    .eq('paciente_id', pacienteId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw new Error(`No se pudieron cargar los informes: ${error.message}`)
+
+  const vistos = new Set<string>()
+  return ((data ?? []) as InformeFirmado[]).filter((i) => {
+    const clave = `${i.tipo}|${i.item_id ?? ''}`
+    if (vistos.has(clave)) return false
+    vistos.add(clave)
+    return true
+  })
+}
+
 /** La firma vigente de ese documento, o null si todavía no se firmó. */
 export async function getFirmaInforme(
   pacienteId: string | null,

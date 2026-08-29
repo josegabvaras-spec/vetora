@@ -5,12 +5,41 @@ import {
   getConsentimientosPacientePortal,
   getEstudiosPacientePortal,
   getHistorialPacientePortal,
+  getInformesPacientePortal,
+  getRecetasPacientePortal,
   getVacunasPacientePortal,
   getPacientesPortal,
 } from '../../services/portalCliente'
-import { urlFirmadaDe, TIPO_ESTUDIO_LABEL, type EstudioImagen } from '../../services/estudios'
-import type { ConsentimientoCirugia, HistorialClinico, Paciente, VacunaAplicada } from '../../types/database'
-import { ArrowLeft, Syringe, FileText, AlertTriangle, Calendar, ScanLine, ShieldCheck } from 'lucide-react'
+import {
+  urlDescargaDe,
+  urlFirmadaDe,
+  TIPO_ESTUDIO_LABEL,
+  type EstudioImagen,
+} from '../../services/estudios'
+import type { InformeFirmado } from '../../services/informes'
+import {
+  documentosDePaciente,
+  TIPO_DOCUMENTO_LABEL,
+  type DocumentoPaciente,
+} from '../../lib/documentos'
+import type {
+  ConsentimientoCirugia,
+  HistorialClinico,
+  Paciente,
+  RecetaItem,
+  VacunaAplicada,
+} from '../../types/database'
+import {
+  ArrowLeft,
+  Syringe,
+  FileText,
+  AlertTriangle,
+  Calendar,
+  ScanLine,
+  ShieldCheck,
+  Download,
+  Printer,
+} from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
@@ -25,6 +54,10 @@ export function PortalPacientePage() {
   const [vacunas, setVacunas] = useState<VacunaAplicada[]>([])
   const [consentimientos, setConsentimientos] = useState<ConsentimientoCirugia[]>([])
   const [estudios, setEstudios] = useState<EstudioImagen[]>([])
+  // Las recetas no se cargaban en ningún sitio del portal, y el tour de
+  // bienvenida se las promete al dueño desde que existe.
+  const [recetas, setRecetas] = useState<RecetaItem[]>([])
+  const [informes, setInformes] = useState<InformeFirmado[]>([])
   const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
@@ -32,14 +65,23 @@ export function PortalPacientePage() {
       if (usuario?.clinica_id && usuario.id && pacienteId) {
         try {
           const clinicaId = usuario.clinica_id
-          const [pacientesData, historialData, vacunasData, consentimientosData, estudiosData] =
-            await Promise.all([
-              getPacientesPortal(clinicaId, usuario.id),
-              getHistorialPacientePortal(clinicaId, pacienteId),
-              getVacunasPacientePortal(clinicaId, pacienteId),
-              getConsentimientosPacientePortal(clinicaId, pacienteId),
-              getEstudiosPacientePortal(clinicaId, pacienteId),
-            ])
+          const [
+            pacientesData,
+            historialData,
+            vacunasData,
+            consentimientosData,
+            estudiosData,
+            recetasData,
+            informesData,
+          ] = await Promise.all([
+            getPacientesPortal(clinicaId, usuario.id),
+            getHistorialPacientePortal(clinicaId, pacienteId),
+            getVacunasPacientePortal(clinicaId, pacienteId),
+            getConsentimientosPacientePortal(clinicaId, pacienteId),
+            getEstudiosPacientePortal(clinicaId, pacienteId),
+            getRecetasPacientePortal(clinicaId, pacienteId),
+            getInformesPacientePortal(pacienteId),
+          ])
 
           const pacienteActual = pacientesData.find(p => p.id === pacienteId)
           if (pacienteActual) {
@@ -48,6 +90,8 @@ export function PortalPacientePage() {
             setVacunas(vacunasData)
             setConsentimientos(consentimientosData)
             setEstudios(estudiosData)
+            setRecetas(recetasData)
+            setInformes(informesData)
           }
         } catch (e) {
           console.error(e)
@@ -81,6 +125,20 @@ export function PortalPacientePage() {
       </div>
     )
   }
+
+  // La MISMA función que arma la lista en la ficha de la clínica: el orden y
+  // los rótulos no pueden divergir entre lo que ve el dueño y lo que ve su
+  // veterinario. Lo que cambia es lo que se le pasa — aquí no hay internación
+  // ni recibos, porque el portal no los consulta.
+  const documentos = documentosDePaciente({
+    pacienteId: paciente.id,
+    pacienteNombre: paciente.nombre,
+    consultas: historial,
+    historialesConReceta: [...new Set(recetas.map((r) => r.historial_id))],
+    consentimientos,
+    informes,
+    estudios,
+  })
 
   return (
     <div>
@@ -194,6 +252,30 @@ export function PortalPacientePage() {
                   <EstudioPortal key={e.id} estudio={e} />
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Todos los documentos de la mascota, para leerlos, imprimirlos o
+              guardarlos en el celular. Los imprimibles abren la misma página
+              que usa la clínica —el navegador ofrece «Guardar como PDF»— pero
+              cargando solo lo que el dueño puede ver
+              (`cargarFichaDeDocumento`); las imágenes se descargan. */}
+          {documentos.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+              <div className="p-5 border-b border-slate-100 bg-slate-50">
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-emerald-500" />
+                  Documentos
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Descárgalos o guárdalos como PDF desde tu celular.
+                </p>
+              </div>
+              <ul className="divide-y divide-slate-100">
+                {documentos.map((doc) => (
+                  <DocumentoPortalFila key={doc.id} doc={doc} />
+                ))}
+              </ul>
             </div>
           )}
 
@@ -327,5 +409,66 @@ function EstudioPortal({ estudio }: { estudio: EstudioImagen }) {
         </span>
       </span>
     </a>
+  )
+}
+
+/**
+ * Una fila de la lista de documentos, con el estilo del portal.
+ *
+ * No reutiliza `ListaDocumentos` (la del área clínica) a propósito: esa se apoya
+ * en `Card` y `Badge` de `components/ui`, y el portal no importa ni una
+ * primitiva de ahí — es esmeralda, de esquinas grandes y pensado para el pulgar.
+ * Lo que sí se comparte es lo que importa: la lista la arma la misma
+ * `documentosDePaciente()`, así que el contenido no puede divergir aunque el
+ * envoltorio sea distinto.
+ */
+function DocumentoPortalFila({ doc }: { doc: DocumentoPaciente }) {
+  const [ocupado, setOcupado] = useState(false)
+  const [error, setError] = useState(false)
+
+  async function descargar() {
+    if (ocupado || !doc.ruta) return
+    setOcupado(true)
+    setError(false)
+    try {
+      // La firma se pide al pulsar, no al pintar la lista: caduca en una hora.
+      window.location.href = await urlDescargaDe(doc.ruta, doc.nombreArchivo ?? 'estudio.jpg')
+    } catch {
+      setError(true)
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  return (
+    <li className="flex items-center justify-between gap-3 px-5 py-3.5">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-900">{doc.titulo}</p>
+        <p className="text-xs text-slate-500">
+          {TIPO_DOCUMENTO_LABEL[doc.tipo]} · {format(new Date(doc.fecha), "d 'de' MMMM, yyyy", { locale: es })}
+        </p>
+      </div>
+
+      {doc.href ? (
+        <Link
+          to={doc.href}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-colors"
+        >
+          <Printer className="h-3.5 w-3.5" /> Abrir
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={descargar}
+          disabled={ocupado}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+        >
+          <Download className="h-3.5 w-3.5" />
+          {error ? 'Reintentar' : ocupado ? 'Preparando…' : 'Descargar'}
+        </button>
+      )}
+    </li>
   )
 }

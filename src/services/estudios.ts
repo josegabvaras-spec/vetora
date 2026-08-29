@@ -55,6 +55,25 @@ export async function urlFirmadaDe(ruta: string, segundos = 3600): Promise<strin
   return data.signedUrl
 }
 
+/**
+ * URL temporal que **guarda** el archivo en vez de abrirlo.
+ *
+ * Es la misma firma que `urlFirmadaDe`, pero con la opción `download`, que hace
+ * que Storage devuelva el `Content-Disposition: attachment`. Sin eso, un `<a>`
+ * hacia una imagen la abre en otra pestaña y el dueño tiene que saber pulsar
+ * «guardar imagen como» — que en un celular no es evidente.
+ *
+ * El nombre lo compone `nombreDeArchivo()` de `lib/documentos`: viaja en una
+ * cabecera HTTP, así que va sin acentos ni espacios.
+ */
+export async function urlDescargaDe(ruta: string, nombre: string, segundos = 3600): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(ruta, segundos, { download: nombre })
+  if (error || !data) throw new Error(`No se pudo preparar la descarga: ${error?.message ?? 'desconocido'}`)
+  return data.signedUrl
+}
+
 export async function subirEstudio(
   clinicaId: string,
   pacienteId: string,

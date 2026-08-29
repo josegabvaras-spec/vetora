@@ -1,6 +1,23 @@
 import { supabase } from '../lib/supabase'
-import type { ConsentimientoCirugia, Paciente, HistorialClinico, VacunaAplicada } from '../types/database'
+import type {
+  ConsentimientoCirugia,
+  Paciente,
+  HistorialClinico,
+  RecetaItem,
+  VacunaAplicada,
+} from '../types/database'
 import type { EstudioImagen } from './estudios'
+import type { InformeFirmado } from './informes'
+import type { FichaPaciente } from '../types/views'
+
+/**
+ * Lo que el portal puede llenar de una `FichaPaciente`.
+ *
+ * Es el mismo tipo, no una copia: las páginas de documento reciben esto o la
+ * ficha del personal sin distinguirlas. `internaciones` y `citas` van siempre
+ * vacías —son de personal— y eso es parte del contrato, no un descuido.
+ */
+export type FichaPacientePortal = FichaPaciente
 import { addDays } from 'date-fns'
 import { clinicDayIso } from '../lib/datetime'
 
@@ -173,6 +190,52 @@ export async function getConsentimientosPacientePortal(
 }
 
 /**
+ * Recetas de las mascotas del dueño.
+ *
+ * No existía, y el tour de bienvenida del portal se las promete desde que
+ * existe («…y las recetas que le dio el veterinario»): el dueño entraba a
+ * buscarlas y no había ninguna pantalla que las pintara. La policy
+ * `recetas_portal` (0008) ya estaba, y como ella solo devuelve las de consultas
+ * cerradas.
+ */
+export async function getRecetasPacientePortal(
+  clinicaId: string,
+  pacienteId: string,
+): Promise<RecetaItem[]> {
+  const { data } = await supabase
+    .from('recetas')
+    .select('*')
+    .eq('clinica_id', clinicaId)
+    .eq('paciente_id', pacienteId)
+    .order('created_at', { ascending: false })
+
+  return (data || []) as RecetaItem[]
+}
+
+/**
+ * Informes firmados de las mascotas del dueño (`informes_firmados_portal`, 0015).
+ *
+ * Se queda con el más reciente de cada `(tipo, item_id)`, igual que
+ * `listInformesDePaciente` en el lado de la clínica: la tabla es INSERT-only y
+ * volver a firmar añade una fila, no la reemplaza.
+ */
+export async function getInformesPacientePortal(pacienteId: string): Promise<InformeFirmado[]> {
+  const { data } = await supabase
+    .from('informes_firmados')
+    .select('*')
+    .eq('paciente_id', pacienteId)
+    .order('created_at', { ascending: false })
+
+  const vistos = new Set<string>()
+  return ((data || []) as InformeFirmado[]).filter((i) => {
+    const clave = `${i.tipo}|${i.item_id ?? ''}`
+    if (vistos.has(clave)) return false
+    vistos.add(clave)
+    return true
+  })
+}
+
+/**
  * Estudios de imagen de las mascotas del dueño.
  *
  * `estudios_portal` (0016) solo devuelve los de consultas ya cerradas: un
@@ -191,6 +254,88 @@ export async function getEstudiosPacientePortal(
     .order('created_at', { ascending: false })
 
   return (data || []) as EstudioImagen[]
+}
+
+/**
+ * La ficha que necesitan las páginas de impresión cuando quien mira es el dueño.
+ *
+ * Devuelve la misma forma que `getFichaPaciente`, y por eso las cuatro páginas
+ * de documento sirven a los dos roles sin duplicarse. Lo que cambia es **qué se
+ * consulta**, y no por comodidad:
+ *
+ * - `getFichaPaciente` hace `select('*')` sobre `usuarios`, y un `cliente`
+ *   tiene `clinica_id`, así que `usuarios_select` se lo permitiría: le bajaría
+ *   al celular el directorio del personal con correos y teléfonos. Aquí los
+ *   nombres de veterinario se resuelven con un `.in('id', […])` acotado a los
+ *   que firman sus propias consultas.
+ * - `servicios`, `productos`, `movimientos_inventario` e `internaciones` son de
+ *   personal: para el dueño volverían vacías en silencio. Se omiten, y con
+ *   ellas el consumo de inventario y los precios internos, que no tienen por
+ *   qué salir en el papel del cliente.
+ *
+ * El recorte de qué consultas se ven no está aquí sino en la RLS
+ * (`historial_portal`, `recetas_portal`): solo las cerradas.
+ */
+export async function getFichaPacientePortal(pacienteId: string): Promise<FichaPacientePortal | null> {
+  const { data: paciente } = await supabase
+    .from('pacientes')
+    .select('*')
+    .eq('id', pacienteId)
+    .maybeSingle()
+
+  if (!paciente) return null
+
+  const { data: cliente } = await supabase
+    .from('clientes')
+    .select('*')
+    .eq('id', paciente.cliente_id)
+    .maybeSingle()
+
+  const [{ data: historiales }, { data: vacunas }, { data: desparasitaciones }, { data: recetas }, { data: citas }] =
+    await Promise.all([
+      supabase.from('historial_clinico').select('*').eq('paciente_id', pacienteId).eq('editable', false),
+      supabase.from('vacunas_aplicadas').select('*').eq('paciente_id', pacienteId),
+      supabase.from('desparasitaciones_aplicadas').select('*').eq('paciente_id', pacienteId),
+      supabase.from('recetas').select('*').eq('paciente_id', pacienteId),
+      supabase.from('citas').select('*').eq('paciente_id', pacienteId),
+    ])
+
+  // Solo los veterinarios que firman ESTAS consultas, no la plantilla entera.
+  const veterinarioIds = [...new Set((historiales ?? []).map((h: any) => h.veterinario_id).filter(Boolean))]
+  const { data: veterinarios } = veterinarioIds.length
+    ? await supabase.from('usuarios').select('id, nombre').in('id', veterinarioIds)
+    : { data: [] as { id: string; nombre: string }[] }
+
+  const nombreDe = (id: string | null | undefined) =>
+    (veterinarios ?? []).find((u) => u.id === id)?.nombre ?? 'Veterinario'
+
+  const historialesConDetalle = (historiales ?? [])
+    .map((h: any) => ({
+      ...h,
+      veterinario_nombre: nombreDe(h.veterinario_id),
+      vacunas: (vacunas ?? []).filter((v: any) => v.historial_id === h.id),
+      desparasitaciones: (desparasitaciones ?? []).filter((d: any) => d.historial_id === h.id),
+      // Vacío a propósito: el consumo de inventario es interno de la clínica.
+      productosUsados: [],
+      receta: (recetas ?? []).filter((r: any) => r.historial_id === h.id),
+      tipo_cita: (citas ?? []).find((c: any) => c.id === h.cita_id)?.tipo_cita ?? 'consulta',
+      procedimiento: null,
+      origen: null,
+    }))
+    .sort((a: any, b: any) => b.created_at.localeCompare(a.created_at))
+
+  return {
+    paciente: { ...paciente, cliente },
+    historiales: historialesConDetalle,
+    internaciones: [],
+    citas: [],
+    vacunas: (vacunas ?? []).sort((a: any, b: any) =>
+      b.fecha_aplicacion.localeCompare(a.fecha_aplicacion),
+    ),
+    desparasitaciones: (desparasitaciones ?? []).sort((a: any, b: any) =>
+      b.fecha_aplicacion.localeCompare(a.fecha_aplicacion),
+    ),
+  } as FichaPacientePortal
 }
 
 export async function getNotificacionesPortal(clinicaId: string, usuarioId: string): Promise<NotificacionPortal[]> {

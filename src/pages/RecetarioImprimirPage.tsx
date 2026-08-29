@@ -3,7 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { useTable } from '../mocks/useDb'
-import { getFichaPaciente } from '../services/clientesPacientes'
+import { cargarFichaDeDocumento, volverDeDocumento } from '../services/documentos'
+import { useAuth } from '../context/AuthContext'
 import { calcularEdad } from '../lib/paciente'
 import { formatClinicDate, formatClinicDateTime } from '../lib/datetime'
 import type { FichaPaciente } from '../types/views'
@@ -29,6 +30,7 @@ const ESPECIE_LABEL: Record<string, string> = {
 
 export function RecetarioImprimirPage() {
   const { pacienteId, consultaId } = useParams<{ pacienteId: string; consultaId: string }>()
+  const { usuario } = useAuth()
   const [ficha, setFicha] = useState<FichaPaciente | null | undefined>(undefined)
   // «No se pudo cargar» y «no existe» son cosas distintas.
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
@@ -37,13 +39,13 @@ export function RecetarioImprimirPage() {
 
   useEffect(() => {
     if (!pacienteId) return
-    getFichaPaciente(pacienteId)
+    cargarFichaDeDocumento(pacienteId, usuario?.rol)
       .then(setFicha)
       .catch((err) => {
         setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar el recetario')
         setFicha(null)
       })
-  }, [pacienteId])
+  }, [pacienteId, usuario?.rol])
 
   if (ficha === undefined) {
     return <p className="p-6 text-sm text-slate-500">Cargando recetario…</p>
@@ -55,8 +57,8 @@ export function RecetarioImprimirPage() {
         <p className={errorCarga ? 'text-sm font-semibold text-rose-700' : 'text-sm text-slate-500'}>
           {errorCarga ?? 'No se encontró el paciente solicitado.'}
         </p>
-        <Link to="/pacientes" className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
-          <ArrowLeft size={16} /> Volver a pacientes
+        <Link to={usuario?.rol === 'cliente' ? '/portal-cliente/mascotas' : '/pacientes'} className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
+          <ArrowLeft size={16} /> {usuario?.rol === 'cliente' ? 'Volver a mis mascotas' : 'Volver a pacientes'}
         </Link>
       </div>
     )
@@ -69,8 +71,8 @@ export function RecetarioImprimirPage() {
     return (
       <div className="mx-auto max-w-lg space-y-4 p-6 text-center">
         <p className="text-sm text-slate-500">No se encontró la consulta solicitada.</p>
-        <Link to={`/pacientes/${paciente.id}`} className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
-          <ArrowLeft size={16} /> Volver a la ficha
+        <Link to={volverDeDocumento(paciente.id, usuario?.rol)} className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
+          <ArrowLeft size={16} /> {usuario?.rol === 'cliente' ? 'Volver a mi mascota' : 'Volver a la ficha'}
         </Link>
       </div>
     )
@@ -85,10 +87,10 @@ export function RecetarioImprimirPage() {
       {/* Barra de acciones — oculta al imprimir */}
       <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-4 print:hidden">
         <Link
-          to={`/pacientes/${paciente.id}`}
+          to={volverDeDocumento(paciente.id, usuario?.rol)}
           className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
         >
-          <ArrowLeft size={16} /> Volver a la ficha
+          <ArrowLeft size={16} /> {usuario?.rol === 'cliente' ? 'Volver a mi mascota' : 'Volver a la ficha'}
         </Link>
         <Button onClick={() => window.print()}>
           <Printer size={16} /> Imprimir / Guardar PDF

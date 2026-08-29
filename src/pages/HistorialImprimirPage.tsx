@@ -8,7 +8,8 @@ import {
   FirmasInformeImpresas,
   useFirmaInforme,
 } from '../features/pacientes/FirmaInforme'
-import { getFichaPaciente } from '../services/clientesPacientes'
+import { cargarFichaDeDocumento, volverDeDocumento } from '../services/documentos'
+import { useAuth } from '../context/AuthContext'
 import { calcularEdad } from '../lib/paciente'
 import { formatClinicDate, formatClinicDateTime } from '../lib/datetime'
 import { formatBs } from '../lib/currency'
@@ -164,6 +165,7 @@ export function examenFilas(h: HistorialConDetalle): Fila[] {
 
 export function HistorialImprimirPage() {
   const { id } = useParams<{ id: string }>()
+  const { usuario } = useAuth()
   const [ficha, setFicha] = useState<FichaPaciente | null | undefined>(undefined)
   // «No se pudo cargar» y «no existe» son cosas distintas.
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
@@ -173,13 +175,13 @@ export function HistorialImprimirPage() {
 
   useEffect(() => {
     if (!id) return
-    getFichaPaciente(id)
+    cargarFichaDeDocumento(id, usuario?.rol)
       .then(setFicha)
       .catch((err) => {
         setErrorCarga(err instanceof Error ? err.message : 'No se pudo cargar el historial')
         setFicha(null)
       })
-  }, [id])
+  }, [id, usuario?.rol])
 
   if (ficha === undefined) {
     return <p className="p-6 text-sm text-slate-500">Cargando historial…</p>
@@ -191,8 +193,8 @@ export function HistorialImprimirPage() {
         <p className={errorCarga ? 'text-sm font-semibold text-rose-700' : 'text-sm text-slate-500'}>
           {errorCarga ?? 'No se encontró el paciente solicitado.'}
         </p>
-        <Link to="/pacientes" className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
-          <ArrowLeft size={16} /> Volver a pacientes
+        <Link to={usuario?.rol === 'cliente' ? '/portal-cliente/mascotas' : '/pacientes'} className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
+          <ArrowLeft size={16} /> {usuario?.rol === 'cliente' ? 'Volver a mis mascotas' : 'Volver a pacientes'}
         </Link>
       </div>
     )
@@ -204,10 +206,10 @@ export function HistorialImprimirPage() {
     <div className="min-h-screen bg-slate-100 print:min-h-0 print:bg-white">
       <div className="mx-auto flex max-w-4xl flex-col items-stretch gap-3 px-4 py-4 print:hidden sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <Link
-          to={`/pacientes/${paciente.id}`}
+          to={volverDeDocumento(paciente.id, usuario?.rol)}
           className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
         >
-          <ArrowLeft size={16} /> Volver a la ficha
+          <ArrowLeft size={16} /> {usuario?.rol === 'cliente' ? 'Volver a mi mascota' : 'Volver a la ficha'}
         </Link>
         <AccionesFirmaInforme
           pacienteId={paciente.id}

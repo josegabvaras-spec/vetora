@@ -34,6 +34,10 @@ import { useAuth } from '../context/AuthContext'
 import { useTable } from '../mocks/useDb'
 import { calcularEdad } from '../lib/paciente'
 import { puedeVerHistorialClinico } from '../lib/personal'
+import { documentosDePaciente } from '../lib/documentos'
+import { ListaDocumentos } from '../features/pacientes/ListaDocumentos'
+import { listInformesDePaciente, type InformeFirmado } from '../services/informes'
+import { listEstudiosDePaciente, type EstudioImagen } from '../services/estudios'
 import { formatClinicDate, formatClinicDateTime, formatClinicTime } from '../lib/datetime'
 import { etiquetaDias, ESTADO_INTERNACION_LABEL, ESTADO_INTERNACION_TONE } from '../lib/internacion'
 import type { CitaConDetalle, FichaPaciente } from '../types/views'
@@ -89,8 +93,15 @@ export function FichaPacientePage() {
   const [modalInternacion, setModalInternacion] = useState<any | null>(null)
   const [modalEvolucion, setModalEvolucion] = useState<{ internacionId: string; pacienteNombre: string } | null>(null)
   const [errorConsulta, setErrorConsulta] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'historial' | 'esquema' | 'internaciones'>('historial')
+  const [activeTab, setActiveTab] = useState<'historial' | 'esquema' | 'internaciones' | 'documentos'>(
+    'historial',
+  )
   const [vinculandoPortal, setVinculandoPortal] = useState(false)
+  // Los dos únicos datos que la ficha no cargaba ya: los informes firmados y
+  // los estudios A NIVEL DE PACIENTE. Los estudios existían, pero solo dentro
+  // de la consulta que los adjuntó (`SeccionEstudios`), nunca todos juntos.
+  const [informes, setInformes] = useState<InformeFirmado[]>([])
+  const [estudios, setEstudios] = useState<EstudioImagen[]>([])
   const tarjetaAbiertaRef = useRef<HTMLDivElement | null>(null)
   
   const [menuImpresionAbierto, setMenuImpresionAbierto] = useState(false)
@@ -141,6 +152,13 @@ export function FichaPacientePage() {
     try {
       setErrorFicha(null)
       setFicha(await getFichaPaciente(id))
+      // Aparte de la ficha y sin tumbarla si fallan: son para una pestaña que
+      // puede que nadie abra, y un informe que no carga no debe dejar el
+      // expediente entero en «Cargando…».
+      if (verClinico) {
+        listInformesDePaciente(id).then(setInformes).catch(() => setInformes([]))
+        listEstudiosDePaciente(id).then(setEstudios).catch(() => setEstudios([]))
+      }
     } catch (err) {
       // Sin este catch la promesa quedaba rechazada sin manejar y la pantalla
       // se quedaba en "Cargando ficha del paciente…" para siempre.
@@ -570,6 +588,17 @@ export function FichaPacientePage() {
               >
                 Internaciones Pasadas
               </button>
+              <button
+                onClick={() => setActiveTab('documentos')}
+                className={clsx(
+                  activeTab === 'documentos'
+                    ? 'border-teal-500 text-teal-600'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                  'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+                )}
+              >
+                Documentos
+              </button>
             </nav>
           </div>
 
@@ -765,6 +794,24 @@ export function FichaPacientePage() {
           )}
 
           {verClinico && activeTab === 'esquema' && <EsquemaSanitario pacienteId={paciente.id} />}
+
+          {verClinico && activeTab === 'documentos' && (
+            <ListaDocumentos
+              documentos={documentosDePaciente({
+                pacienteId: paciente.id,
+                pacienteNombre: paciente.nombre,
+                consultas: ficha.historiales,
+                historialesConReceta: ficha.historiales
+                  .filter((h) => (h.receta ?? []).length > 0)
+                  .map((h) => h.id),
+                consentimientos: ficha.citas
+                  .map((c) => c.consentimiento)
+                  .filter((c): c is NonNullable<typeof c> => Boolean(c)),
+                informes,
+                estudios,
+              })}
+            />
+          )}
 
           {verClinico && activeTab === 'internaciones' && (
             <div>
