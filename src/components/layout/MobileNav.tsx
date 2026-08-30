@@ -2,14 +2,14 @@ import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { Menu } from 'lucide-react'
 import { useAuth } from '../../context/useAuth'
-import { enlacesVisibles } from './enlacesClinicos'
+import { menuDelNegocio } from './enlacesClinicos'
 
 /** Cuántos accesos directos caben sin apretar junto al botón de menú. */
 const MAX_PESTANAS = 3
 
 export function MobileNav({ onAbrirMenu }: { onAbrirMenu: () => void }) {
   const { usuario, modulosHabilitados } = useAuth()
-  const enlaces = enlacesVisibles(usuario?.rol, modulosHabilitados)
+  const enlaces = menuDelNegocio(usuario?.rol, modulosHabilitados)
   // Caja, Agenda y Asistente.
   //
   // El Asistente entró en lugar de Pacientes porque es la pantalla desde la que

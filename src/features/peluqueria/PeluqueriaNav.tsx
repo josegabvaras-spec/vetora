@@ -1,48 +1,28 @@
 import { NavLink } from 'react-router-dom'
 import { clsx } from 'clsx'
-import {
-  LayoutDashboard,
-  CalendarDays,
-  ClipboardList,
-  Scissors,
-  PawPrint,
-  Users,
-  Boxes,
-  Percent,
-  HeartHandshake,
-  Wallet,
-  BarChart3,
-  Settings,
-} from 'lucide-react'
 import { useAuth } from '../../context/useAuth'
+import { ENLACES_PELUQUERIA } from '../../components/layout/enlacesPeluqueria'
 
-interface SeccionNav {
-  to: string
-  label: string
-  icon: typeof LayoutDashboard
-  roles?: string[]
-}
-
-const SECCIONES_PELUQUERIA: SeccionNav[] = [
-  { to: '/peluqueria/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/peluqueria/agenda', label: 'Agenda', icon: CalendarDays },
-  { to: '/peluqueria/ordenes', label: 'Órdenes', icon: ClipboardList },
-  { to: '/peluqueria/servicios', label: 'Servicios', icon: Scissors, roles: ['admin'] },
-  { to: '/peluqueria/mascotas', label: 'Mascotas', icon: PawPrint },
-  { to: '/peluqueria/peluqueros', label: 'Peluqueros', icon: Users, roles: ['admin', 'recepcion'] },
-  { to: '/peluqueria/insumos', label: 'Insumos', icon: Boxes, roles: ['admin'] },
-  { to: '/peluqueria/comisiones', label: 'Comisiones', icon: Percent, roles: ['admin', 'peluquero'] },
-  { to: '/peluqueria/fidelizacion', label: 'Clientes frecuentes', icon: HeartHandshake, roles: ['admin', 'recepcion'] },
-  { to: '/peluqueria/caja', label: 'Caja / Ventas', icon: Wallet, roles: ['admin', 'recepcion'] },
-  { to: '/peluqueria/reportes', label: 'Reportes', icon: BarChart3, roles: ['admin'] },
-  { to: '/peluqueria/configuracion', label: 'Configuración', icon: Settings, roles: ['admin'] },
-]
-
+/**
+ * La barra horizontal del panel de peluquería.
+ *
+ * **Solo se pinta cuando el negocio NO es una peluquería** — es decir, en una
+ * veterinaria que además pela, donde estas secciones no están en el menú
+ * lateral y esta barra es la única forma de recorrerlas. Lo decide
+ * `PeluqueriaLayout` con `panelDelNegocio`; en una peluquería pura sería el
+ * mismo menú dos veces en la misma pantalla.
+ *
+ * La lista vive en `components/layout/enlacesPeluqueria.ts`: la comparten esta
+ * barra y el menú principal, y tenerla aquí rompía el Fast Refresh de Vite (un
+ * fichero que exporta componentes Y constantes recarga el módulo entero).
+ */
 export function PeluqueriaNav() {
   const { usuario } = useAuth()
-  const rol = usuario?.rol || ''
+  const rol = usuario?.rol
 
-  const visibles = SECCIONES_PELUQUERIA.filter((s) => !s.roles || s.roles.includes(rol))
+  const visibles = ENLACES_PELUQUERIA.filter(
+    (s) => !s.roles || (rol !== undefined && s.roles.includes(rol)),
+  )
 
   return (
     <div className="border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-20">

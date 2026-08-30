@@ -1,4 +1,7 @@
 import { CalendarDays, PawPrint, Boxes, Wallet, ArrowLeftRight, Tags, BedDouble, Download, BarChart3, Bot, ShoppingBag, Contact, Scissors, ShoppingCart } from 'lucide-react'
+import { panelDelNegocio } from '../../lib/personal'
+import { ENLACES_PELUQUERIA } from './enlacesPeluqueria'
+import { ENLACES_PETSHOP } from './enlacesPetshop'
 import type { ModuloVetora, Rol } from '../../types/database'
 
 /**
@@ -136,4 +139,72 @@ export function enlacesVisibles(rol: Rol | undefined, modulos?: ModuloVetora[]):
     const moduloOk = !l.modulo || !modulos || modulos.includes(l.modulo)
     return rolOk && moduloOk
   })
+}
+
+/**
+ * Las entradas del menú clínico que sobreviven en una peluquería o un petshop:
+ * no son clínicas y **no existen dentro de sus paneles**.
+ *
+ * - `/caja` — **el turno de caja, y es imprescindible.** La caja del panel no
+ *   abre ni cierra turno: `PetshopCajaPage` lo dice ella misma cuando no hay
+ *   ninguno abierto («Debes abrir un turno en el módulo de Caja para facturar
+ *   en el POS») y `PeluqueriaCajaPage` deja el botón de cobrar deshabilitado
+ *   sin turno. Quitarla del menú dejaba el POS del petshop **sin poder
+ *   facturar**. Se renombra a «Caja General» para que no se confunda con la
+ *   del panel, que es la de sus propias ventas.
+ * - `/asistente` — qué toca hacer hoy. `AsistenteSegunRol` reparte la pantalla
+ *   por rol y por negocio, así que cada uno ve la suya.
+ * - `/respaldo` — bajarse una copia de sus datos. No depende de ningún módulo:
+ *   son suyos.
+ * - `/catalogo` — la vitrina que ve el dueño de mascota en la Tienda.
+ *
+ * Todo lo demás del menú clínico se cae: o no es de su negocio (Pacientes,
+ * Internación) o está duplicado dentro de su propio panel apuntando a la
+ * versión clínica (Agenda, Servicios, Inventario, Métricas).
+ */
+const SOBREVIVEN_FUERA_DE_LA_CLINICA = ['/caja', '/asistente', '/respaldo', '/catalogo']
+
+/**
+ * Cómo se llaman los supervivientes fuera de una clínica.
+ *
+ * «Caja» a secas funciona en una veterinaria, donde es la única; en una
+ * peluquería o un petshop convive con la caja del panel y hay que decir cuál
+ * es. Se renombra aquí y no en `ENLACES_CLINICOS` porque en una veterinaria el
+ * nombre correcto sigue siendo el de siempre.
+ */
+const RENOMBRES_FUERA_DE_LA_CLINICA: Record<string, Pick<EnlaceClinico, 'label' | 'etiquetaCorta'>> =
+  {
+    '/caja': { label: 'Caja General', etiquetaCorta: 'General' },
+  }
+
+/**
+ * El menú principal según **qué es** el negocio.
+ *
+ * Una peluquería y un petshop tenían dos menús a la vez: el lateral con
+ * entradas de clínica, y sus propias secciones escondidas en una barra
+ * horizontal dentro del panel. Para llegar a «Órdenes» o «Proveedores» había
+ * que entrar al panel y buscar en un segundo menú. Ahora sus secciones **son**
+ * el menú lateral, y la barra de dentro desaparece (ver los dos layouts).
+ *
+ * Una veterinaria no cambia — ni siquiera con peluquería o petshop
+ * integrados—: ahí esos módulos son una sección más, y su entrada única abre
+ * el panel con su barra, que es donde tiene sentido.
+ *
+ * Los supervivientes pasan por `enlacesVisibles` en vez de escribirse a mano
+ * para que conserven su filtro de rol y de módulo: sin el plan de
+ * `asistente_ia` no hay Asistente, y `/catalogo` sigue siendo solo de `admin`.
+ */
+export function menuDelNegocio(rol: Rol | undefined, modulos?: ModuloVetora[]): EnlaceClinico[] {
+  const panel = panelDelNegocio(modulos)
+  if (!panel) return enlacesVisibles(rol, modulos)
+
+  const seccionesDelPanel = panel === 'peluqueria' ? ENLACES_PELUQUERIA : ENLACES_PETSHOP
+  const propias = seccionesDelPanel.filter(
+    (l) => !l.roles || (rol !== undefined && l.roles.includes(rol)),
+  )
+  const supervivientes = enlacesVisibles(rol, modulos)
+    .filter((l) => SOBREVIVEN_FUERA_DE_LA_CLINICA.includes(l.to))
+    .map((l) => ({ ...l, ...RENOMBRES_FUERA_DE_LA_CLINICA[l.to] }))
+
+  return [...propias, ...supervivientes]
 }

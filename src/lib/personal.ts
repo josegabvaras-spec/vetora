@@ -109,6 +109,27 @@ const PANELES_DE_MODULO: { modulo: ModuloVetora; ruta: string; roles: string[] }
 ]
 
 /**
+ * El panel que **es** el negocio, o null si el negocio es una clínica.
+ *
+ * `peluqueria` o `petshop` **y no** `historial_clinico`, que es la misma forma
+ * que usa `rutaDeInicioSegunModulos` justo debajo y el `esRetail` de
+ * `MetricasPage`: una veterinaria con peluquería integrada tiene el módulo, y
+ * ahí la peluquería es una sección más, no el negocio.
+ *
+ * Lo consulta `menuDelNegocio` para decidir si el menú principal es el clínico
+ * o el del panel, y los dos layouts para no pintar su barra horizontal cuando
+ * el lateral ya lleva esas secciones.
+ *
+ * Recibe la lista de módulos y no `tieneModulo` —al revés que su vecina— porque
+ * quien la llama ya tiene `modulosHabilitados` a mano y necesita el nombre del
+ * panel, no una ruta.
+ */
+export function panelDelNegocio(modulos: ModuloVetora[] | undefined): ModuloVetora | null {
+  if (!modulos || modulos.includes('historial_clinico')) return null
+  return PANELES_DE_MODULO.find((p) => modulos.includes(p.modulo))?.modulo ?? null
+}
+
+/**
  * A dónde mandar a alguien: su panel propio si el negocio no es clínico, y si
  * no, lo que diga `rutaDeInicio`.
  *

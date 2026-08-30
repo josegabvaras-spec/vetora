@@ -18,6 +18,7 @@ import { contactoAdministracion, redactarInforme, type Redaccion } from '../serv
 import { enviarMensajeWhatsapp } from '../services/whatsapp'
 import { TIPO_AVISO_LABEL, cuandoLegible } from '../lib/asistente'
 import { formatBs } from '../lib/currency'
+import { panelDelNegocio } from '../lib/personal'
 import type { Programado, ResumenDelDia, TipoAviso } from '../types/views'
 
 const TONO_AVISO: Record<TipoAviso, 'teal' | 'rose' | 'amber' | 'slate' | 'indigo'> = {
@@ -33,7 +34,21 @@ const TONO_AVISO: Record<TipoAviso, 'teal' | 'rose' | 'amber' | 'slate' | 'indig
 }
 
 export function AsistentePage() {
-  const { usuario, sucursalActivaId } = useAuth()
+  const { usuario, sucursalActivaId, modulosHabilitados } = useAuth()
+
+  /**
+   * El negocio es una peluquería, no una clínica.
+   *
+   * No cambia de dónde salen los avisos —`listProgramados` se adapta sola: los
+   * refuerzos de vacuna, las desparasitaciones y los seguimientos de consulta
+   * derivan de tablas que una peluquería no llena, así que no aparecen—, pero
+   * sí lo que esta pantalla **dice**: sus cifras clínicas serían siempre cero y
+   * su pestaña «Prevención» estaría siempre vacía.
+   *
+   * Lo que le queda es exactamente lo suyo: citas de hoy, atenciones sin
+   * cobrar, cumpleaños y clientes que hace tiempo que no vuelven.
+   */
+  const esPeluqueria = panelDelNegocio(modulosHabilitados) === 'peluqueria'
   // Suscripción: los avisos se derivan de estas tablas, así que registrar una
   // vacuna o agendar una cita tiene que hacer desaparecer su aviso al instante.
   // `useSuscripcionTabla` en vez de `useTable`: solo interesa enterarse del
@@ -218,8 +233,9 @@ export function AsistentePage() {
           Asistente
         </h1>
         <p className="mt-1 text-sm font-medium text-slate-500">
-          Lo que toca avisar hoy: citas, refuerzos de vacuna y desparasitaciones. El texto se redacta
-          solo; usted lo revisa y lo envía.
+          {esPeluqueria
+            ? 'Lo que toca avisar hoy: citas, cumpleaños y clientes que hace tiempo que no vuelven. El texto se redacta solo; usted lo revisa y lo envía.'
+            : 'Lo que toca avisar hoy: citas, refuerzos de vacuna y desparasitaciones. El texto se redacta solo; usted lo revisa y lo envía.'}
         </p>
       </div>
 
@@ -227,23 +243,35 @@ export function AsistentePage() {
       {resumen && (
         <Card padding="md" className="border border-slate-200/60">
           {usuario?.rol !== 'recepcion' && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            <div
+              className={clsx(
+                'grid grid-cols-2 gap-4 sm:grid-cols-3',
+                esPeluqueria ? 'lg:grid-cols-3' : 'lg:grid-cols-5',
+              )}
+            >
               <Cifra etiqueta="Citas hoy" valor={String(resumen.citas_hoy)} />
               <Cifra
                 etiqueta="Sin confirmar"
                 valor={String(resumen.sin_confirmar)}
                 alerta={resumen.sin_confirmar > 0}
               />
-              <Cifra
-                etiqueta="Vencidos"
-                valor={String(resumen.refuerzos_vencidos)}
-                alerta={resumen.refuerzos_vencidos > 0}
-              />
-              <Cifra
-                etiqueta="Sin consentimiento"
-                valor={String(resumen.cirugias_sin_consentimiento)}
-                alerta={resumen.cirugias_sin_consentimiento > 0}
-              />
+              {/* Refuerzos de vacuna y cirugías sin consentimiento: cero por
+                  construcción en una peluquería, que no vacuna ni opera. Una
+                  cifra que nunca se mueve es ruido, no información. */}
+              {!esPeluqueria && (
+                <>
+                  <Cifra
+                    etiqueta="Vencidos"
+                    valor={String(resumen.refuerzos_vencidos)}
+                    alerta={resumen.refuerzos_vencidos > 0}
+                  />
+                  <Cifra
+                    etiqueta="Sin consentimiento"
+                    valor={String(resumen.cirugias_sin_consentimiento)}
+                    alerta={resumen.cirugias_sin_consentimiento > 0}
+                  />
+                </>
+              )}
               <Cifra etiqueta="Cobrado hoy" valor={formatBs(resumen.ingresos_hoy_bs)} />
             </div>
           )}
@@ -302,7 +330,13 @@ export function AsistentePage() {
           Sin acotar a nadie: ve la clínica entera, con la columna que dice de
           quién es cada fila. En el Consultorio eso es exactamente lo suyo; con
           varios veterinarios, es lo que le deja coordinar. */}
-      {usuario?.rol === 'admin' && (
+      {/* En una peluquería se omite: `JornadaClinica` pinta «Consultas por
+          atender» y «Pacientes internados», que no tiene, y su tercera sección
+          —las citas de hoy— es exactamente lo que ya enseña su Dashboard
+          («Órdenes y Citas del Día»), que además es la primera entrada de su
+          menú. Enseñarlo aquí sería lo mismo dos veces, con dos tablas vacías
+          alrededor. */}
+      {usuario?.rol === 'admin' && !esPeluqueria && (
         <>
           <div className="pt-4">
             <h2 className="text-xl font-bold text-slate-900">Jornada</h2>
@@ -342,17 +376,22 @@ export function AsistentePage() {
           >
             Citas
           </button>
-          <button
-            onClick={() => setFiltroCategoria('prevencion')}
-            className={clsx(
-              filtroCategoria === 'prevencion'
-                ? 'border-teal-500 text-teal-600'
-                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
-              'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
-            )}
-          >
-            Prevención
-          </button>
+          {/* «Prevención» son los refuerzos de vacuna y las desparasitaciones:
+              una peluquería no aplica ninguna de las dos, así que la pestaña
+              nunca tendría una fila. */}
+          {!esPeluqueria && (
+            <button
+              onClick={() => setFiltroCategoria('prevencion')}
+              className={clsx(
+                filtroCategoria === 'prevencion'
+                  ? 'border-teal-500 text-teal-600'
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                'whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium transition-colors'
+              )}
+            >
+              Prevención
+            </button>
+          )}
           <button
             onClick={() => setFiltroCategoria('otros')}
             className={clsx(

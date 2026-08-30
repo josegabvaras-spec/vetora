@@ -4,7 +4,7 @@ import { clsx } from 'clsx'
 import { X } from 'lucide-react'
 import { useAuth } from '../../context/useAuth'
 import { PanelLateral } from './PanelLateral'
-import { enlacesVisibles } from './enlacesClinicos'
+import { menuDelNegocio } from './enlacesClinicos'
 
 /**
  * `pie` recibe los controles que en escritorio viven en la barra superior y no
@@ -21,7 +21,7 @@ export function Sidebar({
   pie?: ReactNode
 }) {
   const { usuario, modulosHabilitados } = useAuth()
-  const visibles = enlacesVisibles(usuario?.rol, modulosHabilitados)
+  const visibles = menuDelNegocio(usuario?.rol, modulosHabilitados)
 
   return (
     <PanelLateral
