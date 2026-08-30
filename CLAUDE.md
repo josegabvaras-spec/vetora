@@ -33,7 +33,7 @@ No hay runner de tests configurado. La verificación real es `npm run build` (ty
 La deuda que sigue viva:
 
 - [lib/exportacion.ts](src/lib/exportacion.ts) e [lib/importacion.ts](src/lib/importacion.ts) — son `lib/` pero leen y escriben tablas enteras, y con `any`. El respaldo no puede salir de ahí.
-- **La contraseña de Postgres de producción sigue en el historial de git.** `apply_migrations.cjs` y `set_limit.cjs` ya **no están** en la raíz —se sacaron en `91725ff`— pero eso no la borró: sigue siendo legible con `git show fd6ad0d:apply_migrations.cjs`. Quitar un fichero del árbol no lo quita de la historia. **Solo se cierra rotando la credencial en Supabase**; no hay arreglo posible desde el código.
+- **Hubo una contraseña de Postgres de producción en el historial de git, y está rotada.** `apply_migrations.cjs` y `set_limit.cjs` la llevaban en texto plano; ya no están en la raíz (`91725ff`), pero **eso no la borró de la historia** —sigue legible con `git show fd6ad0d:apply_migrations.cjs`— y por eso se cerró **rotando la credencial**, no borrando el fichero. Lo que queda ahí ya no abre nada. La lección, que es lo que importa: **un secreto que entró en un commit está quemado**; se rota, no se limpia. Y no se meten credenciales en scripts sueltos, ni «de una sola vez». Ver H-4 en [SEGURIDAD.md](SEGURIDAD.md).
 
 Cuando toques una regla de negocio, tiene que quedar en los **tres** sitios: el SQL (constraint/trigger/policy), el servicio que la aplica, y el tipo si cambia la forma de la fila. **Un `as any` de por medio significa que los tres no están alineados**: esos casts son exactamente lo que permitió que el esquema y los tipos derivaran sin romper el build.
 

@@ -63,15 +63,26 @@ sustituye** la prueba en vivo con dos sesiones (ver abajo).
   usuario; un uuid no puede contener una coma ni un paréntesis. Se dejó un comentario en el código
   fijando la regla: *nunca* entrada de usuario dentro de un `.or()` — no que `.or()` esté prohibido.
 
-### H-4 · BAJO · Credencial de Postgres en el historial de git — HEREDADO, PENDIENTE (acción del usuario)
+### H-4 · BAJO · Credencial de Postgres en el historial de git — CERRADO (contraseña rotada)
 
 - **Qué:** los scripts `apply_migrations.cjs` y `set_limit.cjs` llevaban la contraseña de Postgres de
   producción en texto plano. **Ya no están en el árbol** (se sacaron en el commit `91725ff`), pero
   **siguen en el historial de git**, que es público en GitHub.
-- **Por qué no se «arregla» aquí:** borrar el archivo no borra el historial. La única solución real es
-  **rotar la contraseña** en Supabase → Settings → Database. Mientras no se rote, esa credencial está
-  comprometida.
-- **Acción:** rotar la contraseña de Postgres. (Recordatorio, no corrección de código.)
+- **Por qué no se «arreglaba» borrando el fichero:** sacar un archivo del árbol no lo saca de la
+  historia. Sigue siendo legible con `git show fd6ad0d:apply_migrations.cjs`.
+- **Cómo se cerró:** **rotando la contraseña** en Supabase → Project Settings → Database → Reset
+  database password. La cadena que queda en el historial apunta ahora a una credencial que ya no
+  existe: sigue ahí, pero es inservible. No hizo falta reescribir la historia (que habría exigido un
+  push forzado y roto cualquier clon).
+- **Por qué la rotación no tuvo coste:** **nada de la aplicación usa esa contraseña.** El frontend va
+  con `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` y las Edge Functions con
+  `SUPABASE_SERVICE_ROLE_KEY`; ninguna es la de Postgres. El único sitio que la tenía era
+  `supabase/.temp/pooler-url`, caché local de la CLI, ya cubierta por `supabase/.gitignore` y no
+  versionada. Tampoco hubo que redesplegar: `supabase functions deploy` va por la sesión de
+  `supabase login`, no por la contraseña de la base.
+- **Lección, que es lo que vale para la próxima:** un secreto que ha estado en un commit se considera
+  quemado desde ese momento. La reparación no es borrar el fichero, es **rotar**. Y el freno de mano
+  está antes: nada de credenciales en scripts sueltos, ni siquiera «de una sola vez».
 
 ### H-5 · ALTO · Reclamar el expediente ajeno sabiendo un CI — CORREGIDO
 
