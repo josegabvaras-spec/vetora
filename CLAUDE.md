@@ -25,7 +25,7 @@ No hay runner de tests configurado. La verificación real es `npm run build` (ty
 
 **No queda modo mock.** `src/mocks/db.ts` y `seed.ts` fueron eliminados en la migración; hoy son ficheros vacíos que solo existen por un motivo de build (ver más abajo). `isMockMode` sigue exportándose en [src/lib/supabase.ts](src/lib/supabase.ts) pero es `const false`: cualquier `if (isMockMode)` es código muerto.
 
-- [supabase/migrations/](supabase/migrations/) es el esquema de verdad y **es normativo** — pero eso es las **treinta y una** migraciones, no solo la primera. `0001_init.sql` es la base (20 tablas, RLS habilitada en las 20, 35 policies, 3 triggers, 4 funciones `SECURITY DEFINER`); `0002` a `0010` son correcciones de seguridad reales y features que ya están aplicadas encima (RLS de `historial_update`/`internaciones_update`, índices, cuota de WhatsApp, portal del cliente, `pacientes.codigo`/`foto`, venta directa, recetario, tipo de cita `peluqueria`, inventario fraccionado). Leer solo `0001` da una foto vieja del esquema — antes de decir "esta tabla/columna no existe" o "esta policy no tiene `with check`", revisa si una migración posterior ya lo tocó.
+- [supabase/migrations/](supabase/migrations/) es el esquema de verdad y **es normativo** — pero eso es las **treinta y dos** migraciones, no solo la primera. `0001_init.sql` es la base (20 tablas, RLS habilitada en las 20, 35 policies, 3 triggers, 4 funciones `SECURITY DEFINER`); `0002` a `0010` son correcciones de seguridad reales y features que ya están aplicadas encima (RLS de `historial_update`/`internaciones_update`, índices, cuota de WhatsApp, portal del cliente, `pacientes.codigo`/`foto`, venta directa, recetario, tipo de cita `peluqueria`, inventario fraccionado). Leer solo `0001` da una foto vieja del esquema — antes de decir "esta tabla/columna no existe" o "esta policy no tiene `with check`", revisa si una migración posterior ya lo tocó.
 - [src/types/database.ts](src/types/database.ts) pretende reflejar fila por fila las tablas del SQL, y [src/types/supabase.ts](src/types/supabase.ts) es el tipo generado desde la base real. Cuando discrepen, **gana el SQL**.
 
 **Regla estructural: solo `src/services/*.ts` habla con Supabase.** Las páginas y los `features` nunca llaman a `supabase` directamente; consumen servicios, que devuelven los tipos de `types/views.ts`. La única excepción legítima es `useTable` (abajo), que es infraestructura de reactividad, no de negocio.
@@ -101,6 +101,20 @@ Esto falló dos veces. Con `catalogo` quedó anotado; con `peluqueria` y `petsho
 **El plan manda, aunque venga vacío.** `AuthContext` aplica `modulos_habilitados` tal cual; `MODULOS_VETERINARIA_COMPLETA` es solo el respaldo de cuando **no se pudo leer** el plan (red, RLS, clínica sin plan). Antes la guarda era `.length > 0` sin `else`, así que un plan con `[]` no se aplicaba nunca y dejaba el menú **completo** — al revés de lo que espera quien desmarca todas las casillas.
 
 **`tipo_negocio` no participa en nada de esto.** Es descriptivo: se fija en el panel de plataforma y se enseña como etiqueta en la Tienda del portal, pero ninguna pantalla de la clínica lo consulta. Lo que segmenta el producto es el par **rol + módulo del plan**. Hubo tres comentarios que afirmaban que decidía la interfaz —el `COMMENT` de `0023`, el docstring de `TipoNegocio` y uno en `InicioSegunRol`— y los tres eran falsos; corregidos, porque son la razón de que se esperara que cambiar el tipo de negocio cambiara algo.
+
+### Que el menú diga lo que el negocio es (migración `0032`)
+
+Aunque el módulo ya fuera alcanzable, un petshop seguía viendo un menú de clínica: Agenda, Pacientes, Clientes, Inventario y Servicios, cuatro de ellas **duplicadas dentro de su propio panel**. Lo que faltaba era que esas entradas tuvieran módulo:
+
+- **`fichas`** gatea `/pacientes` y `/clientes` — el mismo fichero visto por los dos lados. Una **peluquería sí lo lleva**: da de alta mascotas para poder agendarles.
+- **`servicios`** gatea `/servicios`, cuyo catálogo es de categorías clínicas mientras un petshop cobra por `productos`.
+- `inventario` sale del plan PetShop: el POS ya enseña stock y `/petshop/inventario` lleva lotes y vencimientos.
+
+⚠️ **Gatear una ENTRADA DEL MENÚ no es gatear la RUTA, y con `/agenda` la diferencia es crítica.** El campo `modulo` de `EnlaceClinico` solo lo lee `enlacesVisibles`; las rutas se gatean con `ModuloRoute`. `/agenda` **lleva `modulo: 'agenda'` en el menú** (un petshop no lo tiene y no ve el enlace) y su **ruta sigue sin gatear**, porque es el terminal al que se cae cuando nada encaja: gatearla colgaría la aplicación en un bucle de redirecciones.
+
+**El rebote va a la casa del negocio.** `rutaDeInicioSegunModulos()` ([lib/personal.ts](src/lib/personal.ts)) la comparten `InicioSegunRol`, `RolRoute` y `ModuloRoute`, para que entrar y rebotar lleven al mismo sitio. **Comprueba el ROL además del módulo, y no es opcional**: los paneles llevan su propio `RolRoute` —`/petshop/dashboard` no admite `peluquero`—, así que sin esa comprobación un peluquero en un plan de petshop rebotaría allí, sería rechazado, y volvería a rebotar: bucle infinito. Cuando el rol no encaja se cae a `/agenda`, que admite a todo el personal.
+
+**Y Métricas habla del negocio que es.** `MetricasPage` enseñaba «Nuevos Pacientes» y un enlace de stock que apunta a `/inventario` — ruta que un petshop ya no tiene. Cuando hay `petshop` y no `historial_clinico`, pinta [ReporteRentabilidad](src/features/petshop/ReporteRentabilidad.tsx), el mismo componente que `/petshop/reportes`, para que no diverjan. Una veterinaria con petshop integrado sigue viendo las métricas clínicas: ahí el petshop es una sección más, no el negocio.
 
 ## El catálogo y la Tienda
 

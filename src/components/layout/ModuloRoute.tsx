@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
+import { rutaDeInicioSegunModulos } from '../../lib/personal'
 import type { ModuloVetora } from '../../types/database'
 
 /**
@@ -22,14 +23,20 @@ export function ModuloRoute({ modulo }: { modulo: ModuloVetora }) {
 
   if (!usuario) return <Navigate to="/login" replace />
 
-  // Se rebota a la agenda, que es la casa de todo el personal.
+  // Se rebota a la casa del negocio, no siempre a la agenda: un petshop
+  // aterrizaba en una agenda clínica que ni siquiera tiene en su menú.
+  // `rutaDeInicioSegunModulos` es la misma que usa `InicioSegunRol`, así que
+  // entrar y rebotar llevan al mismo sitio, y comprueba el ROL antes de mandar
+  // a un panel de módulo — sin eso el rebote podía entrar en bucle.
   //
-  // ⚠️ Por eso **`/agenda` nunca debe envolverse en un `ModuloRoute`**: si se
-  // gateara y un plan no lo trajera, `InicioSegunRol` mandaría a `/agenda`, el
-  // guardián devolvería a la raíz, y de ahí otra vez a `/agenda` — un bucle de
-  // redirecciones que deja la aplicación colgada. La agenda está además en el
-  // DEFAULT de `modulos_habilitados` (0024), así que todo plan la tiene.
-  if (!tieneModulo(modulo)) return <Navigate to="/agenda" replace />
+  // ⚠️ **La RUTA `/agenda` nunca debe envolverse en un `ModuloRoute`**: es el
+  // terminal al que se cae cuando nada más encaja, y gatearla crearía un bucle
+  // de redirecciones que cuelga la aplicación. Su ENTRADA DEL MENÚ sí está
+  // gateada (`modulo: 'agenda'` en `enlacesClinicos`), que es otra cosa: oculta
+  // el enlace sin cerrar la puerta.
+  if (!tieneModulo(modulo)) {
+    return <Navigate to={rutaDeInicioSegunModulos(usuario, tieneModulo)} replace />
+  }
 
   return <Outlet />
 }

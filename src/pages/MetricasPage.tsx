@@ -12,6 +12,8 @@ import { TablaResponsive, type Columna } from '../components/ui/Tabla'
 import { obtenerResumenMetricas, type MetricasResumen } from '../services/metricas'
 import { formatBs } from '../lib/currency'
 import { useSuscripcionTabla } from '../mocks/useDb'
+import { useAuth } from '../context/useAuth'
+import { ReporteRentabilidad } from '../features/petshop/ReporteRentabilidad'
 import type { Producto } from '../types/database'
 
 import { 
@@ -176,6 +178,7 @@ function ChartModal({
 }
 
 export function MetricasPage() {
+  const { tieneModulo } = useAuth()
   const [metricas, setMetricas] = useState<MetricasResumen | null>(null)
   const [chartActivo, setChartActivo] = useState<'ingresos' | 'pacientes' | 'turnos' | 'inventario' | null>(null)
   
@@ -191,12 +194,36 @@ export function MetricasPage() {
 
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
+  /**
+   * Un negocio de retail sin expediente clínico ve OTRAS métricas.
+   *
+   * Todo lo de abajo está pensado para una veterinaria: «Nuevos Pacientes»,
+   * «Total Pacientes», y un enlace de stock bajo que apunta a `/inventario` —
+   * una ruta que un petshop ya no tiene en su plan. Para él lo que significa
+   * «métricas» es ventas, costo de mercadería y margen, que es justo lo que
+   * calcula el informe de rentabilidad.
+   *
+   * Una veterinaria con petshop integrado (plan con `historial_clinico`) sigue
+   * viendo las clínicas: ahí el petshop es una sección más, no el negocio.
+   */
+  const esRetail = tieneModulo('petshop') && !tieneModulo('historial_clinico')
+
   useEffect(() => {
+    if (esRetail) return
     setErrorCarga(null)
     obtenerResumenMetricas()
       .then(setMetricas)
       .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudieron calcular las métricas'))
-  }, [revisionMetricas])
+  }, [revisionMetricas, esRetail])
+
+  if (esRetail) {
+    return (
+      <ReporteRentabilidad
+        titulo="Métricas y Desempeño"
+        subtitulo="Ventas, costo de mercadería vendida (COGS) y margen de utilidad por categoría."
+      />
+    )
+  }
 
   // Un fallo dejaba la rueda girando para siempre: `metricas` seguía en null y
   // nada distinguía «calculando» de «se rompió».

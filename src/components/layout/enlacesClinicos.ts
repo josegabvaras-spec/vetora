@@ -19,12 +19,18 @@ export interface EnlaceClinico {
   /** Vacío o ausente = visible para todos. */
   roles?: Rol[]
   /**
-   * Módulo del plan del que depende esta sección (migración 0024). Ausente =
-   * no depende de ninguno, así que se ve con cualquier plan.
+   * Módulo del plan del que depende esta ENTRADA DEL MENÚ (migración 0024).
+   * Ausente = no depende de ninguno, así que se ve con cualquier plan.
    *
-   * `/agenda` se deja a propósito SIN módulo: es el destino al que rebota
-   * `ModuloRoute` y al que manda `InicioSegunRol`, así que gatearla crearía un
-   * bucle de redirecciones.
+   * ⚠️ No confundir con gatear la RUTA. Este campo solo lo lee
+   * `enlacesVisibles`, que decide qué enlaces se pintan; las rutas se gatean
+   * aparte, con `ModuloRoute` en `App.tsx`.
+   *
+   * La distinción importa en `/agenda`: **su ruta no puede gatearse nunca** —es
+   * el destino al que rebotan `ModuloRoute` y `RolRoute`, y gatearla crearía un
+   * bucle de redirecciones—, pero **su entrada del menú sí**, y por eso lleva
+   * `modulo: 'agenda'`. Un petshop no tiene ese módulo y no ve el enlace,
+   * mientras la ruta sigue disponible como terminal seguro.
    */
   modulo?: ModuloVetora
 }
@@ -37,7 +43,10 @@ export interface EnlaceClinico {
  */
 export const ENLACES_CLINICOS: EnlaceClinico[] = [
   { to: '/caja', label: 'Caja', icon: Wallet, roles: ['recepcion', 'admin'], modulo: 'caja' },
-  { to: '/agenda', label: 'Agenda', icon: CalendarDays },
+  // El módulo gatea el ENLACE, no la ruta (ver el comentario de `modulo`
+  // arriba): un petshop no agenda citas y no tiene por qué ver la agenda
+  // clínica en su menú, pero `/agenda` sigue siendo el destino de rebote.
+  { to: '/agenda', label: 'Agenda', icon: CalendarDays, modulo: 'agenda' },
   {
     to: '/petshop/dashboard',
     label: 'Pet Shop',
@@ -56,11 +65,23 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
   // ni qué enseñarle al dueño en el portal. Lo que no ve es el expediente
   // clínico — `FichaPacientePage` le oculta las pestañas (ver
   // `puedeVerHistorialClinico`).
-  { to: '/pacientes', label: 'Pacientes', icon: PawPrint, roles: ['admin', 'veterinario', 'recepcion', 'peluquero'] },
+  {
+    to: '/pacientes',
+    label: 'Pacientes',
+    icon: PawPrint,
+    roles: ['admin', 'veterinario', 'recepcion', 'peluquero'],
+    modulo: 'fichas',
+  },
   // Los dueños. `/pacientes` lista mascotas, así que una ficha sin mascotas
   // —la que queda cuando el registro del portal no encuentra a su dueño— no
   // se veía en ninguna pantalla hasta que existió esta.
-  { to: '/clientes', label: 'Clientes', icon: Contact, roles: ['admin', 'veterinario', 'recepcion', 'peluquero'] },
+  {
+    to: '/clientes',
+    label: 'Clientes',
+    icon: Contact,
+    roles: ['admin', 'veterinario', 'recepcion', 'peluquero'],
+    modulo: 'fichas',
+  },
   {
     to: '/asistente',
     label: 'Asistente',
@@ -92,7 +113,7 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
   },
   { to: '/metricas', label: 'Métricas', icon: BarChart3, roles: ['admin'], modulo: 'metricas' },
   { to: '/respaldo', label: 'Respaldo', icon: Download, roles: ['recepcion', 'admin'] },
-  { to: '/servicios', label: 'Servicios', icon: Tags, roles: ['admin'] },
+  { to: '/servicios', label: 'Servicios', icon: Tags, roles: ['admin'], modulo: 'servicios' },
   { to: '/movimientos', label: 'Movimientos', icon: ArrowLeftRight, roles: ['admin'], modulo: 'caja' },
   { to: '/catalogo', label: 'Catálogo', icon: ShoppingBag, roles: ['admin'], modulo: 'catalogo' },
 ]

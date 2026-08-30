@@ -19,6 +19,7 @@ import type { ModuloVetora, TipoNegocio, Usuario } from '../types/database'
 const MODULOS_VETERINARIA_COMPLETA: ModuloVetora[] = [
   'agenda', 'caja', 'inventario', 'historial_clinico',
   'internacion', 'asistente_ia', 'portal_cliente', 'whatsapp', 'metricas',
+  'fichas', 'servicios',
 ]
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

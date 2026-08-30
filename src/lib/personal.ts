@@ -1,3 +1,5 @@
+import type { ModuloVetora } from '../types/database'
+
 /**
  * Quién puede figurar como veterinario responsable de una cita o de una
  * internación.
@@ -92,6 +94,51 @@ export function rutaDeInicio(usuario: { rol: string } | null | undefined): strin
   // El resto del personal aterriza en la agenda, incluido cualquier rol nuevo:
   // es el destino al que `RolRoute` rebota cuando el rol no encaja.
   return '/agenda'
+}
+
+/**
+ * Los paneles propios de cada módulo, con **quién puede entrar en ellos**.
+ *
+ * Los roles tienen que coincidir con el `RolRoute` que envuelve cada panel en
+ * `App.tsx`. Si divergen, el rebote de abajo manda a alguien a una puerta que
+ * se le cierra en la cara.
+ */
+const PANELES_DE_MODULO: { modulo: ModuloVetora; ruta: string; roles: string[] }[] = [
+  { modulo: 'peluqueria', ruta: '/peluqueria/dashboard', roles: ['admin', 'recepcion', 'peluquero'] },
+  { modulo: 'petshop', ruta: '/petshop/dashboard', roles: ['admin', 'recepcion', 'veterinario'] },
+]
+
+/**
+ * A dónde mandar a alguien: su panel propio si el negocio no es clínico, y si
+ * no, lo que diga `rutaDeInicio`.
+ *
+ * La usan `InicioSegunRol` (al entrar) y los dos guardianes `RolRoute` y
+ * `ModuloRoute` (al rebotar). Recibe `tieneModulo` como parámetro para seguir
+ * siendo pura: `lib/` no conoce el contexto de React.
+ *
+ * ⚠️ **Comprueba el ROL además del módulo, y no es opcional.** Los paneles
+ * llevan su propio `RolRoute`: `/petshop/dashboard` no admite a un `peluquero`.
+ * Sin esa comprobación, un peluquero en una clínica con plan de petshop sería
+ * enviado allí, su `RolRoute` lo rebotaría, y volvería a ser enviado al mismo
+ * sitio — un **bucle infinito** que cuelga la aplicación. Cuando el rol no
+ * encaja se cae a `/agenda`, que admite a todo el personal y cuya ruta no está
+ * gateada por módulo: por eso es el único terminal seguro.
+ *
+ * Una veterinaria con peluquería o petshop integrados (plan con
+ * `historial_clinico`) sigue entrando por la agenda: ahí esos módulos son una
+ * sección más, no el negocio.
+ */
+export function rutaDeInicioSegunModulos(
+  usuario: { rol: string } | null | undefined,
+  tieneModulo: (modulo: ModuloVetora) => boolean,
+): string {
+  if (usuario && usuario.rol !== 'cliente' && !tieneModulo('historial_clinico')) {
+    const panel = PANELES_DE_MODULO.find(
+      (p) => tieneModulo(p.modulo) && p.roles.includes(usuario.rol),
+    )
+    if (panel) return panel.ruta
+  }
+  return rutaDeInicio(usuario)
 }
 
 /**

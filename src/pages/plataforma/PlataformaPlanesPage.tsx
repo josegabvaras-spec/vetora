@@ -54,6 +54,8 @@ const MODULOS: { key: ModuloVetora; label: string }[] = [
   { key: 'catalogo', label: 'Catálogo' },
   { key: 'peluqueria', label: 'Peluquería (panel propio)' },
   { key: 'petshop', label: 'Pet Shop (panel propio)' },
+  { key: 'fichas', label: 'Clientes y Pacientes' },
+  { key: 'servicios', label: 'Catálogo de tarifas' },
 ]
 
 const MODULO_LABEL: Record<string, string> = Object.fromEntries(

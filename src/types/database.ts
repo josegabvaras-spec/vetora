@@ -60,6 +60,8 @@ export type ModuloVetora =
   | 'catalogo'           // Vitrina de productos, visible en la Tienda del portal
   | 'peluqueria'         // Módulo profesional de peluquería canina y felina
   | 'petshop'            // Módulo profesional de Pet Shop y Retail
+  | 'fichas'             // Clientes y pacientes (0032). Una peluquería SÍ lo lleva
+  | 'servicios'          // Catálogo de tarifas (0032). Un petshop cobra por `productos`
 
 /**
  * Comprobante de pago de la suscripción.
