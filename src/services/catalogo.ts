@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { redimensionarImagen } from '../lib/imagen'
-import type { CatalogoProducto } from '../types/database'
+import { CATEGORIA_RETAIL_LABEL } from '../lib/retail'
+import type { CatalogoProducto, CategoriaRetail, Producto } from '../types/database'
 
 /**
  * Vitrina comercial de la clínica (migración 0027): lo que gestiona el admin
@@ -84,6 +85,62 @@ export async function crearProductoCatalogo(
     // quedaría ocupando cuota para siempre, invisible desde la aplicación.
     if (foto_ruta) await supabase.storage.from(BUCKET).remove([foto_ruta])
     throw new Error(`No se pudo crear el producto: ${error?.message ?? 'desconocido'}`)
+  }
+
+  return data as CatalogoProducto
+}
+
+/**
+ * Publica en la Tienda un producto que ya está en el kardex (migración 0033).
+ *
+ * `catalogo_productos` y `productos` siguen siendo dos tablas distintas —0027
+ * lo argumenta largo y no se fusionan—, pero un petshop con 200 SKUs no va a
+ * teclearlos dos veces. Esto copia lo que es público y **nada más**: nombre,
+ * categoría y precio de VENTA. El costo, el stock, el sku y los lotes no
+ * salen de aquí.
+ *
+ * Sin foto: `productos` no tiene ninguna. Se le añade después desde
+ * `/catalogo`, que es donde vive el resto de la vitrina.
+ *
+ * El precio se mantiene solo a partir de aquí: `trg_sincronizar_precio_catalogo`
+ * (0033) arrastra a esta ficha cualquier cambio del precio de venta, venga de
+ * la pantalla que venga.
+ *
+ * Solo el `admin` puede llamarla — `catalogo_productos_admin` exige
+ * `auth_es_admin()`. Quien pinte el botón tiene que comprobar el rol antes.
+ */
+export async function publicarProductoEnTienda(producto: Producto): Promise<CatalogoProducto> {
+  // El mismo `|| 'otro'` con el que la pantalla de Productos pinta la columna:
+  // la columna es nullable y un producto dado de alta antes de 0030 no la tiene.
+  const categoria = CATEGORIA_RETAIL_LABEL[(producto.categoria_retail || 'otro') as CategoriaRetail]
+
+  // La marca y la presentación son lo único con valor de escaparate que trae
+  // el kardex («Royal Canin · Bolsa 15 kg»). El admin la reescribe en
+  // `/catalogo` si quiere otra cosa.
+  const descripcion = [producto.marca, producto.presentacion]
+    .map((t) => (t ?? '').trim())
+    .filter(Boolean)
+    .join(' · ')
+
+  const { data, error } = await supabase
+    .from('catalogo_productos')
+    .insert({
+      nombre: producto.nombre.trim(),
+      descripcion,
+      categoria,
+      precio_bs: producto.precio_bs,
+      producto_id: producto.id,
+      foto_ruta: null,
+    })
+    .select()
+    .single()
+
+  if (error || !data) {
+    // El índice único de 0033 es lo que impide publicar dos veces el mismo
+    // producto; se traduce, porque el mensaje de Postgres no le dice nada a
+    // quien está mirando una lista de productos.
+    if (error?.code === '23505') throw new Error('Este producto ya está publicado en la Tienda')
+    throw new Error(`No se pudo publicar en la Tienda: ${error?.message ?? 'desconocido'}`)
   }
 
   return data as CatalogoProducto

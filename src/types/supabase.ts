@@ -1369,6 +1369,7 @@ export type Database = {
           categoria: string
           precio_bs: number
           foto_ruta: string | null
+          producto_id: string | null
           disponible: boolean
           created_at: string
         }
@@ -1380,6 +1381,7 @@ export type Database = {
           categoria?: string
           precio_bs?: number
           foto_ruta?: string | null
+          producto_id?: string | null
           disponible?: boolean
           created_at?: string
         }
@@ -1391,6 +1393,7 @@ export type Database = {
           categoria?: string
           precio_bs?: number
           foto_ruta?: string | null
+          producto_id?: string | null
           disponible?: boolean
           created_at?: string
         }
@@ -1400,6 +1403,13 @@ export type Database = {
             columns: ["clinica_id"]
             isOneToOne: false
             referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalogo_productos_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: true
+            referencedRelation: "productos"
             referencedColumns: ["id"]
           },
         ]

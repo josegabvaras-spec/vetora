@@ -43,4 +43,38 @@ export async function listProductosDeClinica(clinicaId: string): Promise<Catalog
   return (data ?? []) as CatalogoProducto[]
 }
 
+/**
+ * Busca por nombre, descripción o categoría entre los productos de **todas**
+ * las tiendas, para que el dueño pueda partir de lo que quiere comprar en vez
+ * de tener que adivinar qué tienda lo tiene.
+ *
+ * No necesita RPC ni una policy nueva: `catalogo_productos_portal` autoriza
+ * leer los productos disponibles de cualquier clínica con el módulo, sin
+ * filtro por clínica — es la única tabla del proyecto pensada para eso. El
+ * nombre y el WhatsApp de cada tienda los cruza quien llama con
+ * `listClinicasConCatalogo()`, que ya se pide en esa pantalla.
+ *
+ * El tope de 60 es de la pantalla, no de la base: es una vitrina que se
+ * recorre con la vista, no un informe.
+ */
+export async function buscarProductosEnTiendas(texto: string): Promise<CatalogoProducto[]> {
+  const termino = texto.trim()
+  if (!termino) return []
+
+  // `,` y `)` cierran el filtro `or` de PostgREST; escapar es lo que impide que
+  // un nombre con una coma se convierta en otra condición.
+  const patron = `%${termino.replace(/[,)(]/g, ' ')}%`
+
+  const { data, error } = await supabase
+    .from('catalogo_productos')
+    .select('*')
+    .eq('disponible', true)
+    .or(`nombre.ilike.${patron},descripcion.ilike.${patron},categoria.ilike.${patron}`)
+    .order('nombre')
+    .limit(60)
+
+  if (error) throw new Error(`No se pudo buscar en las tiendas: ${error.message}`)
+  return (data ?? []) as CatalogoProducto[]
+}
+
 export { urlFotoCatalogo } from './catalogo'

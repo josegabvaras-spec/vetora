@@ -213,6 +213,12 @@ export interface CatalogoProducto {
   precio_bs: number
   /** Ruta en el bucket público `catalogo`, no la URL — puede no tener foto todavía. */
   foto_ruta: string | null
+  /**
+   * Producto del kardex del que se publicó esta ficha (0033), si salió de ahí.
+   * Null en las creadas a mano desde `/catalogo`. Del producto se copian
+   * nombre, categoría y precio de VENTA — nunca el costo ni el stock.
+   */
+  producto_id: string | null
   /** Se oculta de la Tienda sin borrarse, igual que `Servicio.activo`. */
   disponible: boolean
   created_at: string

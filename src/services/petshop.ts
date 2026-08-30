@@ -14,29 +14,11 @@ import type {
 } from '../types/views'
 import { differenceInDays, parseISO, isPast } from 'date-fns'
 
-export const CATEGORIA_RETAIL_LABEL: Record<CategoriaRetail, string> = {
-  alimento: 'Alimento y Nutrición',
-  medicamento: 'Farmacia / Medicamento',
-  antiparasitario: 'Antiparasitarios',
-  suplemento: 'Vitaminas y Suplementos',
-  higiene: 'Higiene y Cosmética',
-  accesorio: 'Collares, Correas y Accesorios',
-  juguete: 'Juguetes',
-  ropa: 'Ropa y Camas',
-  otro: 'Otros Artículos',
-}
-
-export const CATEGORIAS_RETAIL: { id: CategoriaRetail; label: string }[] = [
-  { id: 'alimento', label: 'Alimento y Nutrición' },
-  { id: 'medicamento', label: 'Farmacia / Medicamento' },
-  { id: 'antiparasitario', label: 'Antiparasitarios' },
-  { id: 'suplemento', label: 'Vitaminas y Suplementos' },
-  { id: 'higiene', label: 'Higiene y Cosmética' },
-  { id: 'accesorio', label: 'Collares y Accesorios' },
-  { id: 'juguete', label: 'Juguetes' },
-  { id: 'ropa', label: 'Ropa y Camas' },
-  { id: 'otro', label: 'Otros Artículos' },
-]
+// Los rótulos viven en `lib/retail.ts` desde 0033: son datos puros, y
+// `services/catalogo.ts` también los necesita para publicar en la Tienda con
+// la categoría en español. Se re-exportan porque las pantallas del petshop
+// llevan tiempo pidiéndolos por aquí.
+export { CATEGORIA_RETAIL_LABEL, CATEGORIAS_RETAIL } from '../lib/retail'
 
 export interface FiltrosProductosPetshop {
   sucursalId?: string

@@ -9,21 +9,37 @@ import {
   Search,
   Edit2,
   RefreshCw,
+  Store,
 } from 'lucide-react'
 import { useAuth } from '../../context/useAuth'
+import { AvisoError } from '../../components/ui/AvisoError'
 import { formatBs } from '../../lib/currency'
 import {
   listProductosPetshop,
   CATEGORIAS_RETAIL,
   CATEGORIA_RETAIL_LABEL,
 } from '../../services/petshop'
+import {
+  eliminarProductoCatalogo,
+  listCatalogo,
+  publicarProductoEnTienda,
+} from '../../services/catalogo'
 import { listProveedores } from '../../services/compras'
-import type { CategoriaRetail, Proveedor } from '../../types/database'
+import type { CatalogoProducto, CategoriaRetail, Proveedor } from '../../types/database'
 import type { ProductoConLotes } from '../../types/views'
 import { NuevoProductoModal } from '../../features/petshop/NuevoProductoModal'
 
 export function PetshopProductosPage() {
-  const { sucursalActivaId } = useAuth()
+  const { sucursalActivaId, usuario, tieneModulo } = useAuth()
+
+  /**
+   * Publicar en la Tienda del portal (migración 0033) es cosa del `admin`:
+   * `catalogo_productos_admin` exige `auth_es_admin()`, así que a `recepcion` y
+   * al `veterinario` —que sí entran a esta pantalla— el botón solo les daría un
+   * error de permiso. Y sin el módulo en el plan no hay Tienda donde publicar:
+   * la ficha se crearía, pero `catalogo_productos_portal` la dejaría invisible.
+   */
+  const puedePublicar = usuario?.rol === 'admin' && tieneModulo('catalogo')
   const [busqueda, setBusqueda] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState<CategoriaRetail | ''>('')
   const [soloStockBajo, setSoloStockBajo] = useState(false)
@@ -34,6 +50,17 @@ export function PetshopProductosPage() {
 
   const [modalNuevo, setModalNuevo] = useState(false)
   const [productoAEditar, setProductoAEditar] = useState<ProductoConLotes | null>(null)
+
+  /**
+   * Las fichas de vitrina que salieron de un producto, indexadas por
+   * `producto_id`. Se guarda la fila entera y no solo el id porque retirar de
+   * la Tienda es `eliminarProductoCatalogo(ficha)`, que necesita la ruta de la
+   * foto para borrarla también del bucket.
+   */
+  const [publicados, setPublicados] = useState<Map<string, CatalogoProducto>>(new Map())
+  /** Id del producto cuya publicación está en vuelo, para no repetirla. */
+  const [publicando, setPublicando] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   /**
    * Texto de búsqueda ya reposado.
@@ -56,7 +83,7 @@ export function PetshopProductosPage() {
   const recargar = useCallback(async () => {
     setCargando(true)
     try {
-      const [prods, provs] = await Promise.all([
+      const [prods, provs, catalogo] = await Promise.all([
         listProductosPetshop({
           sucursalId: sucursalActivaId || undefined,
           categoriaRetail: categoriaFiltro || undefined,
@@ -65,20 +92,48 @@ export function PetshopProductosPage() {
           soloActivos: true,
         }),
         listProveedores(),
+        // El catálogo es de la CLÍNICA, no de la sucursal, y no se filtra por
+        // los mismos criterios: se pide entero una vez y se cruza en memoria.
+        puedePublicar ? listCatalogo() : Promise.resolve([] as CatalogoProducto[]),
       ])
       setProductos(prods)
       setProveedores(provs)
+      setPublicados(
+        new Map(catalogo.filter((c) => c.producto_id).map((c) => [c.producto_id as string, c])),
+      )
     } finally {
       setCargando(false)
     }
-  }, [sucursalActivaId, categoriaFiltro, soloStockBajo, busquedaAplicada])
+  }, [sucursalActivaId, categoriaFiltro, soloStockBajo, busquedaAplicada, puedePublicar])
 
   useEffect(() => {
     recargar()
   }, [recargar])
 
+  /**
+   * Publica o retira. No pide confirmación al retirar a propósito: no se
+   * pierde nada del kardex y volver a publicar es el mismo botón — solo se
+   * pierde la foto de la vitrina, que es lo único que vive ahí.
+   */
+  async function alternarEnTienda(producto: ProductoConLotes) {
+    setPublicando(producto.id)
+    setError(null)
+    try {
+      const ficha = publicados.get(producto.id)
+      if (ficha) await eliminarProductoCatalogo(ficha)
+      else await publicarProductoEnTienda(producto)
+      await recargar()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cambiar la publicación')
+    } finally {
+      setPublicando(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
+      <AvisoError mensaje={error} />
+
       {/* Cabecera Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -178,6 +233,7 @@ export function PetshopProductosPage() {
                   const precio = Number(p.precio_bs) || 0
                   const margen = precio > 0 ? ((precio - costo) / precio) * 100 : 0
                   const stockBajo = stockActual <= stockMin
+                  const enTienda = publicados.has(p.id)
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50 transition-colors">
@@ -236,6 +292,24 @@ export function PetshopProductosPage() {
                           <Edit2 size={12} className="mr-1" />
                           <span>Editar</span>
                         </Button>
+                        {puedePublicar && (
+                          <Button
+                            type="button"
+                            variant={enTienda ? 'primary' : 'outline'}
+                            size="sm"
+                            className="ml-2"
+                            disabled={publicando === p.id}
+                            onClick={() => alternarEnTienda(p)}
+                            title={
+                              enTienda
+                                ? 'Quitar este producto de la Tienda del portal'
+                                : 'Mostrar este producto en la Tienda del portal'
+                            }
+                          >
+                            <Store size={12} className="mr-1" />
+                            <span>{enTienda ? 'En la Tienda' : 'Publicar'}</span>
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   )
