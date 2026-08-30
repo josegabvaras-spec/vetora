@@ -19,16 +19,46 @@ import type { FichaPaciente } from '../types/views'
  */
 export type FichaPacientePortal = FichaPaciente
 import { addDays } from 'date-fns'
-import { clinicDayIso } from '../lib/datetime'
+import { clinicDayIso, desdeFechaSola, formatClinicTime } from '../lib/datetime'
+import { TIPO_LABEL } from '../lib/citas'
+import { ESTADO_ORDEN_LABEL } from '../services/peluqueria'
+import type { EstadoOrdenPeluqueria, TipoCita } from '../types/database'
 
 export interface NotificacionPortal {
   id: string;
-  tipo: 'cita' | 'vacuna';
+  /**
+   * De dónde sale la fila, que es lo que decide el icono y el color.
+   *
+   * `peluqueria` es una **orden** de `peluqueria_ordenes`, no una cita: la
+   * peluquería agenda ahí, no en `citas` (ver `getNotificacionesPortal`).
+   */
+  tipo: 'cita' | 'vacuna' | 'peluqueria';
   titulo: string;
   descripcion: string;
+  /**
+   * Puede venir con hora (`citas`, órdenes) o ser una fecha suelta
+   * (`vacunas_aplicadas.fecha_refuerzo`, columna `date`). **Para ordenar y
+   * para pintar hay que pasarla siempre por `instanteDeNotificacion()`**: es
+   * exactamente lo que estaba mal — se ordenaba por el valor crudo y se
+   * pintaba por el normalizado, así que la lista salía en un orden distinto
+   * del que se veía.
+   */
   fecha: string;
   pacienteNombre: string;
-  estado: 'pendiente' | 'atrasada' | 'hoy';
+  estado: 'pendiente' | 'atrasada' | 'hoy' | 'en_curso';
+}
+
+/**
+ * El instante que representa una notificación, sea cual sea su origen.
+ *
+ * `fecha_refuerzo` es una columna `date`: `new Date('2026-08-20')` es
+ * medianoche **UTC**, o sea el día 19 a las 20:00 en La Paz. Ordenar por eso
+ * metía un refuerzo del 20 por delante de una cita del 19 por la tarde.
+ * `desdeFechaSola` la lleva al mediodía UTC —las 08:00 de La Paz—, que es lo
+ * que la pantalla ya usaba para escribirla.
+ */
+export function instanteDeNotificacion(fecha: string): string {
+  return fecha.length <= 10 ? desdeFechaSola(fecha) : fecha
 }
 
 /** Lo único que un anónimo puede saber de una clínica: cómo se llama. */
@@ -378,14 +408,64 @@ export async function getNotificacionesPortal(clinicaId: string, usuarioId: stri
 
       if (diaCita < hoy) return
 
+      // El rótulo salía de un ternario sobre `tipo_cita === 'vacuna'`, así que
+      // los otros cinco tipos —peluquería incluida— decían «Cita Veterinaria».
+      // `TIPO_LABEL` es la misma tabla que usa el personal en la agenda.
+      const tipoCita = cita.tipo_cita as TipoCita
       notificaciones.push({
         id: `cita-${cita.id}`,
-        tipo: 'cita',
-        titulo: cita.tipo_cita === 'vacuna' ? 'Cita de Vacunación' : 'Cita Veterinaria',
-        descripcion: `Tienes una cita programada.`,
+        tipo: tipoCita === 'peluqueria' ? 'peluqueria' : 'cita',
+        titulo: TIPO_LABEL[tipoCita] ?? 'Cita',
+        descripcion: `Agendada a las ${formatClinicTime(cita.fecha_hora)}.`,
         fecha: cita.fecha_hora,
         pacienteNombre: p?.nombre || 'Tu mascota',
         estado: diaCita === hoy ? 'hoy' : 'pendiente'
+      })
+    })
+  }
+
+  // 1b. Órdenes de peluquería
+  //
+  // La peluquería NO agenda en `citas`: su agenda lee `peluqueria_ordenes`, y
+  // la casilla que además crea la cita (`crearCitaSimultanea` en
+  // `NuevaOrdenModal`) viene DESMARCADA por defecto. Sin esto, el dueño no veía
+  // ni una sola de sus citas de peluquería.
+  //
+  // La policy `peluqueria_ordenes_portal` (0029) ya le deja leer las suyas, así
+  // que no hizo falta SQL nuevo.
+  const ESTADOS_VIVOS: EstadoOrdenPeluqueria[] = [
+    'cita', 'recepcion', 'evaluacion', 'en_espera', 'en_proceso', 'terminada', 'lista_recoger',
+  ]
+  const { data: ordenes } = await supabase
+    .from('peluqueria_ordenes')
+    .select('*')
+    .eq('clinica_id', clinicaId)
+    .in('paciente_id', pacienteIds)
+    .in('estado', ESTADOS_VIVOS)
+    // Las que tienen cita ya vienen por el bloque de arriba: sin esto saldrían
+    // dos veces, la misma peluquería el mismo día.
+    .is('cita_id', null)
+
+  if (ordenes) {
+    ordenes.forEach(orden => {
+      const p = pacientes.find(x => x.id === orden.paciente_id)
+      const estadoOrden = orden.estado as EstadoOrdenPeluqueria
+      const diaOrden = clinicDayIso(orden.hora_ingreso)
+
+      // Una orden ya recibida es trabajo EN CURSO, no una cita de un día: «en
+      // proceso» o «lista para recoger» es lo que el dueño quiere ver ahora
+      // mismo, y por eso va en su propio grupo, arriba del todo.
+      const enCurso = estadoOrden !== 'cita'
+      if (!enCurso && diaOrden < hoy) return
+
+      notificaciones.push({
+        id: `orden-${orden.id}`,
+        tipo: 'peluqueria',
+        titulo: 'Peluquería / Estética',
+        descripcion: ESTADO_ORDEN_LABEL[estadoOrden],
+        fecha: orden.hora_ingreso,
+        pacienteNombre: p?.nombre || 'Tu mascota',
+        estado: enCurso ? 'en_curso' : diaOrden === hoy ? 'hoy' : 'pendiente',
       })
     })
   }
@@ -426,5 +506,12 @@ export async function getNotificacionesPortal(clinicaId: string, usuarioId: stri
     })
   }
 
-  return notificaciones.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
+  // Por el MISMO instante que se pinta. Antes se ordenaba por `a.fecha` cruda
+  // y se dibujaba por la normalizada, así que la lista salía en un orden
+  // distinto del que se leía en pantalla.
+  return notificaciones.sort(
+    (a, b) =>
+      new Date(instanteDeNotificacion(a.fecha)).getTime() -
+      new Date(instanteDeNotificacion(b.fecha)).getTime(),
+  )
 }

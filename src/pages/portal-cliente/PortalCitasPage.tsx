@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
-import { getNotificacionesPortal, type NotificacionPortal } from '../../services/portalCliente'
-import { ArrowLeft, Bell, Calendar, AlertTriangle, Bone, CheckCircle, Clock } from 'lucide-react'
+import {
+  getNotificacionesPortal,
+  instanteDeNotificacion,
+  type NotificacionPortal,
+} from '../../services/portalCliente'
+import { ArrowLeft, Bell, Calendar, AlertTriangle, Bone, CheckCircle, Clock, Scissors } from 'lucide-react'
 import { format } from 'date-fns'
-import { desdeFechaSola, toClinicTime } from '../../lib/datetime'
+import { toClinicTime } from '../../lib/datetime'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
 
@@ -48,6 +52,7 @@ export function PortalCitasPage() {
     )
   }
 
+  const enCurso = notificaciones.filter(n => n.estado === 'en_curso')
   const hoy = notificaciones.filter(n => n.estado === 'hoy')
   const atrasadas = notificaciones.filter(n => n.estado === 'atrasada')
   const pendientes = notificaciones.filter(n => n.estado === 'pendiente')
@@ -83,6 +88,19 @@ export function PortalCitasPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* En curso — arriba del todo: una orden de peluquería «en proceso»
+              o «lista para recoger» no es algo de hoy a las cuatro, es ahora
+              mismo, y es lo primero que el dueño viene a mirar. */}
+          {enCurso.length > 0 && (
+            <GrupoNotificaciones
+              titulo="Ahora mismo"
+              icono={<Scissors className="h-5 w-5 text-purple-600" />}
+              notificaciones={enCurso}
+              colorFondo="bg-purple-50"
+              colorBorde="border-purple-100"
+            />
+          )}
+
           {/* Atrasadas */}
           {atrasadas.length > 0 && (
             <GrupoNotificaciones
@@ -121,6 +139,22 @@ export function PortalCitasPage() {
   )
 }
 
+/**
+ * El badge del origen. Era un ternario de dos ramas sobre `tipo === 'cita'`,
+ * así que una orden de peluquería habría salido como «💉 Vacuna».
+ */
+const ETIQUETA_TIPO: Record<NotificacionPortal['tipo'], string> = {
+  cita: '📅 Cita',
+  vacuna: '💉 Vacuna',
+  peluqueria: '✂️ Peluquería',
+}
+
+const COLOR_TIPO: Record<NotificacionPortal['tipo'], string> = {
+  cita: 'bg-emerald-100 text-emerald-800',
+  vacuna: 'bg-blue-100 text-blue-800',
+  peluqueria: 'bg-purple-100 text-purple-800',
+}
+
 function GrupoNotificaciones({
   titulo,
   icono,
@@ -156,11 +190,9 @@ function GrupoNotificaciones({
             <div className="flex items-start justify-between mb-2">
               <span className={clsx(
                 'text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full',
-                notif.tipo === 'cita'
-                  ? 'bg-emerald-100 text-emerald-800'
-                  : 'bg-blue-100 text-blue-800'
+                COLOR_TIPO[notif.tipo]
               )}>
-                {notif.tipo === 'cita' ? '📅 Cita' : '💉 Vacuna'}
+                {ETIQUETA_TIPO[notif.tipo]}
               </span>
               {notif.estado === 'atrasada' && (
                 <AlertTriangle className="h-4 w-4 text-red-500" />
@@ -176,8 +208,10 @@ function GrupoNotificaciones({
               <div className="flex items-center gap-1.5 text-xs text-slate-500">
                 <Calendar className="h-3.5 w-3.5" />
                 <span>
+                  {/* El MISMO instante por el que se ordena: la normalización
+                      vive en el servicio para que no puedan separarse. */}
                   {format(
-                    toClinicTime(notif.fecha.length <= 10 ? desdeFechaSola(notif.fecha) : notif.fecha),
+                    toClinicTime(instanteDeNotificacion(notif.fecha)),
                     "d 'de' MMMM, yyyy",
                     { locale: es }
                   )}

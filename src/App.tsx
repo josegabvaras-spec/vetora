@@ -42,6 +42,8 @@ import { PortalDashboardPage } from './pages/portal-cliente/PortalDashboardPage'
 import { PortalPacientePage } from './pages/portal-cliente/PortalPacientePage'
 import { PortalTiendaPage } from './pages/portal-cliente/PortalTiendaPage'
 import { PortalTiendaClinicaPage } from './pages/portal-cliente/PortalTiendaClinicaPage'
+import { PortalPeluqueriaPage } from './pages/portal-cliente/PortalPeluqueriaPage'
+import { PortalPeluqueriaClinicaPage } from './pages/portal-cliente/PortalPeluqueriaClinicaPage'
 import { PortalMascotasPage } from './pages/portal-cliente/PortalMascotasPage'
 import { PortalCitasPage } from './pages/portal-cliente/PortalCitasPage'
 import { PortalPerfilPage } from './pages/portal-cliente/PortalPerfilPage'
@@ -96,6 +98,11 @@ export default function App() {
                   dueño, es contenido de OTRAS clínicas. */}
               <Route path="tienda" element={<PortalTiendaPage />} />
               <Route path="tienda/:clinicaId" element={<PortalTiendaClinicaPage />} />
+              {/* Peluquerias: mismo criterio y mismo motivo que la Tienda --
+                  son servicios de OTROS negocios, no un modulo del suyo. Y
+                  tampoco agendan: la pantalla solicita por WhatsApp (PRD 2). */}
+              <Route path="peluqueria" element={<PortalPeluqueriaPage />} />
+              <Route path="peluqueria/:clinicaId" element={<PortalPeluqueriaClinicaPage />} />
             </Route>
           </Route>
 

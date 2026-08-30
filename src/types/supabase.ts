@@ -2503,6 +2503,31 @@ export type Database = {
           whatsapp: string
         }[]
       }
+      // Migración 0035, añadidas a mano por el mismo motivo que las de 0028
+      // (ver más abajo): sin declararlas aquí, `supabase.rpc()` las rechaza.
+      clinicas_con_peluqueria: {
+        Args: never
+        Returns: {
+          id: string
+          nombre: string
+          logo_url: string | null
+          ciudad: string
+          tipo_negocio: string
+          whatsapp: string
+        }[]
+      }
+      servicios_peluqueria_de: {
+        Args: { p_clinica_id: string }
+        Returns: {
+          id: string
+          nombre: string
+          precio_bs: number
+          duracion_minutos: number
+          categoria_grooming: string
+          especie_permitida: string
+          tamano_permitido: string
+        }[]
+      }
       aprobar_pago_suscripcion: { Args: { p_pago_id: string }; Returns: string }
       consumir_cuota_whatsapp: { Args: never; Returns: number }
       espacio_estudios_bytes: { Args: never; Returns: number }

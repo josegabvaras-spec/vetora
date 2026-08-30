@@ -75,8 +75,10 @@ export function PortalDashboardPage() {
         </Link>
 
         {/* ── Tarjeta 3: Agendar Peluquería ── */}
+        {/* Apuntaba a `/portal-cliente/tienda`, copiado de la tarjeta de al
+            lado: el botón «Programar Cita» abría la Tienda de productos. */}
         <Link
-          to="/portal-cliente/tienda"
+          to="/portal-cliente/peluqueria"
           className="portal-card relative aspect-[3/4] sm:aspect-[4/5] overflow-hidden rounded-2xl sm:rounded-3xl p-3 sm:p-4 flex flex-col justify-between group shadow-sm hover:shadow-xl transition-all"
         >
           {/* Imagen ocupando TODO el tamaño de la tarjeta */}
