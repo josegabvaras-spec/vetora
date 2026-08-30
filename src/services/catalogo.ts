@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase'
 import { redimensionarImagen } from '../lib/imagen'
 import { CATEGORIA_RETAIL_LABEL } from '../lib/retail'
 import type { CatalogoProducto, CategoriaRetail, Producto } from '../types/database'
+import type { ArticuloDeCatalogo } from '../types/views'
 
 /**
  * Vitrina comercial de la clínica (migración 0027): lo que gestiona el admin
@@ -25,6 +26,44 @@ function validar(datos: DatosCatalogoProducto): void {
   if (!datos.nombre.trim()) throw new Error('El nombre del producto no puede quedar vacío')
   if (!Number.isFinite(datos.precio_bs) || datos.precio_bs < 0) {
     throw new Error('El precio debe ser un número mayor o igual a 0')
+  }
+}
+
+/**
+ * Lo que pinta `/catalogo`: **el inventario**, con una marca por cada artículo
+ * que ya se está vendiendo en la Tienda.
+ *
+ * El catálogo era una lista aparte donde el admin volvía a escribir productos
+ * que ya tenía cargados en el POS. Ahora parte del kardex y lo único que se
+ * decide ahí es *cuáles* se muestran.
+ *
+ * `sueltos` son las fichas sin `producto_id`: las que se escribieron a mano
+ * antes de 0033, y las de algo que se vende sin llevarle stock. No se pierden.
+ *
+ * No reusa `listProductos()` de `inventario.ts` a propósito: esa se trae
+ * además `movimientos_inventario` de cada producto —la tabla que más crece— y
+ * aquí no se pinta un solo movimiento.
+ */
+export async function listArticulosDeCatalogo(sucursalId?: string): Promise<{
+  articulos: ArticuloDeCatalogo[]
+  sueltos: CatalogoProducto[]
+}> {
+  let consulta = supabase.from('productos').select('*').eq('activo', true).order('nombre')
+  if (sucursalId) consulta = consulta.eq('sucursal_id', sucursalId)
+
+  const [{ data: productos, error }, fichas] = await Promise.all([consulta, listCatalogo()])
+  if (error) throw new Error(`No se pudo cargar el inventario: ${error.message}`)
+
+  const porProducto = new Map(
+    fichas.filter((f) => f.producto_id).map((f) => [f.producto_id as string, f]),
+  )
+
+  return {
+    articulos: ((productos ?? []) as Producto[]).map((producto) => ({
+      producto,
+      ficha: porProducto.get(producto.id) ?? null,
+    })),
+    sueltos: fichas.filter((f) => !f.producto_id),
   }
 }
 

@@ -2,6 +2,7 @@
 // En Supabase real corresponden a `select` con relaciones anidadas.
 
 import type {
+  CatalogoProducto,
   Cita,
   Clinica,
   Cliente,
@@ -500,3 +501,17 @@ export interface ReporteRentabilidadPetshop {
   }[]
 }
 
+
+/**
+ * Un artículo del inventario visto desde el Catálogo: la fila del kardex y, si
+ * se está vendiendo en la Tienda del portal, su ficha de vitrina.
+ *
+ * `/catalogo` no es una lista aparte de productos: **es el inventario**, con
+ * una marca por cada artículo que el admin decidió mostrar. Que fuera una
+ * lista propia obligaba a escribir cada producto dos veces.
+ */
+export interface ArticuloDeCatalogo {
+  producto: Producto
+  /** Su ficha en la Tienda, o null si no se está vendiendo ahí. */
+  ficha: CatalogoProducto | null
+}

@@ -12,6 +12,20 @@ import {
 } from '../../services/catalogo'
 import type { CatalogoProducto } from '../../types/database'
 
+/**
+ * La ficha de vitrina de un producto.
+ *
+ * Tiene **dos formas**, según de dónde salga la ficha:
+ *
+ * - **Vinculada al inventario** (`producto_id`, desde 0033): el nombre, la
+ *   categoría y el precio son del kardex y aquí se enseñan pero no se tocan —
+ *   se cambian en el inventario, que es de donde salen. Lo editable es lo que
+ *   solo existe aquí: la foto y el texto que lee quien compra. Si el precio se
+ *   pudiera cambiar en los dos sitios, el de la Tienda se separaría del que se
+ *   cobra en el mostrador, y `trg_sincronizar_precio_catalogo` lo pisaría al
+ *   siguiente cambio sin avisar.
+ * - **Suelta**: no hay kardex detrás, así que se escribe todo.
+ */
 export function CatalogoProductoModal({
   producto,
   clinicaId,
@@ -23,6 +37,7 @@ export function CatalogoProductoModal({
   onClose: () => void
   onGuardado: () => void
 }) {
+  const delInventario = Boolean(producto?.producto_id)
   const [nombre, setNombre] = useState(producto?.nombre ?? '')
   const [descripcion, setDescripcion] = useState(producto?.descripcion ?? '')
   const [categoria, setCategoria] = useState(producto?.categoria ?? '')
@@ -89,10 +104,26 @@ export function CatalogoProductoModal({
   }
 
   return (
-    <Modal title={producto ? 'Editar producto' : 'Nuevo producto'} onClose={onClose}>
+    <Modal
+      title={delInventario ? 'Vitrina del producto' : producto ? 'Editar producto' : 'Nuevo producto'}
+      onClose={onClose}
+    >
       <form className="space-y-4" onSubmit={handleSubmit}>
+        {delInventario && (
+          <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            El nombre, la categoría y el precio salen de tu inventario. Cámbialos ahí y esta ficha
+            los sigue.
+          </p>
+        )}
+
         <FieldGroup label="Nombre del producto">
-          <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Shampoo antipulgas" required />
+          <Input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej. Shampoo antipulgas"
+            required
+            disabled={delInventario}
+          />
         </FieldGroup>
 
         <FieldGroup label="Descripción (opcional)">
@@ -105,10 +136,23 @@ export function CatalogoProductoModal({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <FieldGroup label="Categoría (opcional)">
-            <Input value={categoria} onChange={(e) => setCategoria(e.target.value)} placeholder="Ej. Higiene" />
+            <Input
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              placeholder="Ej. Higiene"
+              disabled={delInventario}
+            />
           </FieldGroup>
           <FieldGroup label="Precio (Bs.)">
-            <Input type="number" min="0" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)} required />
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={precio}
+              onChange={(e) => setPrecio(e.target.value)}
+              required
+              disabled={delInventario}
+            />
           </FieldGroup>
         </div>
 
