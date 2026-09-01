@@ -83,31 +83,61 @@ export async function lineasDeInternacion(internacion: Internacion): Promise<Lin
   return [estadia, ...consumos]
 }
 
+/**
+ * El desglose de una orden de peluquería: el servicio y sus suplementos.
+ *
+ * ⚠️ **La invariante es `precio_final_bs = precio_estimado_bs + Σ suplementos`**,
+ * y la escriben los tres sitios que tocan una orden: `NuevaOrdenModal` al
+ * crearla, `EvaluacionInicialModal` al recalcularla, y de ella salen la
+ * comisión del peluquero y los ingresos del día del panel. Estas líneas tienen
+ * que sumar **exactamente** eso, o la caja cobra una cifra y el resto de la
+ * aplicación enseña otra.
+ *
+ * Antes la base era `precio_estimado_bs || precio_final_bs`, y ese `||`
+ * **cobraba los suplementos dos veces** en cuanto el estimado era 0 —un
+ * servicio sin precio configurado, o una orden que se abre en blanco y se
+ * valora en la evaluación—: caía al final, que YA los incluye, y luego los
+ * volvía a listar uno a uno. Una orden de Bs. 50 en puros suplementos se
+ * cobraba a Bs. 100.
+ */
 export async function lineasDePeluqueria(orden: any): Promise<LineaCobro[]> {
   const lineas: LineaCobro[] = []
   const servNombre = orden.servicio?.nombre || 'Servicio de Peluquería'
-  const precioBase = Number(orden.precio_estimado_bs) || Number(orden.precio_final_bs) || 0
 
-  lineas.push({
-    concepto: `Peluquería · ${servNombre}`,
-    cantidad: 1,
-    precio_unitario_bs: precioBase,
-    subtotal_bs: precioBase,
-    servicio_id: orden.servicio_id ?? null,
-  })
+  const suplementos = Array.isArray(orden.suplementos)
+    ? orden.suplementos.filter((s: any) => s && s.concepto && Number(s.monto_bs) > 0)
+    : []
+  const totalSuplementos = suplementos.reduce((n: number, s: any) => n + Number(s.monto_bs), 0)
 
-  if (Array.isArray(orden.suplementos)) {
-    for (const sup of orden.suplementos) {
-      if (sup && sup.concepto && Number(sup.monto_bs) > 0) {
-        const m = Number(sup.monto_bs)
-        lineas.push({
-          concepto: `Suplemento: ${sup.concepto}`,
-          cantidad: 1,
-          precio_unitario_bs: m,
-          subtotal_bs: m,
-        })
-      }
-    }
+  // Se despeja de la invariante en vez de caer al final entero: así el total de
+  // estas líneas es `precio_final_bs` en los dos casos. El `max(0, …)` cubre
+  // una orden vieja cuyas columnas no cuadren, que es mejor que una línea en
+  // negativo.
+  const estimado = Number(orden.precio_estimado_bs) || 0
+  const base =
+    estimado > 0 ? estimado : Math.max(0, Number(orden.precio_final_bs || 0) - totalSuplementos)
+
+  // Con base 0 y suplementos, la línea del servicio sobra: el recibo la
+  // enseñaría a Bs. 0.00 sin decir nada. Si no hay suplementos se pone igual,
+  // para que el cobro nunca se quede sin ninguna línea.
+  if (base > 0 || suplementos.length === 0) {
+    lineas.push({
+      concepto: `Peluquería · ${servNombre}`,
+      cantidad: 1,
+      precio_unitario_bs: base,
+      subtotal_bs: base,
+      servicio_id: orden.servicio_id ?? null,
+    })
+  }
+
+  for (const sup of suplementos) {
+    const m = Number(sup.monto_bs)
+    lineas.push({
+      concepto: `Suplemento: ${sup.concepto}`,
+      cantidad: 1,
+      precio_unitario_bs: m,
+      subtotal_bs: m,
+    })
   }
 
   return lineas

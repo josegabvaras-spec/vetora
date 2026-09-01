@@ -172,10 +172,18 @@ const SOBREVIVEN_FUERA_DE_LA_CLINICA = ['/caja', '/asistente', '/respaldo', '/ca
  * es. Se renombra aquí y no en `ENLACES_CLINICOS` porque en una veterinaria el
  * nombre correcto sigue siendo el de siempre.
  */
-const RENOMBRES_FUERA_DE_LA_CLINICA: Record<string, Pick<EnlaceClinico, 'label' | 'etiquetaCorta'>> =
-  {
-    '/caja': { label: 'Caja General', etiquetaCorta: 'General' },
-  }
+const RENOMBRES_POR_PANEL: Record<
+  string,
+  Record<string, Pick<EnlaceClinico, 'label' | 'etiquetaCorta'>>
+> = {
+  // El petshop conserva su propia «Caja Pet Shop» —es otra vista: la
+  // recaudación del POS dentro del turno—, así que hay que decir cuál es cuál.
+  petshop: { '/caja': { label: 'Caja General', etiquetaCorta: 'General' } },
+  // La peluquería **no**: su caja y esta son la misma pantalla desde que se
+  // unificaron, así que «General» sobraba y solo sembraba la duda de si había
+  // dos sitios donde cobrar.
+  peluqueria: {},
+}
 
 /**
  * El menú principal según **qué es** el negocio.
@@ -204,7 +212,7 @@ export function menuDelNegocio(rol: Rol | undefined, modulos?: ModuloVetora[]): 
   )
   const supervivientes = enlacesVisibles(rol, modulos)
     .filter((l) => SOBREVIVEN_FUERA_DE_LA_CLINICA.includes(l.to))
-    .map((l) => ({ ...l, ...RENOMBRES_FUERA_DE_LA_CLINICA[l.to] }))
+    .map((l) => ({ ...l, ...(RENOMBRES_POR_PANEL[panel]?.[l.to] ?? {}) }))
 
   return [...propias, ...supervivientes]
 }

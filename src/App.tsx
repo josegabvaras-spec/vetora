@@ -60,7 +60,6 @@ import { PeluqueriaPeluquerosPage } from './pages/peluqueria/PeluqueriaPeluquero
 import { PeluqueriaInsumosPage } from './pages/peluqueria/PeluqueriaInsumosPage'
 import { PeluqueriaComisionesPage } from './pages/peluqueria/PeluqueriaComisionesPage'
 import { PeluqueriaFidelizacionPage } from './pages/peluqueria/PeluqueriaFidelizacionPage'
-import { PeluqueriaCajaPage } from './pages/peluqueria/PeluqueriaCajaPage'
 import { PeluqueriaReportesPage } from './pages/peluqueria/PeluqueriaReportesPage'
 import { PeluqueriaConfiguracionPage } from './pages/peluqueria/PeluqueriaConfiguracionPage'
 
@@ -209,7 +208,11 @@ export default function App() {
                     <Route path="insumos" element={<PeluqueriaInsumosPage />} />
                     <Route path="comisiones" element={<PeluqueriaComisionesPage />} />
                     <Route path="fidelizacion" element={<PeluqueriaFidelizacionPage />} />
-                    <Route path="caja" element={<PeluqueriaCajaPage />} />
+                    {/* La MISMA caja, no otra.  era una
+                        lista filtrada que no sabia abrir ni cerrar turno, asi
+                        que habia dos sitios para cobrar y solo uno servia. La
+                        ruta se conserva para no romper enlaces guardados. */}
+                    <Route path="caja" element={<CajaPage />} />
                     <Route path="reportes" element={<PeluqueriaReportesPage />} />
                     <Route path="configuracion" element={<PeluqueriaConfiguracionPage />} />
                   </Route>

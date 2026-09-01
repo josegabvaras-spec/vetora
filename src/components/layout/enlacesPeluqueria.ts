@@ -8,7 +8,6 @@ import {
   Boxes,
   Percent,
   HeartHandshake,
-  Wallet,
   BarChart3,
   Settings,
 } from 'lucide-react'
@@ -72,16 +71,12 @@ export const ENLACES_PELUQUERIA: EnlaceClinico[] = [
     etiquetaCorta: 'Frecuentes',
     roles: ['admin', 'recepcion'],
   },
-  // «Caja Peluquería» y no «Caja / Ventas»: en el menú principal convive con
-  // «Caja General» (`/caja`), que es donde se abre y se cierra el turno. Dos
-  // entradas llamadas «Caja» no dirían cuál es cuál.
-  {
-    to: '/peluqueria/caja',
-    label: 'Caja Peluquería',
-    icon: Wallet,
-    etiquetaCorta: 'Caja',
-    roles: ['admin', 'recepcion'],
-  },
+  // ⚠️ Aquí NO va ninguna caja, y es a propósito: la de la peluquería y la de
+  // la clínica pasaron a ser **la misma pantalla**. `/peluqueria/caja` seguía
+  // existiendo pero no sabía abrir ni cerrar turno —lo decía ella misma: «Abre
+  // caja en el módulo de Caja»—, así que había dos entradas para cobrar y solo
+  // una servía. El menú lleva `/caja` como única «Caja» (ver
+  // `RENOMBRES_POR_PANEL` en enlacesClinicos).
   { to: '/peluqueria/reportes', label: 'Reportes', icon: BarChart3, roles: ['admin'] },
   {
     to: '/peluqueria/configuracion',
