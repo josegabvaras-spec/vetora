@@ -3,6 +3,7 @@ import { DIAS_ANTICIPACION, diasDeDiferencia } from '../lib/asistente'
 import { TIPO_LABEL } from '../lib/citas'
 import { clinicDayIso, desdeFechaSola, formatClinicDate, fromClinicTime } from '../lib/datetime'
 import { enviarMensajeWhatsapp } from './whatsapp'
+import { listLotes } from './petshop'
 import type { Cita, Paciente } from '../types/database'
 import type { CitaConDetalle, Programado, ResumenDelDia, TipoAviso } from '../types/views'
 
@@ -366,6 +367,22 @@ export async function resumenDelDia(sucursalId?: string): Promise<ResumenDelDia>
   const { data: productos } = await prodQuery
   const prodBajoStock = (productos || []).filter((p) => p.stock_actual <= p.stock_minimo)
 
+  // Vencimientos. `listLotes` ya trae el semáforo calculado y el producto
+  // incrustado; aquí solo se separan los caducados de los que están por
+  // caducar, y se descartan los lotes agotados: un lote sin existencias no es
+  // un riesgo, es historia.
+  const lotes = await listLotes({ sucursalId, estado: 'todos' }).catch(() => [])
+  const conExistencias = lotes.filter((l) => Number(l.cantidad_actual) > 0)
+  const nombresVencidos = [
+    ...new Set(
+      conExistencias
+        .filter((l) => l.estado_vencimiento === 'vencido')
+        .map((l) => l.producto?.nombre)
+        .filter((n): n is string => Boolean(n)),
+    ),
+  ]
+  const porVencer = conExistencias.filter((l) => l.estado_vencimiento === 'proximo').length
+
   // Solo los de hoy: es lo único que se suma. Antes se traía el histórico
   // completo de cobros para descartarlo casi entero, y por encima de 1000
   // filas los de hoy podían no venir en el lote — el resumen decía Bs. 0.00
@@ -387,6 +404,8 @@ export async function resumenDelDia(sucursalId?: string): Promise<ResumenDelDia>
     cirugias_sin_consentimiento: cirugiasSinConsentimiento,
     refuerzos_vencidos: avisos.filter((a) => a.vencido).length,
     productos_bajo_minimo: prodBajoStock.map((p) => p.nombre),
+    productos_vencidos: nombresVencidos,
+    lotes_por_vencer: porVencer,
     ingresos_hoy_bs: ingresosHoy,
   }
 }

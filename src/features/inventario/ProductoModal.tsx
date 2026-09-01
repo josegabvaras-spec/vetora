@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { FieldGroup, Input, Select } from '../../components/ui/Field'
 import { actualizarProducto, crearProducto, type DatosProducto } from '../../services/inventario'
+import { listProveedores } from '../../services/compras'
 import { useTable } from '../../mocks/useDb'
-import type { Producto } from '../../types/database'
+import type { Producto, Proveedor } from '../../types/database'
 
 /**
  * Alta y edición de productos del inventario (solo administrador).
@@ -35,6 +36,24 @@ export function ProductoModal({
   const [precio, setPrecio] = useState(producto ? String(producto.precio_bs) : '')
   const [stockMinimo, setStockMinimo] = useState(producto ? String(producto.stock_minimo) : '3')
   const [stockInicial, setStockInicial] = useState('0')
+
+  // Compra y trazabilidad: columnas que `0030` añadió a `productos` para toda
+  // clínica y que este formulario ignoraba. Sin el costo no hay margen en
+  // ninguna pantalla; sin el código de barras no hay nada que escanear en la
+  // venta de medicamentos.
+  const [costo, setCosto] = useState(producto?.costo_bs != null ? String(producto.costo_bs) : '')
+  const [codigoBarras, setCodigoBarras] = useState(producto?.codigo_barras ?? '')
+  const [marca, setMarca] = useState(producto?.marca ?? '')
+  const [proveedorId, setProveedorId] = useState(producto?.proveedor_id ?? '')
+  const [requiereLote, setRequiereLote] = useState(producto?.requiere_lote ?? false)
+
+  const [proveedores, setProveedores] = useState<Proveedor[]>([])
+  useEffect(() => {
+    // Sin `catch`: quedarse sin la lista deja el desplegable vacío, que es
+    // molesto pero no impide dar de alta el producto — el proveedor es opcional.
+    listProveedores().then(setProveedores).catch(() => setProveedores([]))
+  }, [])
+
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -51,6 +70,11 @@ export function ProductoModal({
       contenido_presentacion: Number(contenido),
       precio_bs: Number(precio),
       stock_minimo: Number(stockMinimo),
+      costo_bs: costo.trim() === '' ? 0 : Number(costo),
+      codigo_barras: codigoBarras,
+      marca,
+      proveedor_id: proveedorId || null,
+      requiere_lote: requiereLote,
     }
     try {
       if (producto) await actualizarProducto(producto.id, datos)
@@ -152,6 +176,62 @@ export function ProductoModal({
           El stock se cuenta en <strong>envases</strong> y el precio va <strong>por {unidadMedida}</strong>. De un
           envase de {contenido || '1'} {unidadMedida}, aplicar una dosis descuenta la fracción que corresponda.
         </p>
+
+        {/* Compra y trazabilidad. Todo opcional: dar de alta un fármaco a
+            vuelapluma sigue siendo nombre, precio y presentación. */}
+        <div className="space-y-4 border-t border-slate-200 pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Compra y trazabilidad (opcional)
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FieldGroup label="Costo de compra (Bs.)">
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={costo}
+                onChange={(e) => setCosto(e.target.value)}
+                placeholder="0.00"
+              />
+            </FieldGroup>
+            <FieldGroup label="Código de barras">
+              <Input
+                value={codigoBarras}
+                onChange={(e) => setCodigoBarras(e.target.value)}
+                placeholder="Escanéalo aquí"
+              />
+            </FieldGroup>
+            <FieldGroup label="Laboratorio / marca">
+              <Input value={marca} onChange={(e) => setMarca(e.target.value)} />
+            </FieldGroup>
+            <FieldGroup label="Proveedor">
+              <Select value={proveedorId} onChange={(e) => setProveedorId(e.target.value)}>
+                <option value="">Sin proveedor</option>
+                {proveedores.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.empresa}
+                  </option>
+                ))}
+              </Select>
+            </FieldGroup>
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={requiereLote}
+              onChange={(e) => setRequiereLote(e.target.checked)}
+              className="rounded text-teal-600 focus:ring-teal-500"
+            />
+            <span>Se le llevan lotes con fecha de vencimiento</span>
+          </label>
+
+          <p className="text-xs text-slate-500">
+            El costo es interno: sirve para el margen y <strong>nunca</strong> se muestra al dueño de
+            la mascota. El código de barras es lo que se escanea en «Venta de Medicamentos».
+          </p>
+        </div>
 
         {!producto && (
           <p className="text-xs text-slate-500">

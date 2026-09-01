@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { dosisDesdeEnvases } from '../lib/inventario'
-import { registrarMovimiento } from './inventario'
+import { registrarMovimiento, exigirSkuLibre } from './inventario'
 import type {
   Producto,
   ProductoLote,
@@ -122,6 +122,9 @@ export async function crearProductoPetshop(
   if (!datos.nombre.trim()) throw new Error('El nombre del producto es obligatorio')
   if (datos.precioBs < 0) throw new Error('El precio no puede ser negativo')
   if (datos.costoBs < 0) throw new Error('El costo no puede ser negativo')
+  // Faltaba: sin esto el `unique (sucursal_id, sku)` reventaba con un 23505
+  // crudo. Es la misma comprobación que ya hacía el alta de la clínica.
+  await exigirSkuLibre(datos.sku, sucursalId)
 
   const { data: prod, error } = await supabase
     .from('productos')

@@ -282,6 +282,23 @@ export function AsistentePage() {
             </p>
           )}
 
+          {/* Vencimientos. En rojo y aparte del stock bajo a propósito: que a
+              un producto le queden dos unidades es un aviso de compra; que
+              esté caducado es algo que no se puede aplicar ni vender. El dato
+              existía desde 0030 y ninguna pantalla clínica lo miraba. */}
+          {usuario?.rol !== 'recepcion' && resumen.productos_vencidos.length > 0 && (
+            <p className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800">
+              Con lote vencido: {resumen.productos_vencidos.join(', ')}
+            </p>
+          )}
+
+          {usuario?.rol !== 'recepcion' && resumen.lotes_por_vencer > 0 && (
+            <p className="mt-2 text-xs text-slate-500">
+              {resumen.lotes_por_vencer} lote{resumen.lotes_por_vencer === 1 ? '' : 's'} por vencer
+              pronto — se revisan en Inventario → Lotes y vencimientos.
+            </p>
+          )}
+
           <div className="mt-4 border-t border-slate-100 pt-4">
             {informe === null ? (
               <Button variant="secondary" onClick={prepararInforme} disabled={redactandoInforme}>

@@ -40,6 +40,8 @@ import {
   type ServicioSeleccionado,
 } from '../services/caja'
 import { CATEGORIA_LABEL, CATEGORIAS } from '../services/servicios'
+import { listLotes } from '../services/petshop'
+import { dosisDisponible, formatDosis } from '../lib/inventario'
 import { formatBs } from '../lib/currency'
 import { formatClinicDateTime } from '../lib/datetime'
 import type { CategoriaServicio, MetodoPago, TurnoCaja } from '../types/database'
@@ -837,8 +839,58 @@ function VentaMedicamentosModal({
   const productosFiltrados = productosSucursal.filter((p) => {
     if (!busqueda.trim()) return true
     const q = busqueda.trim().toLowerCase()
-    return p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
+    return (
+      p.nombre.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      (p.codigo_barras ?? '').toLowerCase().includes(q)
+    )
   })
+
+  /**
+   * Lo que hace un lector de códigos de barras: teclear el código y pulsar
+   * Enter. Si lo escrito coincide **exacto** con un código o un SKU, ese
+   * producto entra al carrito y el campo se limpia para el siguiente.
+   *
+   * Coincidencia exacta y no parcial a propósito: un SKU corto podría ser
+   * prefijo de otro, y añadir el producto equivocado al cobro es peor que no
+   * añadir ninguno. Si no coincide con uno solo, se comporta como un buscador.
+   */
+  function escanear() {
+    const codigo = busqueda.trim()
+    if (!codigo) return
+    const exactos = productosSucursal.filter(
+      (p) => p.codigo_barras === codigo || p.sku.toLowerCase() === codigo.toLowerCase(),
+    )
+    if (exactos.length !== 1) return
+    const p = exactos[0]
+    const disponible = dosisDisponible(p)
+    if (disponible <= 0) {
+      setError(`${p.nombre} está agotado`)
+      return
+    }
+    cambiarCantidad(p.id, 1, disponible)
+    setBusqueda('')
+    setError(null)
+  }
+
+  /**
+   * Productos con algún lote ya caducado, para marcarlos en la lista.
+   *
+   * Es el punto donde importa: `producto_lotes` existe desde 0030 y hasta
+   * ahora ninguna pantalla clínica la miraba, así que nada impedía vender un
+   * fármaco vencido. No bloquea la venta —puede ser un lote viejo que ya se
+   * apartó—, avisa.
+   */
+  const [conLoteVencido, setConLoteVencido] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    listLotes({ sucursalId, estado: 'vencido' })
+      .then((lotes) =>
+        setConLoteVencido(
+          new Set(lotes.filter((l) => Number(l.cantidad_actual) > 0).map((l) => l.producto_id)),
+        ),
+      )
+      .catch(() => setConLoteVencido(new Set()))
+  }, [sucursalId])
 
   // Igual que al cobrar una atención: el cálculo del catálogo es la referencia
   // interna y quien vende fija el importe que se le cobra al cliente.
@@ -914,9 +966,17 @@ function VentaMedicamentosModal({
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Buscar por nombre o código SKU..."
+              placeholder="Escanear código de barras, o buscar por nombre o SKU..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
+              // El lector de códigos teclea y pulsa Enter; sin esto, Enter
+              // enviaba el formulario del modal en vez de añadir el producto.
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  escanear()
+                }
+              }}
               className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
             />
             {busqueda && (
@@ -962,6 +1022,13 @@ function VentaMedicamentosModal({
                           <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-500">
                             {p.sku}
                           </span>
+                          {/* Que quien está cobrando lo vea aquí, no al
+                              revisar el inventario tres semanas después. */}
+                          {conLoteVencido.has(p.id) && (
+                            <span className="rounded-sm bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">
+                              LOTE VENCIDO
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-xs font-bold text-teal-700">{formatBs(p.precio_bs)}</span>
@@ -976,7 +1043,9 @@ function VentaMedicamentosModal({
                                   : 'text-slate-500',
                             )}
                           >
-                            {sinStock ? 'Sin stock (0)' : `Stock: ${p.stock_actual} disp.`}
+                            {sinStock
+                              ? 'Sin stock (0)'
+                              : `Stock: ${formatDosis(dosisDisponible(p))} ${p.unidad_medida}`}
                           </span>
                         </div>
                       </div>
@@ -986,7 +1055,7 @@ function VentaMedicamentosModal({
                         <button
                           type="button"
                           aria-label={`Quitar ${p.nombre}`}
-                          onClick={() => cambiarCantidad(p.id, -1, p.stock_actual)}
+                          onClick={() => cambiarCantidad(p.id, -1, dosisDisponible(p))}
                           disabled={cantidad === 0}
                           className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
                         >
@@ -996,8 +1065,8 @@ function VentaMedicamentosModal({
                         <button
                           type="button"
                           aria-label={`Agregar ${p.nombre}`}
-                          onClick={() => cambiarCantidad(p.id, 1, p.stock_actual)}
-                          disabled={sinStock || cantidad >= p.stock_actual}
+                          onClick={() => cambiarCantidad(p.id, 1, dosisDisponible(p))}
+                          disabled={sinStock || cantidad >= dosisDisponible(p)}
                           className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-teal-300 bg-white text-sm font-bold text-teal-700 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-30"
                         >
                           +

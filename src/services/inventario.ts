@@ -12,6 +12,49 @@ export interface DatosProducto {
   unidad_medida: string
   contenido_presentacion: number
   stock_minimo: number
+
+  // Las cinco de abajo las añadió 0030 a `productos` PARA TODOS, no solo para
+  // el petshop, y este servicio las ignoraba. Sin `costo_bs` la clínica no
+  // podía saber su margen en ninguna pantalla, y sin `codigo_barras` no había
+  // nada que escanear. Todas opcionales: el alta rápida de un fármaco sigue
+  // siendo nombre, precio y presentación.
+  /** Lo que costó comprarlo. NUNCA sale al portal del cliente ni al catálogo. */
+  costo_bs?: number
+  codigo_barras?: string
+  /** Laboratorio o marca comercial. */
+  marca?: string
+  proveedor_id?: string | null
+  /** Si se le llevan lotes con vencimiento (ver PanelLotes). */
+  requiere_lote?: boolean
+}
+
+/**
+ * Que el SKU esté libre en esa sucursal.
+ *
+ * Exportada porque el alta del petshop (`crearProductoPetshop`) no la hacía:
+ * insertaba a pelo y el `unique (sucursal_id, sku)` reventaba con un **23505
+ * crudo**, ilegible para quien está dando de alta un producto. Es la misma
+ * comprobación, así que es la misma función.
+ */
+export async function exigirSkuLibre(sku: string, sucursalId: string, ignorarId?: string) {
+  // Incluye los dados de baja a propósito: el unique (sucursal_id, sku) sigue
+  // ocupado por ellos, así que sin esto el insert moriría con un 23505 crudo.
+  let query = supabase
+    .from('productos')
+    .select('id, activo')
+    .eq('sucursal_id', sucursalId)
+    .ilike('sku', sku.trim())
+  if (ignorarId) query = query.neq('id', ignorarId)
+
+  const { data, error } = await query
+  if (error) throw new Error(`No se pudo validar el SKU: ${error.message}`)
+  if (data && data.length > 0) {
+    throw new Error(
+      data.some((p) => p.activo === false)
+        ? 'Ese SKU pertenece a un producto dado de baja en esta sucursal'
+        : 'Ya existe un producto con ese SKU en esta sucursal',
+    )
+  }
 }
 
 async function validarProducto(datos: DatosProducto, sucursalId: string, ignorarId?: string) {
@@ -28,24 +71,7 @@ async function validarProducto(datos: DatosProducto, sucursalId: string, ignorar
     throw new Error('El contenido de presentación debe ser mayor a 0')
   }
 
-  // Incluye los dados de baja a propósito: el unique (sucursal_id, sku) sigue
-  // ocupado por ellos, así que sin esto el insert moriría con un 23505 crudo.
-  let query = supabase
-    .from('productos')
-    .select('id, activo')
-    .eq('sucursal_id', sucursalId)
-    .ilike('sku', datos.sku.trim())
-  if (ignorarId) query = query.neq('id', ignorarId)
-
-  const { data, error } = await query
-  if (error) throw new Error(`No se pudo validar el SKU: ${error.message}`)
-  if (data && data.length > 0) {
-    throw new Error(
-      data.some((p) => p.activo === false)
-        ? 'Ese SKU pertenece a un producto dado de baja en esta sucursal'
-        : 'Ya existe un producto con ese SKU en esta sucursal',
-    )
-  }
+  await exigirSkuLibre(datos.sku, sucursalId, ignorarId)
 }
 
 /**
@@ -80,6 +106,11 @@ export async function crearProducto(
       // contaba dos veces (un alta de 50 quedaba en 100), que es el mismo error
       // de doble contabilización que ya se corrigió en registrarMovimiento.
       stock_minimo: datos.stock_minimo,
+      costo_bs: datos.costo_bs ?? 0,
+      codigo_barras: datos.codigo_barras?.trim() || null,
+      marca: datos.marca?.trim() || '',
+      proveedor_id: datos.proveedor_id || null,
+      requiere_lote: datos.requiere_lote ?? false,
     } as any)
     .select()
     .single()
@@ -115,6 +146,11 @@ export async function actualizarProducto(id: string, datos: DatosProducto): Prom
       contenido_presentacion: datos.contenido_presentacion,
       precio_bs: datos.precio_bs,
       stock_minimo: datos.stock_minimo,
+      costo_bs: datos.costo_bs ?? 0,
+      codigo_barras: datos.codigo_barras?.trim() || null,
+      marca: datos.marca?.trim() || '',
+      proveedor_id: datos.proveedor_id || null,
+      requiere_lote: datos.requiere_lote ?? false,
     } as any)
     .eq('id', id)
     .select('id')

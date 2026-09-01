@@ -333,6 +333,17 @@ export interface ResumenDelDia {
   cirugias_sin_consentimiento: number
   refuerzos_vencidos: number
   productos_bajo_minimo: string[]
+  /**
+   * Productos con algún lote **ya caducado y con existencias**.
+   *
+   * `producto_lotes` existe desde 0030 y ninguna pantalla clínica la miraba:
+   * una veterinaria no tenía forma de enterarse de que un fármaco venció. Se
+   * cuentan solo los que aún tienen cantidad — un lote agotado ya no es un
+   * riesgo, es historia.
+   */
+  productos_vencidos: string[]
+  /** Lotes que caducan dentro del plazo de aviso, para adelantarse. */
+  lotes_por_vencer: number
   ingresos_hoy_bs: number
 }
 

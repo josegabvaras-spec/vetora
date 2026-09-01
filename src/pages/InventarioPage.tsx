@@ -12,6 +12,9 @@ import { listProductos, eliminarProducto } from '../services/inventario'
 import { dosisDisponible, formatDosis, formatEnvases } from '../lib/inventario'
 import { AjustarStockModal } from '../features/inventario/AjustarStockModal'
 import { ProductoModal } from '../features/inventario/ProductoModal'
+import { PanelLotes } from '../features/inventario/PanelLotes'
+import { PanelProveedores } from '../features/inventario/PanelProveedores'
+import { PanelCompras } from '../features/inventario/PanelCompras'
 import { formatBs } from '../lib/currency'
 import type { ProductoConMovimientos } from '../types/views'
 
@@ -48,6 +51,24 @@ export function InventarioPage() {
   const [creandoProducto, setCreandoProducto] = useState(false)
   const [editandoProducto, setEditandoProducto] = useState<ProductoConMovimientos | null>(null)
   const [filtroStock, setFiltroStock] = useState<'todos' | 'bajo' | 'agotado'>('todos')
+
+  /**
+   * La sección de la pantalla.
+   *
+   * ⚠️ **No confundir con `filtroStock`.** Ese es «Todos / Bajo Stock /
+   * Agotados», que filtra la LISTA de productos y vive dentro de esta primera
+   * sección. Son dos niveles distintos y mezclarlos dejaría un menú donde
+   * «Agotados» y «Proveedores» parecerían lo mismo.
+   *
+   * Las tres secciones nuevas son los paneles que se construyeron para el
+   * petshop y que **siempre fueron de la clínica**: `producto_lotes`,
+   * `proveedores` y `ordenes_compra` tienen policies por `clinica_id`, sin
+   * relación con el módulo del plan. Estaban detrás de la puerta equivocada, y
+   * una veterinaria no tenía ninguna forma de saber que un fármaco vence.
+   */
+  const [seccion, setSeccion] = useState<'productos' | 'lotes' | 'proveedores' | 'compras'>(
+    'productos',
+  )
 
   // Solo el administrador gestiona el catálogo y los precios; el ajuste de
   // stock sigue disponible para todos los roles.
@@ -182,6 +203,9 @@ export function InventarioPage() {
           <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">Control de stock de fármacos y productos por sucursal</p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          {/* El selector de sucursal vale para las cuatro secciones —los tres
+              paneles filtran por `sucursalActivaId`—, así que se queda; lo que
+              solo tiene sentido en «Productos» es el alta. */}
           {esAdmin && (
             <>
               {/* `|| 'todas'`, no `?? 'todas'`: al elegir "Todas" se guardaba
@@ -202,9 +226,11 @@ export function InventarioPage() {
                   </option>
                 ))}
               </Select>
-              <Button className="min-h-10 w-full sm:w-auto" onClick={() => setCreandoProducto(true)}>
-                <Plus size={16} /> Nuevo producto
-              </Button>
+              {seccion === 'productos' && (
+                <Button className="min-h-10 w-full sm:w-auto" onClick={() => setCreandoProducto(true)}>
+                  <Plus size={16} /> Nuevo producto
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -216,6 +242,40 @@ export function InventarioPage() {
         </p>
       )}
 
+      {/* Secciones de la pantalla. Por encima de los filtros de stock, que son
+          otro nivel: uno elige QUÉ se está mirando, el otro acota la lista. */}
+      <div className="border-b border-slate-200">
+        <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Secciones de inventario">
+          {(
+            [
+              ['productos', 'Productos'],
+              ['lotes', 'Lotes y vencimientos'],
+              ['proveedores', 'Proveedores'],
+              ['compras', 'Compras'],
+            ] as const
+          ).map(([clave, etiqueta]) => (
+            <button
+              key={clave}
+              onClick={() => setSeccion(clave)}
+              className={clsx(
+                seccion === clave
+                  ? 'border-teal-500 text-teal-600'
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700',
+                'whitespace-nowrap border-b-2 py-3 px-1 text-sm font-semibold transition-colors',
+              )}
+            >
+              {etiqueta}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {seccion === 'lotes' && <PanelLotes conCabecera={false} />}
+      {seccion === 'proveedores' && <PanelProveedores conCabecera={false} />}
+      {seccion === 'compras' && <PanelCompras conCabecera={false} />}
+
+      {seccion === 'productos' && (
+        <>
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
         <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
           <button
@@ -272,6 +332,8 @@ export function InventarioPage() {
           }
         />
       </Card>
+        </>
+      )}
 
       {productoSeleccionado && (
         <AjustarStockModal
