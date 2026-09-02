@@ -4,6 +4,7 @@ import { useAuth } from '../../context/useAuth'
 import {
   getConsentimientosPacientePortal,
   getEstudiosPacientePortal,
+  getCitasPacientePortal,
   getHistorialPacientePortal,
   getInformesPacientePortal,
   getRecetasPacientePortal,
@@ -23,10 +24,12 @@ import {
   type DocumentoPaciente,
 } from '../../lib/documentos'
 import type {
+  Cita,
   ConsentimientoCirugia,
   HistorialClinico,
   Paciente,
   RecetaItem,
+  TipoCita,
   VacunaAplicada,
 } from '../../types/database'
 import {
@@ -54,6 +57,8 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import clsx from 'clsx'
 import { clinicDayIso, desdeFechaSola } from '../../lib/datetime'
+// El mismo rotulo que usa la clinica en su agenda: «Consulta», «Vacuna»...
+import { TIPO_LABEL } from '../../lib/citas'
 
 export function PortalPacientePage() {
   const { pacienteId } = useParams()
@@ -61,6 +66,9 @@ export function PortalPacientePage() {
   
   const [paciente, setPaciente] = useState<Paciente | null>(null)
   const [historial, setHistorial] = useState<HistorialClinico[]>([])
+  // Las visitas: sin ellas, mientras el veterinario no firmara la consulta
+  // el dueño no veia NI QUE HUBIERA VENIDO. Ver getCitasPacientePortal.
+  const [citas, setCitas] = useState<Cita[]>([])
   const [vacunas, setVacunas] = useState<VacunaAplicada[]>([])
   const [consentimientos, setConsentimientos] = useState<ConsentimientoCirugia[]>([])
   const [estudios, setEstudios] = useState<EstudioImagen[]>([])
@@ -81,6 +89,7 @@ export function PortalPacientePage() {
           const [
             pacientesData,
             historialData,
+            citasData,
             vacunasData,
             consentimientosData,
             estudiosData,
@@ -92,6 +101,7 @@ export function PortalPacientePage() {
           ] = await Promise.all([
             getPacientesPortal(clinicaId, usuario.id),
             getHistorialPacientePortal(clinicaId, pacienteId),
+            getCitasPacientePortal(clinicaId, pacienteId),
             getVacunasPacientePortal(clinicaId, pacienteId),
             getConsentimientosPacientePortal(clinicaId, pacienteId),
             getEstudiosPacientePortal(clinicaId, pacienteId),
@@ -106,6 +116,7 @@ export function PortalPacientePage() {
           if (pacienteActual) {
             setPaciente(pacienteActual)
             setHistorial(historialData)
+            setCitas(citasData)
             setVacunas(vacunasData)
             setConsentimientos(consentimientosData)
             setEstudios(estudiosData)
@@ -147,6 +158,17 @@ export function PortalPacientePage() {
       </div>
     )
   }
+
+  /**
+   * Las visitas cuyo informe el veterinario todavía no ha firmado.
+   *
+   * Se cruzan por `cita_id`: si una cita ya tiene su consulta cerrada, la pinta
+   * la lista de abajo con todo el detalle; si no, se enseña igual pero diciendo
+   * qué falta. Sin esto, una mascota con cuatro visitas y ningún informe
+   * firmado se veía exactamente igual que una que nunca vino.
+   */
+  const citasConInforme = new Set(historial.map((h) => h.cita_id))
+  const visitasSinInforme = citas.filter((c) => !citasConInforme.has(c.id))
 
   // La MISMA función que arma la lista en la ficha de la clínica: el orden y
   // los rótulos no pueden divergir entre lo que ve el dueño y lo que ve su
@@ -351,10 +373,33 @@ export function PortalPacientePage() {
             </div>
 
             <div className="divide-y divide-slate-100">
-              {historial.length === 0 ? (
+              {/* Las visitas SIN informe firmado.
+                  Antes esta sección solo pintaba `historial_clinico` con
+                  `editable = false`, o sea lo que el veterinario ya cerró.
+                  Mientras siguiera en borrador —lo normal durante horas o
+                  días— el dueño no veía NI QUE HUBIERA VENIDO: la pantalla
+                  decía «no hay registros» y ahí se acababa. Ahora la visita
+                  aparece con su fecha, y lo que falta se dice. */}
+              {visitasSinInforme.map((cita) => (
+                <div key={cita.id} className="p-6">
+                  <div className="text-sm text-slate-500 font-medium mb-1 flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4" />
+                    {format(new Date(cita.fecha_hora), "d 'de' MMMM, yyyy", { locale: es })}
+                  </div>
+                  <h4 className="font-semibold text-lg text-slate-900">
+                    {TIPO_LABEL[cita.tipo_cita as TipoCita] ?? 'Visita'}
+                  </h4>
+                  <p className="mt-2 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    Tu veterinaria todavía no ha firmado el informe de esta visita. En cuanto lo
+                    cierre, verás aquí el diagnóstico y el tratamiento.
+                  </p>
+                </div>
+              ))}
+
+              {historial.length === 0 && visitasSinInforme.length === 0 ? (
                 <div className="p-12 text-center text-slate-500">
                   <FileText className="h-12 w-12 text-slate-200 mx-auto mb-3" />
-                  <p>No hay registros clínicos finalizados para mostrar.</p>
+                  <p>Todavía no hay visitas registradas para esta mascota.</p>
                 </div>
               ) : (
                 historial.map(visita => (

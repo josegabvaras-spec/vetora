@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import type {
+  Cita,
   ConsentimientoCirugia,
   Paciente,
   HistorialClinico,
@@ -248,6 +249,34 @@ export async function getRecetasPacientePortal(
     .order('created_at', { ascending: false })
 
   return (data || []) as RecetaItem[]
+}
+
+/**
+ * Las visitas de la mascota: sus citas, pasadas y futuras.
+ *
+ * ⚠️ **Sin esto el dueño no veía que hubiera venido nunca.** La ficha del
+ * portal solo pintaba `historial_clinico` con `editable = false`, o sea las
+ * consultas que el veterinario ya firmó. Mientras siguieran en borrador —lo
+ * normal durante horas o días— la pantalla decía «No hay registros clínicos
+ * finalizados» y ahí se acababa: ni la fecha en que vino, ni a qué. Y «Citas»
+ * tampoco las enseña, porque esa pantalla es de lo que viene, no de lo que
+ * pasó.
+ *
+ * La policy `citas_portal` (0004) ya lo permitía; simplemente nadie lo pedía.
+ */
+export async function getCitasPacientePortal(
+  clinicaId: string,
+  pacienteId: string,
+): Promise<Cita[]> {
+  const { data, error } = await supabase
+    .from('citas')
+    .select('*')
+    .eq('clinica_id', clinicaId)
+    .eq('paciente_id', pacienteId)
+    .order('fecha_hora', { ascending: false })
+
+  if (error) throw new Error(`No se pudieron cargar las visitas: ${error.message}`)
+  return (data || []) as Cita[]
 }
 
 /**
