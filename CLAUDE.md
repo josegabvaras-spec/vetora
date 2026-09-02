@@ -374,6 +374,16 @@ Mientras tanto, el riesgo que la confirmación iba a mitigar —registrar con el
 
 **Borrar una clínica entera es aparte, en `eliminar-clinica`** (para cuando el cliente da de baja el servicio, no para el rollback de un alta). Mismo guard de superadmin, pero hace tres cosas que `crear-cuenta` no hace: vacía los buckets privados (`estudios`, `comprobantes`, `catalogo`) de esa clínica, borra la fila de `clinicas` —que en cascada de FK se lleva sola las ~20 tablas del inquilino—, y solo entonces borra la cuenta de `auth.users` de cada uno de sus usuarios (borrar `usuarios` por cascada no toca `auth.users`; la flecha corre al revés). Es irreversible a propósito, distinto de `cambiarEstadoClinica` (suspender), que no borra nada.
 
+### El portal es para clientes YA registrados en esa clínica
+
+⚠️ **Antes no se comprobaba nada.** `/registro-cliente` lista **todas** las clínicas activas y `registro-portal` creaba la cuenta primero y emparejaba después; si no encontraba ficha, **insertaba una vacía en esa clínica igualmente**. O sea que cualquiera podía crear cuenta en cualquier veterinaria sin haber sido cliente nunca, dejándole una ficha que nadie reconocía.
+
+Ahora hay una puerta, **antes de `admin.auth.admin.createUser`**: si ninguna ficha sin reclamar de esa clínica tiene ese WhatsApp, se rechaza y **no se crea nada** — ni cuenta de Auth, ni `usuarios`, ni `clientes`. Que vaya antes no es orden caprichoso: comprobarlo después obligaría a deshacer una cuenta de Auth ya creada, y ese rollback es de donde salen las cuentas huérfanas.
+
+- **El listón es que el número aparezca, no que el vínculo se resuelva.** Con dos fichas compartiendo número, o con un CI anotado que no coincide, la cuenta **sí** se crea sin vincular: esa persona es cliente, y la sugerencia de «Clientes» necesita justamente esa cuenta con ficha vacía para poder repararlo. Cerrar también ese caso dejaría al cliente fuera y sin arreglo posible.
+- **El desplegable sigue listando todas las clínicas.** Filtrarlo antes de enviar exigiría el teléfono primero y sería un oráculo peor («¿en qué clínicas está este número?»). La puerta va en el envío, con la clínica ya elegida.
+- El mensaje de rechazo **confirma que ese número no es cliente de esa clínica**. La fuga es pequeña —hay que saber el número *y* acertar la clínica— y un mensaje vago dejaría al cliente legítimo sin saber qué pedirle a su veterinaria.
+
 ### Por qué el portal se veía vacío: el alta creaba una SEGUNDA ficha
 
 ⚠️ **`registrarClienteYPaciente` insertaba siempre un `clientes` nuevo**, y `NuevoPacienteModal` es el único camino para dar de alta una mascota: no había forma de decir «este dueño ya existe». Su única guarda comparaba nombre de mascota + nombre de dueño, y solo para abortar.

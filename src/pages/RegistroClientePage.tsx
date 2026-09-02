@@ -12,14 +12,20 @@ import {
 } from '../services/portalCliente'
 import { PASSWORD_MINIMO } from '../services/cuentas'
 
-/** Qué decirle a quien se registró pero cuya ficha no se encontró. */
+/**
+ * Qué decirle a quien se registró pero cuya ficha no se pudo elegir.
+ *
+ * ⚠️ Quien llega hasta aquí **es cliente de la clínica**: `registro-portal`
+ * rechaza el alta si su WhatsApp no aparece en ninguna ficha, y no crea nada.
+ * Lo que queda son los casos en que hay ficha pero no se puede saber cuál.
+ */
 const EXPLICACION: Record<MotivoVinculo, string> = {
   ci_y_whatsapp: '',
   whatsapp_unico: '',
   ambiguo:
     'Encontramos más de una ficha con tu número de WhatsApp, así que por seguridad no elegimos ninguna. Tu clínica puede unirlas en un momento.',
   sin_coincidencia:
-    'No encontramos ninguna ficha con tu carnet ni con tu WhatsApp en esa clínica. Puede ser que los datos estén anotados de otra forma, o que hayas elegido una clínica distinta a la que atiende a tu mascota.',
+    'Encontramos tu número en la clínica, pero el carnet anotado en la ficha no coincide con el que escribiste. Por seguridad no la vinculamos solos: tu clínica lo confirma en un momento.',
 }
 
 export function RegistroClientePage() {

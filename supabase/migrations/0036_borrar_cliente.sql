@@ -21,7 +21,14 @@
 --
 -- Se parte la policy y el DELETE pasa a llevar la condicion que importa.
 
+-- Los `drop if exists` de las cuatro no son decorativos: sin ellos, volver a
+-- ejecutar este fichero reventaba a mitad con «policy already exists», y quien
+-- lo aplica a mano se quedaba sin saber qué había entrado y qué no.
 drop policy if exists clientes_personal on clientes;
+drop policy if exists clientes_personal_select on clientes;
+drop policy if exists clientes_personal_insert on clientes;
+drop policy if exists clientes_personal_update on clientes;
+drop policy if exists clientes_delete on clientes;
 
 create policy clientes_personal_select on clientes for select
   using (clinica_id = (select auth_clinica_id()) and (select auth_es_personal()));

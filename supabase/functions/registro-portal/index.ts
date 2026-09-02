@@ -119,6 +119,73 @@ Deno.serve(async (peticion) => {
       return responder({ error: 'No se pudo crear la cuenta con esos datos' }, 409)
     }
 
+    // =======================================================================
+    // LA PUERTA: el portal es para pacientes YA registrados en esa clínica
+    // =======================================================================
+    // Antes no se comprobaba nada. Cualquiera elegía cualquier veterinaria del
+    // desplegable —`clinicas_para_registro()` las lista todas— y, si sus datos
+    // no casaban con ninguna ficha, la cuenta se creaba igual y se le insertaba
+    // a esa clínica UNA FICHA VACÍA. De ahí salían las dos cosas que se veían
+    // desde fuera: fichas sueltas que nadie en la clínica reconocía, y portales
+    // vacíos sin ninguna explicación.
+    //
+    // El listón es el WhatsApp: si no hay NINGUNA ficha sin reclamar de esa
+    // clínica con ese número, esta persona no es su cliente y no se crea nada.
+    //
+    // ⚠️ Basta con que el número aparezca; NO se exige que el vínculo llegue a
+    // resolverse. Con dos fichas compartiendo el número —o con un CI anotado
+    // que no coincide— la cuenta SÍ se crea, sin vincular: esa persona es
+    // cliente, y la sugerencia de «Clientes» necesita justamente esa cuenta con
+    // ficha vacía para poder repararlo. Cerrar también ese caso dejaría al
+    // cliente fuera y sin ninguna forma de arreglarlo.
+    //
+    // ⚠️ Y VA ANTES DE `createUser`, que no es un detalle de orden: comprobarlo
+    // después obligaría a deshacer una cuenta de Auth ya creada, y ese rollback
+    // es exactamente de donde salen las cuentas huérfanas. Aquí no hay nada que
+    // deshacer porque todavía no existe nada.
+    //
+    // La consulta se hace una sola vez y se reusa abajo para el emparejamiento.
+    const movilQueTeclea = movil(whatsapp)
+    if (!movilQueTeclea) {
+      return responder(
+        { error: 'Necesitamos tu número de WhatsApp para encontrar la ficha de tu mascota' },
+        400,
+      )
+    }
+
+    // Solo las que no tiene nadie: una ficha ya reclamada no es una puerta
+    // abierta, es la cuenta de otra persona.
+    const { data: fichasSinReclamar } = await admin
+      .from('clientes')
+      .select('id, ci, whatsapp')
+      .eq('clinica_id', clinica.id)
+      .is('usuario_id', null)
+
+    const porMovil = (fichasSinReclamar ?? []).filter(
+      (f) => movil(f.whatsapp ?? '') === movilQueTeclea,
+    )
+
+    if (porMovil.length === 0) {
+      // El mensaje dice qué pasó y qué hacer, que es lo único que le sirve a
+      // quien está delante.
+      //
+      // Matiz honesto: esto CONFIRMA que ese número no es cliente de esa
+      // clínica. La fuga es pequeña —hay que saber el número y además acertar
+      // la clínica— y la alternativa, un mensaje vago, dejaría al cliente
+      // legítimo sin saber qué pedirle a su veterinaria. Mismo criterio que el
+      // nivel 2 de más abajo: se acepta una fuga mínima a cambio de que el
+      // sistema sea usable.
+      return responder(
+        {
+          error:
+            `No encontramos tu número en ${clinica.nombre}. El portal es para pacientes ya ` +
+            'registrados: pídele a tu veterinaria que dé de alta a tu mascota con este mismo ' +
+            'WhatsApp, y vuelve a intentarlo.',
+        },
+        403,
+      )
+    }
+
     // `email_confirm: true`, igual que `crear-cuenta` y `acceso`: la cuenta
     // nace utilizable y quien se registra entra directo.
     //
@@ -215,25 +282,14 @@ Deno.serve(async (peticion) => {
 
     let clienteVinculado = false
     let motivo: Motivo = 'sin_coincidencia'
-    const movilQueTeclea = movil(whatsapp)
     const ciQueTeclea = cedula(ci)
 
-    if (movilQueTeclea) {
-      // La comparación se hace aquí y no en el `where` porque los formatos
-      // guardados varían: hay que normalizar los dos lados. El CI no se puede
-      // filtrar en la consulta (no hay forma de pedirle a PostgREST "solo
-      // dígitos"), así que se traen las fichas sin reclamar de la clínica y se
-      // compara en memoria — son a lo sumo unos cientos por clínica.
-      const { data: fichas } = await admin
-        .from('clientes')
-        .select('id, ci, whatsapp')
-        .eq('clinica_id', clinica.id)
-        .is('usuario_id', null)
-
-      // El WhatsApp es obligatorio en los dos niveles; lo que cambia es el
-      // segundo factor.
-      const porMovil = (fichas ?? []).filter((f) => movil(f.whatsapp ?? '') === movilQueTeclea)
-
+    // `porMovil` ya está resuelto arriba, en la puerta: la comparación se hace
+    // en memoria y no en el `where` porque los formatos guardados varían y hay
+    // que normalizar los dos lados. El CI tampoco se puede filtrar en la
+    // consulta (no hay forma de pedirle a PostgREST "solo dígitos"). Y si
+    // llegamos hasta aquí, `porMovil` tiene al menos una ficha.
+    {
       let elegida: { id: string } | null = null
 
       if (ciQueTeclea) {
@@ -265,8 +321,14 @@ Deno.serve(async (peticion) => {
       }
     }
 
-    // Sin ficha previa (o con una ya reclamada) se crea una nueva: el portal
-    // necesita un `clientes.usuario_id` para que sus policies devuelvan algo.
+    // Ficha propia y vacía cuando no se pudo elegir una: el portal necesita un
+    // `clientes.usuario_id` para que sus policies devuelvan algo.
+    //
+    // Ya no es el cajón de sastre que era. Con la puerta de arriba solo se
+    // llega aquí siendo cliente de la clínica —su número está en alguna
+    // ficha— pero sin poder decidir CUÁL: varias comparten el número, o el CI
+    // anotado no coincide. Es exactamente lo que alimenta la sugerencia de
+    // «Clientes», donde lo resuelve una persona que conoce al cliente.
     if (!clienteVinculado) {
       const { error } = await admin.from('clientes').insert({
         clinica_id: clinica.id,
