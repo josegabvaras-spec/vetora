@@ -675,9 +675,15 @@ export async function desvincularCuentaPortal(clienteId: string): Promise<void> 
  * expediente médico completo de cada una**. Es lo contrario de lo que protegen
  * `trg_historial_inmutable` y las policies INSERT-only.
  *
- * La barrera de verdad está en la RLS (`clientes_delete`, migración 0036): sin
- * mascotas, por cualquier camino. Lo de aquí es para **decir por qué** en vez
- * de devolver un «no se borró» sin motivo, que es lo que daría la policy sola.
+ * La barrera de verdad es `trg_cliente_sin_expediente` (migración 0037): sin
+ * mascotas, por cualquier camino. Lo de aquí es el aviso temprano, igual que
+ * `registrarMovimiento` con «Stock insuficiente».
+ *
+ * ⚠️ Esa comprobación **no puede vivir dentro de la policy de DELETE**, y se
+ * intentó en 0036: la subconsulta a `pacientes` cerraba un ciclo con
+ * `pacientes_portal`, que a su vez consulta `clientes`. PostgreSQL lo corta con
+ * «infinite recursion detected in policy», que sale como un **500**, así que
+ * borrar fallaba siempre — con mascotas y sin ellas.
  *
  * Mismo criterio que `eliminarPaciente` justo debajo: comprobar antes en vez de
  * cambiar la cascada, porque el resto de la cadena sí debe irse con su dueño.
