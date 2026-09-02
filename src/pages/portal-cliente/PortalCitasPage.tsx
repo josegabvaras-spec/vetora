@@ -23,6 +23,9 @@ export function PortalCitasPage() {
   const { usuario } = useAuth()
   const [notificaciones, setNotificaciones] = useState<NotificacionPortal[]>([])
   const [cargando, setCargando] = useState(true)
+  // Un fallo aqui se veia igual que «no tienes nada»: la unica pista era la
+  // consola del navegador, que nadie mira desde un celular.
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -32,6 +35,7 @@ export function PortalCitasPage() {
           setNotificaciones(data)
         } catch (e) {
           console.error(e)
+          setError(e instanceof Error ? e.message : 'No se pudo cargar la informacion')
         } finally {
           setCargando(false)
         }
@@ -75,7 +79,19 @@ export function PortalCitasPage() {
         </div>
       </div>
 
-      {notificaciones.length === 0 ? (
+      {/* Un fallo no puede parecerse a «no tienes nada»: son cosas opuestas y
+          la diferencia es lo único que le permite al dueño pedir ayuda. */}
+      {error && (
+        <div className="mb-4 flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" />
+          <div>
+            <p className="font-bold">No se pudo cargar tu información</p>
+            <p className="mt-0.5 text-xs">{error} · Avísale a tu veterinaria.</p>
+          </div>
+        </div>
+      )}
+
+      {error ? null : notificaciones.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
           <div className="mx-auto h-16 w-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4">
             <CheckCircle className="h-8 w-8 text-emerald-400" />

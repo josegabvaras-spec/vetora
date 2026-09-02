@@ -374,6 +374,20 @@ Mientras tanto, el riesgo que la confirmación iba a mitigar —registrar con el
 
 **Borrar una clínica entera es aparte, en `eliminar-clinica`** (para cuando el cliente da de baja el servicio, no para el rollback de un alta). Mismo guard de superadmin, pero hace tres cosas que `crear-cuenta` no hace: vacía los buckets privados (`estudios`, `comprobantes`, `catalogo`) de esa clínica, borra la fila de `clinicas` —que en cascada de FK se lleva sola las ~20 tablas del inquilino—, y solo entonces borra la cuenta de `auth.users` de cada uno de sus usuarios (borrar `usuarios` por cascada no toca `auth.users`; la flecha corre al revés). Es irreversible a propósito, distinto de `cambiarEstadoClinica` (suspender), que no borra nada.
 
+### Por qué el portal se veía vacío: el alta creaba una SEGUNDA ficha
+
+⚠️ **`registrarClienteYPaciente` insertaba siempre un `clientes` nuevo**, y `NuevoPacienteModal` es el único camino para dar de alta una mascota: no había forma de decir «este dueño ya existe». Su única guarda comparaba nombre de mascota + nombre de dueño, y solo para abortar.
+
+Así que la secuencia normal —el dueño se registra en el portal, y días después trae su mascota— dejaba **dos fichas de la misma persona**: la cuenta colgando de una y la mascota de la otra. `getPacientesPortal` busca la ficha con `usuario_id = auth.uid()` y le lee las mascotas, así que devolvía cero. **El portal se veía vacío para siempre y no había ningún error que lo explicara**; la única salida era que alguien notara la sugerencia de «Clientes» y la aplicara a mano.
+
+Ahora el alta **reusa la ficha del mismo dueño** (`fichaDelMismoDueno()`), con el mismo listón y en el mismo orden que el vínculo automático de `registro-portal`: CI + WhatsApp, o WhatsApp solo cuando la ficha no tiene CI y es la única candidata. Normaliza con `movil()` y `cedula()` de [lib/identidad.ts](src/lib/identidad.ts), no con una copia.
+
+- ⚠️ **Ante cualquier ambigüedad crea ficha nueva, nunca adivina.** Dos fichas compartiendo teléfono —un matrimonio, una familia— no se distinguen aquí, y enganchar la mascota al dueño equivocado la haría aparecer en el portal de otra persona, con su historial y sus recetas. Un duplicado se repara desde «Clientes»; una ficha ajena vista por quien no debe, no.
+- **Rellena el CI que faltaba, y solo eso.** El nombre de la ficha existente no se pisa: es el que ya está impreso en consentimientos y recibos.
+- ⚠️ **El rollback solo borra la ficha si la creó él.** Con una reusada, borrarla se llevaría a un dueño real — y si aún no tuviera mascotas, ni `trg_cliente_sin_expediente` lo frenaría: se perdería su ficha y, con ella, el vínculo de su cuenta.
+
+**Y las lecturas del portal ignoraban su `error`.** Las nueve consultas de `portalCliente.ts` destructuraban solo `data`, así que un fallo de RLS o de red dejaba `data` en null y la pantalla decía «No hay mascotas registradas». Un portal roto era indistinguible de uno vacío, que es exactamente por qué esto costó tanto de ver. Ahora lanzan, y `PortalMascotasPage` y `PortalCitasPage` pintan el motivo.
+
 ### Vincular y desvincular una cuenta del portal
 
 El vínculo entre una cuenta del portal y la ficha de `clientes` que tiene las mascotas se resuelve por tres caminos: automático en `registro-portal` (CI+WhatsApp, o WhatsApp solo si la ficha no tiene CI y es la única candidata), y dos manuales —la sugerencia de «Clientes» y «Vincular cuenta del portal» desde la ficha del paciente.

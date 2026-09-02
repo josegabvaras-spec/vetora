@@ -334,6 +334,65 @@ export interface AltaPacienteResultado {
   historialId: string | null
 }
 
+/**
+ * Tope explícito de la barrida de fichas, mismo criterio que `TOPE_CARTERA` en
+ * `programados.ts`: por encima de 1000 filas PostgREST corta **sin decir
+ * nada**, y aquí un corte silencioso significaría «no encontré la ficha» —
+ * justo el duplicado que esto viene a evitar.
+ */
+const TOPE_FICHAS = 5000
+
+/**
+ * La ficha que YA existe en la clínica para este mismo dueño, si la hay.
+ *
+ * Mismo listón, en el mismo orden, que el vínculo automático de
+ * `registro-portal`:
+ *
+ *   1. **CI + WhatsApp** — la misma persona, sin dudas.
+ *   2. **WhatsApp solo**, cuando la ficha existente no tiene CI y es la única
+ *      candidata. El CI es opcional para recepción, así que muchas fichas
+ *      antiguas no lo llevan.
+ *
+ * ⚠️ **Ante cualquier ambigüedad devuelve null y se crea una ficha nueva.**
+ * Dos fichas compartiendo teléfono —un matrimonio, una familia— no se pueden
+ * distinguir aquí, y enganchar la mascota al dueño equivocado sería peor que un
+ * duplicado: esa mascota aparecería en el portal de otra persona, con su
+ * historial y sus recetas. Un duplicado se repara desde «Clientes»; una ficha
+ * ajena vista por quien no debe, no.
+ *
+ * La comparación va en memoria y no en el `where` por lo mismo que en
+ * `registro-portal`: los formatos varían («+591 7123-4567», «71234567») y solo
+ * casan una vez normalizados.
+ */
+async function fichaDelMismoDueno(ci: string, whatsapp: string) {
+  const movilQueTeclea = movil(whatsapp)
+  // Sin ocho dígitos no hay identidad que comparar, y `movil()` devuelve
+  // cadena vacía a propósito: una ficha sin WhatsApp no se reclama.
+  if (!movilQueTeclea) return null
+
+  const { data: fichas, error } = await supabase
+    .from('clientes')
+    .select('id, nombre, ci, whatsapp')
+    .limit(TOPE_FICHAS)
+  if (error) throw new Error(`No se pudo comprobar si el dueño ya existe: ${error.message}`)
+
+  const porMovil = (fichas ?? []).filter((f) => movil(f.whatsapp ?? '') === movilQueTeclea)
+  if (porMovil.length === 0) return null
+
+  const ciQueTeclea = cedula(ci)
+  if (ciQueTeclea) {
+    const exactas = porMovil.filter((f) => cedula(f.ci ?? '') === ciQueTeclea)
+    if (exactas.length === 1) return exactas[0]
+    // Con el CI escrito y sin coincidencia exacta no se baja al nivel 2: si el
+    // CI difiere, es otra persona con el mismo teléfono.
+    return null
+  }
+
+  // Nivel 2: una sola candidata y sin CI anotado.
+  if (porMovil.length === 1 && !cedula(porMovil[0].ci ?? '')) return porMovil[0]
+  return null
+}
+
 export async function registrarClienteYPaciente(input: NuevoClientePaciente): Promise<AltaPacienteResultado> {
   // 1. Prevenir duplicidad accidental
   const { data: duplicados } = await supabase
@@ -347,23 +406,48 @@ export async function registrarClienteYPaciente(input: NuevoClientePaciente): Pr
     throw new Error(`El paciente "${input.pacienteNombre}" ya está registrado a nombre de "${input.clienteNombre}".`)
   }
 
-  // 2. Registrar cliente
-  const { data: cliente, error: cliError } = await supabase
-    .from('clientes')
-    .insert({
-      nombre: input.clienteNombre,
-      // Solo `.trim()`, no una limpieza agresiva: se guarda tal cual lo
-      // tecleó el personal (con su complemento de departamento si lo anotó),
-      // no una versión normalizada. La normalización para el vínculo con el
-      // portal vive en `registro-portal` (Edge Function), en el punto donde
-      // se compara, no aquí donde se guarda.
-      whatsapp: input.clienteWhatsapp.trim(),
-      ci: input.clienteCi?.trim() || null,
-    })
-    .select()
-    .single()
+  // 2. El dueño: se REUSA su ficha si ya la tiene.
+  //
+  // ⚠️ Esto es lo que hace que el portal del dueño refleje lo que hace la
+  // clínica. Antes se insertaba SIEMPRE una ficha nueva, así que una persona
+  // que ya se había registrado en el portal —o que ya había traído otra
+  // mascota— acababa con DOS fichas: la cuenta colgaba de una y las mascotas
+  // de la otra. `getPacientesPortal` busca la ficha con `usuario_id` y le lee
+  // las mascotas, así que devolvía cero: el portal se veía vacío para siempre
+  // y no había ningún error que lo explicara. La única salida era que alguien
+  // se diera cuenta y usara la sugerencia de «Clientes».
+  const existente = await fichaDelMismoDueno(input.clienteCi ?? '', input.clienteWhatsapp)
 
-  if (cliError || !cliente) throw new Error(`Error al registrar cliente: ${cliError?.message || 'desconocido'}`)
+  let clienteId: string
+  if (existente) {
+    clienteId = existente.id
+    // El CI que faltaba, si el personal acaba de escribirlo: es lo que hace
+    // exacto el emparejamiento la próxima vez, y no pisa ningún dato — solo
+    // rellena. El nombre NO se toca: el de la ficha es el que ya está en
+    // consentimientos y recibos.
+    const ciNuevo = input.clienteCi?.trim()
+    if (ciNuevo && !cedula(existente.ci ?? '')) {
+      await supabase.from('clientes').update({ ci: ciNuevo }).eq('id', clienteId)
+    }
+  } else {
+    const { data: cliente, error: cliError } = await supabase
+      .from('clientes')
+      .insert({
+        nombre: input.clienteNombre,
+        // Solo `.trim()`, no una limpieza agresiva: se guarda tal cual lo
+        // tecleó el personal (con su complemento de departamento si lo anotó),
+        // no una versión normalizada. La normalización para el vínculo con el
+        // portal vive en `lib/identidad.ts`, en el punto donde se compara, no
+        // aquí donde se guarda.
+        whatsapp: input.clienteWhatsapp.trim(),
+        ci: input.clienteCi?.trim() || null,
+      })
+      .select()
+      .single()
+
+    if (cliError || !cliente) throw new Error(`Error al registrar cliente: ${cliError?.message || 'desconocido'}`)
+    clienteId = cliente.id
+  }
 
   // El `codigo` lo asigna el trigger `trg_codigo_paciente`. Formarlo aquí con
   // `count(*) + 1` era un check-then-act: dos altas simultáneas leían el mismo
@@ -371,7 +455,7 @@ export async function registrarClienteYPaciente(input: NuevoClientePaciente): Pr
   const { data: paciente, error: pacError } = await supabase
     .from('pacientes')
     .insert({
-      cliente_id: cliente.id,
+      cliente_id: clienteId,
       nombre: input.pacienteNombre,
       especie: input.especie,
       raza: input.raza,
@@ -385,11 +469,19 @@ export async function registrarClienteYPaciente(input: NuevoClientePaciente): Pr
     .single()
 
   if (pacError || !paciente) {
-    // El cliente ya se insertó: si el paciente falla (CHECK de especie/sexo,
-    // colisión del índice de código, RLS) hay que deshacerlo. Sin esto cada
-    // reintento dejaba otra ficha de dueño duplicada, y el guardián de
-    // duplicados de arriba no las detecta porque solo compara pacientes.
-    await supabase.from('clientes').delete().eq('id', cliente.id)
+    // Si el paciente falla (CHECK de especie/sexo, colisión del índice de
+    // código, RLS) hay que deshacer la ficha. Sin esto cada reintento dejaba
+    // otra ficha de dueño duplicada, y el guardián de arriba no las detecta
+    // porque solo compara pacientes.
+    //
+    // ⚠️ **Solo si la creamos nosotros.** Cuando se reusó una ficha que ya
+    // existía, borrarla se llevaría a un dueño real por delante — y si ese
+    // dueño no tuviera todavía ninguna mascota, ni el trigger
+    // `trg_cliente_sin_expediente` lo frenaría: se perdería su ficha y, con
+    // ella, el vínculo de su cuenta del portal.
+    if (!existente) {
+      await supabase.from('clientes').delete().eq('id', clienteId)
+    }
     throw new Error(`Error al registrar paciente: ${pacError?.message || 'desconocido'}`)
   }
 
@@ -401,7 +493,18 @@ export async function registrarClienteYPaciente(input: NuevoClientePaciente): Pr
     historialId = historial.id
   }
 
-  return { paciente: { ...paciente, cliente: cliente as any, internacion_activa: null } as any, historialId }
+  // La ficha completa, sea la que se reusó o la que se acaba de crear: quien
+  // llama pinta el nombre del dueño con esto.
+  const { data: fichaFinal } = await supabase
+    .from('clientes')
+    .select('*')
+    .eq('id', clienteId)
+    .maybeSingle()
+
+  return {
+    paciente: { ...paciente, cliente: fichaFinal as any, internacion_activa: null } as any,
+    historialId,
+  }
 }
 
 export async function actualizarClienteYPaciente(

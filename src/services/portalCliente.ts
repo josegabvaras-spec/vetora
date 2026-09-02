@@ -157,26 +157,31 @@ export async function registrarClientePortal(datos: DatosRegistroPortal): Promis
 }
 
 export async function getPacientesPortal(clinicaId: string, usuarioId: string): Promise<Paciente[]> {
-  const { data: cliente } = await supabase
+  const { data: cliente, error: errCliente } = await supabase
     .from('clientes')
     .select('id')
     .eq('clinica_id', clinicaId)
     .eq('usuario_id' as any, usuarioId)
     .maybeSingle()
-  
+
+  // Sin esto, un fallo de RLS o de red devolvia `data` en null y la
+  // pantalla decia «no tienes nada» en vez de decir que fallo. Es la razon
+  // de que un portal vacio fuera indistinguible de un portal roto.
+  if (errCliente) throw new Error(`No se pudo cargar tu ficha: ${errCliente.message}`)
   if (!cliente) return []
 
-  const { data: pacientes } = await supabase
+  const { data: pacientes, error: errPacientes } = await supabase
     .from('pacientes')
     .select('*')
     .eq('clinica_id', clinicaId)
     .eq('cliente_id', cliente.id)
-    
+
+  if (errPacientes) throw new Error(`No se pudieron cargar tus mascotas: ${errPacientes.message}`)
   return (pacientes || []) as Paciente[]
 }
 
 export async function getHistorialPacientePortal(clinicaId: string, pacienteId: string): Promise<HistorialClinico[]> {
-  const { data: historial } = await supabase
+  const { data: historial, error: errHistorial } = await supabase
     .from('historial_clinico')
     .select('*')
     .eq('clinica_id', clinicaId)
@@ -184,17 +189,19 @@ export async function getHistorialPacientePortal(clinicaId: string, pacienteId: 
     .eq('editable', false)
     .order('created_at', { ascending: false })
 
+  if (errHistorial) throw new Error(`No se pudo cargar el historial: ${errHistorial.message}`)
   return (historial || []) as HistorialClinico[]
 }
 
 export async function getVacunasPacientePortal(clinicaId: string, pacienteId: string): Promise<VacunaAplicada[]> {
-  const { data: vacunas } = await supabase
+  const { data: vacunas, error: errVacunas } = await supabase
     .from('vacunas_aplicadas')
     .select('*')
     .eq('clinica_id', clinicaId)
     .eq('paciente_id', pacienteId)
     .order('fecha_aplicacion', { ascending: false })
 
+  if (errVacunas) throw new Error(`No se pudieron cargar las vacunas: ${errVacunas.message}`)
   return (vacunas || []) as VacunaAplicada[]
 }
 
@@ -209,13 +216,14 @@ export async function getConsentimientosPacientePortal(
   clinicaId: string,
   pacienteId: string,
 ): Promise<ConsentimientoCirugia[]> {
-  const { data: consentimientos } = await supabase
+  const { data: consentimientos, error: errConsent } = await supabase
     .from('consentimientos_cirugia')
     .select('*')
     .eq('clinica_id', clinicaId)
     .eq('paciente_id', pacienteId)
     .order('created_at', { ascending: false })
 
+  if (errConsent) throw new Error(`No se pudieron cargar los consentimientos: ${errConsent.message}`)
   return (consentimientos || []) as ConsentimientoCirugia[]
 }
 
@@ -315,11 +323,13 @@ export async function getFichaPacientePortal(pacienteId: string): Promise<FichaP
 
   if (!paciente) return null
 
-  const { data: cliente } = await supabase
+  const { data: cliente, error: errCliente } = await supabase
     .from('clientes')
     .select('*')
     .eq('id', paciente.cliente_id)
     .maybeSingle()
+
+  if (errCliente) throw new Error(`No se pudo cargar la ficha: ${errCliente.message}`)
 
   const [{ data: historiales }, { data: vacunas }, { data: desparasitaciones }, { data: recetas }, { data: citas }] =
     await Promise.all([
@@ -369,21 +379,26 @@ export async function getFichaPacientePortal(pacienteId: string): Promise<FichaP
 }
 
 export async function getNotificacionesPortal(clinicaId: string, usuarioId: string): Promise<NotificacionPortal[]> {
-  const { data: cliente } = await supabase
+  const { data: cliente, error: errCliente } = await supabase
     .from('clientes')
     .select('id')
     .eq('clinica_id', clinicaId)
     .eq('usuario_id' as any, usuarioId)
     .maybeSingle()
-  
+
+  // Sin esto, un fallo de RLS o de red devolvia `data` en null y la
+  // pantalla decia «no tienes nada» en vez de decir que fallo. Es la razon
+  // de que un portal vacio fuera indistinguible de un portal roto.
+  if (errCliente) throw new Error(`No se pudo cargar tu ficha: ${errCliente.message}`)
   if (!cliente) return []
 
-  const { data: pacientes } = await supabase
+  const { data: pacientes, error: errPacientes } = await supabase
     .from('pacientes')
     .select('id, nombre')
     .eq('clinica_id', clinicaId)
     .eq('cliente_id', cliente.id)
-    
+
+  if (errPacientes) throw new Error(`No se pudieron cargar tus mascotas: ${errPacientes.message}`)
   if (!pacientes || pacientes.length === 0) return []
 
   const pacienteIds = pacientes.map(p => p.id)
@@ -471,13 +486,14 @@ export async function getNotificacionesPortal(clinicaId: string, usuarioId: stri
   }
 
   // 2. Vacunas pendientes o atrasadas (refuerzos)
-  const { data: vacunas } = await supabase
+  const { data: vacunas, error: errVacunas } = await supabase
     .from('vacunas_aplicadas')
     .select('*')
     .eq('clinica_id', clinicaId)
     .in('paciente_id', pacienteIds)
     .not('fecha_refuerzo', 'is', null)
 
+  if (errVacunas) throw new Error(`No se pudieron cargar los refuerzos: ${errVacunas.message}`)
   if (vacunas) {
     vacunas.forEach(vacuna => {
       const p = pacientes.find(x => x.id === vacuna.paciente_id)
