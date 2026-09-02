@@ -664,6 +664,88 @@ export async function desvincularCuentaPortal(clienteId: string): Promise<void> 
 }
 
 /**
+ * Borra una ficha de dueño **vacía**: duplicados, errores de tipeo y las que
+ * deja «Desvincular».
+ *
+ * ⚠️ **Con mascotas no se borra, y no es una comodidad.**
+ * `pacientes.cliente_id` es `on delete cascade`, y desde `pacientes` cascadean
+ * doce tablas más —historial, citas, vacunas, desparasitaciones,
+ * internaciones, consentimientos, recetas, informes, estudios de imagen y las
+ * tres de peluquería—, así que borrar un dueño con mascotas **destruye el
+ * expediente médico completo de cada una**. Es lo contrario de lo que protegen
+ * `trg_historial_inmutable` y las policies INSERT-only.
+ *
+ * La barrera de verdad está en la RLS (`clientes_delete`, migración 0036): sin
+ * mascotas, por cualquier camino. Lo de aquí es para **decir por qué** en vez
+ * de devolver un «no se borró» sin motivo, que es lo que daría la policy sola.
+ *
+ * Mismo criterio que `eliminarPaciente` justo debajo: comprobar antes en vez de
+ * cambiar la cascada, porque el resto de la cadena sí debe irse con su dueño.
+ */
+export async function eliminarCliente(clienteId: string): Promise<void> {
+  const { data: pacientes, error: errorPac } = await supabase
+    .from('pacientes')
+    .select('id')
+    .eq('cliente_id', clienteId)
+  if (errorPac) throw new Error(`No se pudo comprobar el cliente: ${errorPac.message}`)
+
+  if (pacientes && pacientes.length > 0) {
+    throw new Error(
+      `Este cliente tiene ${pacientes.length} mascota(s) y no se puede eliminar: ` +
+        'borrar la ficha se llevaría su historial, sus vacunas y sus recetas. ' +
+        'Cambia primero las mascotas de dueño o dales de baja.',
+    )
+  }
+
+  // `peluqueria_ordenes.cliente_id` también cascadea. Sin mascotas no debería
+  // haber ninguna —una orden exige `paciente_id`— pero las dos columnas son
+  // independientes y nada obliga a que sean del mismo dueño. Una consulta por
+  // no destruir una orden y su cobro.
+  const { data: ordenes, error: errorOrd } = await supabase
+    .from('peluqueria_ordenes')
+    .select('id')
+    .eq('cliente_id', clienteId)
+  if (errorOrd) throw new Error(`No se pudo comprobar el cliente: ${errorOrd.message}`)
+
+  if (ordenes && ordenes.length > 0) {
+    throw new Error(
+      `Este cliente tiene ${ordenes.length} orden(es) de peluquería y no se puede eliminar.`,
+    )
+  }
+
+  // La cuenta del portal se quedaría SIN NINGUNA FICHA: invisible incluso para
+  // la pantalla que sirve para recuperarla, que es el agujero que 0028 vino a
+  // tapar. Se suelta primero con «Desvincular», que le deja una ficha propia.
+  const { data: ficha, error: errorFicha } = await supabase
+    .from('clientes')
+    .select('usuario_id')
+    .eq('id', clienteId)
+    .maybeSingle()
+  if (errorFicha) throw new Error(`No se pudo comprobar el cliente: ${errorFicha.message}`)
+  if (!ficha) throw new Error('Esta ficha ya no existe')
+
+  if (ficha.usuario_id) {
+    throw new Error(
+      'Esta ficha tiene una cuenta del portal vinculada. Usa «Desvincular» primero: ' +
+        'si se borra, esa cuenta se queda sin ninguna ficha y deja de verse en el sistema.',
+    )
+  }
+
+  // `.select('id')`: cuando la RLS filtra la fila, PostgREST devuelve 204 con
+  // `error` en null. Sin esto la pantalla diría «borrado» sin haber borrado.
+  const { data, error } = await supabase
+    .from('clientes')
+    .delete()
+    .eq('id', clienteId)
+    .select('id')
+
+  if (error) throw new Error(`Error al eliminar el cliente: ${error.message}`)
+  if (!data || data.length === 0) {
+    throw new Error('No tienes permiso para eliminar este cliente')
+  }
+}
+
+/**
  * Borra un paciente, salvo que tenga dinero cobrado detrás.
  *
  * La cadena de claves foráneas es toda `on delete cascade`

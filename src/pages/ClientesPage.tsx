@@ -8,6 +8,7 @@ import {
   PawPrint,
   Search,
   Smartphone,
+  Trash2,
   Unlink,
 } from 'lucide-react'
 import { AvisoError } from '../components/ui/AvisoError'
@@ -20,6 +21,7 @@ import { useAuth } from '../context/useAuth'
 import { useSuscripcionTabla } from '../mocks/useDb'
 import {
   desvincularCuentaPortal,
+  eliminarCliente,
   listClientesDeClinica,
   sugerenciasDeVinculo,
   vincularPorIds,
@@ -42,10 +44,21 @@ export function ClientesPage() {
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [vinculando, setVinculando] = useState<SugerenciaVinculo | null>(null)
   const [desvinculando, setDesvinculando] = useState<ClienteConEstado | null>(null)
+  const [borrando, setBorrando] = useState<ClienteConEstado | null>(null)
   const [enCurso, setEnCurso] = useState(false)
 
   const revisionClientes = useSuscripcionTabla('clientes')
   const clinicaId = usuario?.clinica_id
+
+  /**
+   * Borrar es solo del administrador, como fijar precios o dar de baja un
+   * producto. **Es una convención de pantalla, no la barrera**: la que no se
+   * puede saltar vive en la RLS (`clientes_delete`, 0036) y dice otra cosa —
+   * ninguna ficha con mascotas, la borre quien la borre. Esa policy no mira el
+   * rol a propósito, porque `vincular_cuenta_portal()` borra fichas vacías
+   * corriendo como recepción; ver la migración.
+   */
+  const esAdmin = usuario?.rol === 'admin'
 
   const recargar = useCallback(async () => {
     if (!clinicaId) return
@@ -223,6 +236,21 @@ export function ClientesPage() {
                   <Unlink size={13} /> Desvincular
                 </Button>
               )}
+              {/* Solo donde de verdad se puede borrar: sin mascotas y sin
+                  cuenta del portal. En el resto no se pinta un botón muerto —
+                  las insignias de la fila ya dicen por qué. Los dos datos
+                  vienen en la fila, así que no hace falta consultar nada. */}
+              {esAdmin && c.total_pacientes === 0 && !c.usuario_id && (
+                <button
+                  type="button"
+                  onClick={() => setBorrando(c)}
+                  title="Eliminar esta ficha"
+                  aria-label={`Eliminar la ficha de ${c.nombre}`}
+                  className="cursor-pointer p-1.5 text-slate-400 transition-colors hover:text-rose-600"
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
             </div>
           </li>
         ))}
@@ -280,6 +308,31 @@ export function ClientesPage() {
               await recargar()
             } catch (err) {
               setErrorCarga(err instanceof Error ? err.message : 'No se pudo desvincular la cuenta')
+            } finally {
+              setEnCurso(false)
+            }
+          }}
+        />
+      )}
+
+      {borrando && (
+        <ConfirmDialog
+          title="Eliminar la ficha del cliente"
+          // El WhatsApp va en el texto porque los nombres se repiten y esto no
+          // se deshace: es lo que distingue una ficha duplicada de la buena.
+          description={`Se borrará la ficha de «${borrando.nombre}» (${borrando.whatsapp}). No tiene mascotas ni cuenta del portal, así que no se pierde ningún expediente, pero la ficha no se puede recuperar.`}
+          confirmLabel="Sí, eliminar"
+          loading={enCurso}
+          onCancel={() => setBorrando(null)}
+          onConfirm={async () => {
+            setEnCurso(true)
+            setErrorCarga(null)
+            try {
+              await eliminarCliente(borrando.id)
+              setBorrando(null)
+              await recargar()
+            } catch (err) {
+              setErrorCarga(err instanceof Error ? err.message : 'No se pudo eliminar el cliente')
             } finally {
               setEnCurso(false)
             }
