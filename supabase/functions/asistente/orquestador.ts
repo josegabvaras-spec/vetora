@@ -174,6 +174,16 @@ export async function orquestar(opciones: {
       // sin el parámetro —o al revés— es tan probable que rompa la llamada
       // como mandar los dos a un modelo que no los admite.
       ...(soportaFallbacks(modelo) ? { betas: ['server-side-fallback-2026-07-01'] } : {}),
+      // ⚠️ Cachea el ÚLTIMO bloque cacheable de la petición — que, a partir de
+      // la segunda vuelta, es el final de `messages`. Sin esto, el prompt del
+      // sistema se cacheaba pero la conversación que SÍ crece —cada resultado
+      // de herramienta que se va acumulando— se reenviaba entera y a precio
+      // completo en cada vuelta. Con un bucle de hasta 6 llamadas y
+      // `obtener_resumen_paciente` devolviendo el historial completo de un
+      // paciente, eso es lo que más pesaba en la factura. Con esto, la vuelta
+      // N+1 lee de caché (a la décima parte del precio) todo lo que la vuelta
+      // N ya mandó, y solo paga completo lo que se agregó de nuevo.
+      cache_control: { type: 'ephemeral' },
       system: [
         {
           type: 'text',

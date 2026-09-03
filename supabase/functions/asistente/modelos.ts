@@ -118,9 +118,15 @@ export const MAX_TOKENS_POR_TAREA: Record<Tarea, number> = {
  * El fallback existe porque un modelo desconocido no puede hacer fallar la
  * respuesta: se registra a cero y se ve en la bitácora que falta su tarifa.
  */
+// ⚠️ Estas tres estuvieron mal desde que se escribió el fichero: Opus a 15/75
+// (el precio de una generación vieja) y Sonnet a 3/15 (el precio de Sonnet
+// 4.6, no de Sonnet 5). Costaba tres veces y una vez y media más de lo real,
+// respectivamente, y nadie lo notó hasta contrastarlo con la tabla de precios
+// vigente. Cifras verificadas: $5/$25 (Opus 5), $2/$10 (Sonnet 5), $1/$5
+// (Haiku 4.5).
 const TARIFAS: Record<string, { entrada: number; salida: number }> = {
-  'claude-opus-5': { entrada: 15, salida: 75 },
-  'claude-sonnet-5': { entrada: 3, salida: 15 },
+  'claude-opus-5': { entrada: 5, salida: 25 },
+  'claude-sonnet-5': { entrada: 2, salida: 10 },
   // Sin sufijo de fecha: `claude-haiku-4-5` es el identificador completo.
   'claude-haiku-4-5': { entrada: 1, salida: 5 },
 }
