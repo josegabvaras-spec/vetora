@@ -104,16 +104,21 @@ Se cobra sin pasarela: QR, comprobante subido por el admin y aprobación del sup
 
 ## 8. Estado de la IA
 
-La función `asistente` está **desplegada y activa**, con `claude-opus-5`, salida
-estructurada, caché de prompt y respaldo ante rechazos. Redacta el aviso de WhatsApp y el
-informe del día.
+**Encendida el 2026-09-02.** La función `asistente` está desplegada y con clave, con
+`claude-opus-5`, salida estructurada, caché de prompt y respaldo ante rechazos. Redacta el
+aviso al cliente, la nota interna al equipo y el informe del día. Hasta ese día la clave no
+estaba puesta y todo salía de plantilla.
 
-⚠️ **Pero `ANTHROPIC_API_KEY` no está en los secretos**, así que nunca ha llamado al
-modelo: todo sale de las plantillas deterministas y la interfaz lo indica con la insignia
-«Plantilla del sistema». Para activarla: `supabase secrets set ANTHROPIC_API_KEY=...`
+**Dos palancas, no una.** El módulo `asistente_ia` del plan abre la pantalla;
+`planes.ia_limite` paga los tokens, y **en cero no hay copiloto aunque el módulo esté**. Lo
+consume `consumir_cuota_ia()` (migración 0038) en una sola sentencia, igual que la cuota de
+WhatsApp, y `ia_uso` registra el coste de cada llamada.
 
 Reglas que gobiernan su uso: la clave nunca en el frontend, **la IA no escribe en la
-base**, y lo que sale hacia Anthropic está acotado en `contextoDeAviso()`.
+base**, lo que sale hacia Anthropic está acotado en `contextoDeAviso()`, y dentro de la
+Edge Function hay **dos clientes de Supabase** — `service_role` solo para saber quién
+llama, y el JWT de quien llama para todo lo demás, de modo que la RLS siga siendo la
+barrera.
 
 ## 9. Verificación
 

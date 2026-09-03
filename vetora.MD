@@ -238,11 +238,12 @@ Cada una tiene su barrera en la base de datos. Si el código las esquiva, está 
 
 ## 9. Estado de la inteligencia artificial
 
-⚠️ **Hoy no está funcionando, y hay que decirlo con precisión.**
+**Encendida el 2 de septiembre de 2026.** Hasta ese día la función estaba desplegada pero
+`ANTHROPIC_API_KEY` no estaba en los secretos, así que **nunca había llamado al modelo**: todo salía de las plantillas deterministas de `lib/asistente.ts` y la interfaz lo indicaba con la insignia «Plantilla del sistema».
 
-**Lo que existe y está desplegado:** la Edge Function `asistente`, en Deno, llamando a `claude-opus-5` con salida estructurada, caché del prompt, esfuerzo ajustado por tarea y respaldo ante rechazos del clasificador. Redacta dos cosas: **el texto del aviso de WhatsApp** y **el informe del día** para administración.
+**Lo que hace:** la Edge Function `asistente`, en Deno, llama a `claude-opus-5` con salida estructurada, caché del prompt, esfuerzo ajustado por tarea y respaldo ante rechazos del clasificador. Redacta tres cosas: **el aviso de WhatsApp al cliente**, **la nota interna al equipo** y **el informe del día** para administración.
 
-**Por qué no corre:** `ANTHROPIC_API_KEY` no está en los secretos del proyecto. Sin clave, cada llamada falla y el sistema cae a las plantillas deterministas de `lib/asistente.ts`. La interfaz lo dice —muestra «Plantilla del sistema» en vez de «Redactado con IA»— pero es fácil no reparar en ello.
+**El tope de gasto es una segunda palanca, y va aparte del módulo.** `planes.ia_limite` cuenta consultas al mes y lo consume `consumir_cuota_ia()` (migración 0038), con el mismo mecanismo atómico que la cuota de WhatsApp. **Cero significa sin copiloto aunque el plan traiga `asistente_ia`**: el módulo abre la pantalla, el tope paga los tokens. Se reparte a razón de unas tres consultas por dólar de suscripción, y `ia_uso` registra qué costó cada llamada — sin guardar la pregunta, la respuesta ni ningún identificador de paciente.
 
 **Las reglas que ya gobiernan su uso, y que cualquier ampliación tiene que respetar:**
 

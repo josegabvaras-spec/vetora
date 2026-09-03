@@ -206,8 +206,8 @@ una cuenta real. La matriz obligatoria:
 
 | Fase | Qué | Entregable |
 |---|---|---|
-| **1** | Auditoría del asistente | ✅ `AUDITORIA_IA_VETORA.md` (hecho) |
-| **2** | Migración `0038` + seguridad y autorización en la función + C-1, C-2, C-3 | Cuota, módulo, bitácora, tipos |
+| **1** | Auditoría del asistente | ✅ `AUDITORIA_IA_VETORA.md` |
+| **2** | Migración `0038` + seguridad y autorización en la función + C-1, C-2, C-3 | ✅ **Aplicada y desplegada el 2026-09-02.** Cuota, módulo, bitácora, tipos, y la clave puesta. Función en versión 4 |
 | **3** | Orquestador con tope de iteraciones y la regla de los dos clientes | `orquestador.ts` |
 | **4** | Las 5 herramientas | `herramientas.ts` |
 | **5** | Sonnet 5 + `MODELO_POR_TAREA` + registro de tokens | `modelos.ts` |

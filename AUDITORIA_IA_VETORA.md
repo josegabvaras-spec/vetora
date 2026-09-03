@@ -5,6 +5,24 @@
 > Método: lectura del código y consulta de solo lectura a Supabase.
 > **No se modificó ningún fichero del proyecto durante la auditoría.**
 
+> ### ⚠️ Qué ha cambiado desde entonces
+>
+> **Este documento es una foto del 2 de septiembre por la mañana, y se deja tal cual**: su
+> valor está en ser el registro honesto de lo que se encontró. Lo que ya no es cierto:
+>
+> - **`ANTHROPIC_API_KEY` ya está puesta** (2026-09-02, 21:55 hora de Bolivia). El §1.1 y el
+>   §7 describen el estado anterior.
+> - **La migración `0038` está aplicada** y la función desplegada en su versión 4. Con eso
+>   dejan de ser ciertos los §8.5 («control de consumo: nada»), el §9 C-1, C-2, C-3 y C-4
+>   —los cuatro corregidos— y las filas «Control de consumo IA» y «Auditoría IA» del mapa
+>   del §6.
+> - **La arquitectura elegida no es la que este documento recomendaba.** El §12 defendía el
+>   orquestador en el navegador; se optó por el servidor, y se procede con eso sujeto a la
+>   regla de los dos clientes de Supabase. Ver [PLAN_IMPLEMENTACION_IA_VETORA.md](PLAN_IMPLEMENTACION_IA_VETORA.md) §3.
+>
+> Lo demás sigue vigente, empezando por el §11: las herramientas que faltan por escribir son
+> tres, no veinticinco.
+
 ## 1. Resumen ejecutivo
 
 Vetora **ya tiene una integración con Anthropic construida y desplegada** — pero **nunca ha
