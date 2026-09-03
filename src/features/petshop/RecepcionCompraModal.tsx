@@ -14,6 +14,15 @@ interface RecepcionCompraModalProps {
   onReceived: () => void
 }
 
+interface ItemRecepcionRow {
+  detalleId: string
+  productoId: string
+  cantidadRecibida: string
+  costoUnitarioBs: string
+  lote: string
+  fechaVencimiento: string
+}
+
 export function RecepcionCompraModal({
   orden,
   sucursalId,
@@ -21,12 +30,17 @@ export function RecepcionCompraModal({
   onReceived,
 }: RecepcionCompraModalProps) {
   const { usuario } = useAuth()
-  const [items, setItems] = useState<ItemRecepcionInput[]>(
+  // ⚠️ Texto, no número — mismo motivo que en `NuevaCompraModal.tsx` y
+  // `LoteModal.tsx`: un `<input type="number">` controlado con estado
+  // NUMÉRICO deja un cero pegado en pantalla al escribir encima. Fila local,
+  // no se toca `ItemRecepcionInput` (que sigue siendo el tipo de
+  // `services/compras.ts`) — se convierte a número recién en `handleSubmit`.
+  const [items, setItems] = useState<ItemRecepcionRow[]>(
     (orden.detalles || []).map((d) => ({
       detalleId: d.id,
       productoId: d.producto_id,
-      cantidadRecibida: d.cantidad_pedida,
-      costoUnitarioBs: d.costo_unitario_bs,
+      cantidadRecibida: String(d.cantidad_pedida),
+      costoUnitarioBs: String(d.costo_unitario_bs),
       lote: '',
       fechaVencimiento: '',
     })),
@@ -35,7 +49,7 @@ export function RecepcionCompraModal({
   const [recibiendo, setRecibiendo] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  function updateItem(idx: number, campo: keyof ItemRecepcionInput, valor: any) {
+  function updateItem(idx: number, campo: keyof ItemRecepcionRow, valor: string) {
     const copia = [...items]
     copia[idx] = { ...copia[idx], [campo]: valor }
     setItems(copia)
@@ -43,11 +57,28 @@ export function RecepcionCompraModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    // ⚠️ `producto_lotes.sucursal_id` es `not null`, sin valor por defecto —
+    // misma red que ya lleva `NuevaCompraModal.tsx`. El respaldo real va en
+    // `PanelCompras.tsx`.
+    if (!sucursalId) {
+      setError('No se pudo determinar la sucursal. Elige una sucursal específica arriba y vuelve a intentar.')
+      return
+    }
+
     setRecibiendo(true)
     setError(null)
 
+    const itemsNumericos: ItemRecepcionInput[] = items.map((it) => ({
+      detalleId: it.detalleId,
+      productoId: it.productoId,
+      cantidadRecibida: Number(it.cantidadRecibida) || 0,
+      costoUnitarioBs: Number(it.costoUnitarioBs) || 0,
+      lote: it.lote,
+      fechaVencimiento: it.fechaVencimiento,
+    }))
+
     try {
-      await recibirOrdenCompra(orden.id, sucursalId, items, usuario?.id)
+      await recibirOrdenCompra(orden.id, sucursalId, itemsNumericos, usuario?.id)
       onReceived()
       onClose()
     } catch (err: any) {
@@ -105,8 +136,8 @@ export function RecepcionCompraModal({
                       <Input
                         type="number"
                         min="0"
-                        value={itemRec?.cantidadRecibida || 0}
-                        onChange={(e) => updateItem(idx, 'cantidadRecibida', parseFloat(e.target.value) || 0)}
+                        value={itemRec?.cantidadRecibida ?? ''}
+                        onChange={(e) => updateItem(idx, 'cantidadRecibida', e.target.value)}
                         required
                       />
                     </div>
@@ -117,8 +148,8 @@ export function RecepcionCompraModal({
                         type="number"
                         step="0.5"
                         min="0"
-                        value={itemRec?.costoUnitarioBs || 0}
-                        onChange={(e) => updateItem(idx, 'costoUnitarioBs', parseFloat(e.target.value) || 0)}
+                        value={itemRec?.costoUnitarioBs ?? ''}
+                        onChange={(e) => updateItem(idx, 'costoUnitarioBs', e.target.value)}
                         required
                       />
                     </div>

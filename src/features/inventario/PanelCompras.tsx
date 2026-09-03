@@ -10,6 +10,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { useAuth } from '../../context/useAuth'
+import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate } from '../../lib/datetime'
 import { listOrdenesCompra, listProveedores } from '../../services/compras'
@@ -37,6 +38,16 @@ const ESTADO_COMPRA_LABEL: Record<EstadoOrdenCompra, string> = {
  */
 export function PanelCompras({ conCabecera = true }: { conCabecera?: boolean }) {
   const { sucursalActivaId } = useAuth()
+  const sucursales = useTable('sucursales')
+  // ⚠️ Una orden de compra y un lote recibido pertenecen a UNA sucursal
+  // concreta (`ordenes_compra.sucursal_id` y `producto_lotes.sucursal_id` son
+  // `not null`, sin valor por defecto). El admin puede estar viendo «todas
+  // las sucursales» (`sucursalActivaId` es `null` a propósito, ver CLAUDE.md
+  // §Sesión y acceso) — sin este respaldo, `NuevaCompraModal` y
+  // `RecepcionCompraModal` mandaban una cadena vacía y Postgres la rechazaba
+  // con «invalid input syntax for type uuid» (400). Mismo arreglo que ya se
+  // hizo en `PanelLotes.tsx`.
+  const sucursalIdEfectiva = sucursalActivaId || sucursales[0]?.id || ''
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoOrdenCompra | ''>('')
   const [proveedorFiltro, setProveedorFiltro] = useState<string>('')
 
@@ -214,7 +225,7 @@ export function PanelCompras({ conCabecera = true }: { conCabecera?: boolean }) 
       {/* Modales */}
       {modalNueva && (
         <NuevaCompraModal
-          sucursalId={sucursalActivaId || ''}
+          sucursalId={sucursalIdEfectiva}
           proveedores={proveedores}
           productos={productos}
           onClose={() => setModalNueva(false)}
@@ -225,7 +236,7 @@ export function PanelCompras({ conCabecera = true }: { conCabecera?: boolean }) 
       {ordenARecibir && (
         <RecepcionCompraModal
           orden={ordenARecibir}
-          sucursalId={sucursalActivaId || ''}
+          sucursalId={sucursalIdEfectiva}
           onClose={() => setOrdenARecibir(null)}
           onReceived={() => recargar()}
         />

@@ -25,15 +25,21 @@ export function NuevaCompraModal({
 }: NuevaCompraModalProps) {
   const { usuario } = useAuth()
   const [proveedorId, setProveedorId] = useState(proveedores[0]?.id || '')
-  const [descuentoBs, setDescuentoBs] = useState<number>(0)
+  // ⚠️ Texto, no número — mismo motivo que en `LoteModal.tsx` y
+  // `NuevoProductoModal.tsx`: un `<input type="number">` controlado con
+  // estado NUMÉRICO deja un cero pegado en pantalla al escribir encima
+  // (React no toca el DOM cuando lo tecleado y el valor anterior son el
+  // mismo número, p. ej. "05" y "5"). Con el estado en texto, lo que se ve
+  // es exactamente lo que se tecleó.
+  const [descuentoBs, setDescuentoBs] = useState('0')
   const [notas, setNotas] = useState('')
 
   const [items, setItems] = useState<ItemOrdenCompraInput[]>([])
 
   // Selector de ítem para agregar
   const [productoSeleccionadoId, setProductoSeleccionadoId] = useState('')
-  const [cantidadInput, setCantidadInput] = useState<number>(1)
-  const [costoInput, setCostoInput] = useState<number>(0)
+  const [cantidadInput, setCantidadInput] = useState('1')
+  const [costoInput, setCostoInput] = useState('0')
 
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,13 +48,14 @@ export function NuevaCompraModal({
     setProductoSeleccionadoId(prodId)
     const prod = productos.find((p) => p.id === prodId)
     if (prod) {
-      setCostoInput(prod.costo_bs || 0)
+      setCostoInput(String(prod.costo_bs || 0))
     }
   }
 
   function agregarItem() {
     if (!productoSeleccionadoId) return
-    if (cantidadInput <= 0) return
+    const cantidad = Number(cantidadInput)
+    if (!Number.isFinite(cantidad) || cantidad <= 0) return
 
     if (items.some((i) => i.productoId === productoSeleccionadoId)) {
       setError('Este producto ya está en la lista de compra')
@@ -59,13 +66,13 @@ export function NuevaCompraModal({
       ...items,
       {
         productoId: productoSeleccionadoId,
-        cantidadPedida: cantidadInput,
-        costoUnitarioBs: costoInput,
+        cantidadPedida: cantidad,
+        costoUnitarioBs: Number(costoInput) || 0,
       },
     ])
     setProductoSeleccionadoId('')
-    setCantidadInput(1)
-    setCostoInput(0)
+    setCantidadInput('1')
+    setCostoInput('0')
     setError(null)
   }
 
@@ -73,11 +80,19 @@ export function NuevaCompraModal({
     setItems(items.filter((_, i) => i !== idx))
   }
 
+  const descuentoNumero = Number(descuentoBs) || 0
   const subtotal = items.reduce((acc, i) => acc + i.cantidadPedida * i.costoUnitarioBs, 0)
-  const total = Math.max(0, subtotal - descuentoBs)
+  const total = Math.max(0, subtotal - descuentoNumero)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    // ⚠️ `ordenes_compra.sucursal_id` es `not null`, sin valor por defecto.
+    // Última red antes de tocar la base — el respaldo real va en
+    // `PanelCompras.tsx`, que ya no debería dejar pasar un valor vacío.
+    if (!sucursalId) {
+      setError('No se pudo determinar la sucursal. Elige una sucursal específica arriba y vuelve a intentar.')
+      return
+    }
     if (!proveedorId) {
       setError('Selecciona un proveedor')
       return
@@ -94,7 +109,7 @@ export function NuevaCompraModal({
       await crearOrdenCompra({
         sucursalId,
         proveedorId,
-        descuentoBs,
+        descuentoBs: descuentoNumero,
         notas,
         items,
         usuarioId: usuario?.id,
@@ -135,7 +150,7 @@ export function NuevaCompraModal({
               step="0.5"
               min="0"
               value={descuentoBs}
-              onChange={(e) => setDescuentoBs(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setDescuentoBs(e.target.value)}
             />
           </FieldGroup>
         </div>
@@ -166,7 +181,7 @@ export function NuevaCompraModal({
                 type="number"
                 min="1"
                 value={cantidadInput}
-                onChange={(e) => setCantidadInput(parseInt(e.target.value) || 1)}
+                onChange={(e) => setCantidadInput(e.target.value)}
                 placeholder="Cant."
               />
             </div>
@@ -177,7 +192,7 @@ export function NuevaCompraModal({
                 step="0.5"
                 min="0"
                 value={costoInput}
-                onChange={(e) => setCostoInput(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setCostoInput(e.target.value)}
                 placeholder="Costo unit."
               />
             </div>
@@ -228,7 +243,7 @@ export function NuevaCompraModal({
           </div>
           <div className="text-right text-xs text-slate-300">
             <p>Subtotal: {formatBs(subtotal)}</p>
-            {descuentoBs > 0 && <p className="text-amber-300">Descuento: -{formatBs(descuentoBs)}</p>}
+            {descuentoNumero > 0 && <p className="text-amber-300">Descuento: -{formatBs(descuentoNumero)}</p>}
           </div>
         </div>
 
