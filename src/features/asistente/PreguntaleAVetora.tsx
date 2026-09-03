@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, CornerDownLeft, Lightbulb, Search, Sparkles } from 'lucide-react'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Field'
 import { useAuth } from '../../context/useAuth'
-import { preguntarACopiloto } from '../../services/asistente'
+import { getCuotaIa, preguntarACopiloto } from '../../services/asistente'
 import { atajosDelCopiloto, ETIQUETA_HERRAMIENTA } from '../../lib/copiloto'
 import type { RespuestaCopiloto } from '../../types/views'
 
@@ -32,12 +32,25 @@ export function PreguntaleAVetora() {
   const [respuesta, setRespuesta] = useState<RespuestaCopiloto | null>(null)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // `null` mientras no se sabe. Ver el porqué en `Topbar.tsx`: «no lo sé» y
+  // «no te queda nada» no pueden mostrarse igual.
+  const [cuota, setCuota] = useState<{ usados: number; limite: number } | null>(null)
 
   const atajos = atajosDelCopiloto(usuario?.rol, modulosHabilitados)
+  const sinCupo = cuota !== null && cuota.limite > 0 && cuota.usados >= cuota.limite
+
+  useEffect(() => {
+    if (!usuario?.clinica_id) return
+    let montado = true
+    getCuotaIa(usuario.clinica_id)
+      .then((c) => { if (montado) setCuota(c.copiloto) })
+      .catch(() => { if (montado) setCuota(null) })
+    return () => { montado = false }
+  }, [usuario])
 
   async function consultar(texto: string) {
     const limpio = texto.trim()
-    if (limpio.length < 3 || cargando) return
+    if (limpio.length < 3 || cargando || sinCupo) return
 
     setPregunta(limpio)
     setCargando(true)
@@ -45,6 +58,11 @@ export function PreguntaleAVetora() {
     setRespuesta(null)
     try {
       setRespuesta(await preguntarACopiloto(limpio))
+      // Se gastó una consulta: se refleja en el número sin esperar a que la
+      // pantalla se recargue sola. Optimista y sin drama si falla: la cuota
+      // real la manda `consumir_cuota_ia()` en el servidor, esto es solo la
+      // barra puesta al día.
+      setCuota((c) => (c ? { ...c, usados: c.usados + 1 } : c))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo consultar al asistente')
     } finally {
@@ -54,36 +72,53 @@ export function PreguntaleAVetora() {
 
   return (
     <Card className="p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <Sparkles size={17} className="text-teal-600" />
-        <h2 className="text-base font-bold text-slate-900">Pregúntale a Vetora</h2>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Sparkles size={17} className="text-teal-600" />
+          <h2 className="text-base font-bold text-slate-900">Pregúntale a Vetora</h2>
+        </div>
+        {/* Justo donde se decide gastar el cupo, no solo en el encabezado. */}
+        {cuota && cuota.limite > 0 && (
+          <span
+            className={sinCupo ? 'text-xs font-semibold text-rose-600' : 'text-xs font-medium text-slate-400'}
+          >
+            {cuota.usados}/{cuota.limite} consultas este mes
+          </span>
+        )}
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          consultar(pregunta)
-        }}
-        className="flex flex-col gap-2 sm:flex-row"
-      >
-        <div className="relative flex-1">
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <Input
-            value={pregunta}
-            onChange={(e) => setPregunta(e.target.value)}
-            placeholder="¿Qué debo atender hoy?"
-            aria-label="Pregunta para el asistente"
-            maxLength={2000}
-            className="pl-9"
-          />
-        </div>
-        <Button type="submit" disabled={cargando || pregunta.trim().length < 3}>
-          <CornerDownLeft size={16} />
-          {cargando ? 'Consultando…' : 'Preguntar'}
-        </Button>
-      </form>
+      {sinCupo ? (
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+          Se alcanzó el límite mensual de consultas al copiloto de tu plan. Vuelve a estar disponible el
+          próximo mes, o puedes ampliarlo desde tu suscripción.
+        </p>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            consultar(pregunta)
+          }}
+          className="flex flex-col gap-2 sm:flex-row"
+        >
+          <div className="relative flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={pregunta}
+              onChange={(e) => setPregunta(e.target.value)}
+              placeholder="¿Qué debo atender hoy?"
+              aria-label="Pregunta para el asistente"
+              maxLength={2000}
+              className="pl-9"
+            />
+          </div>
+          <Button type="submit" disabled={cargando || pregunta.trim().length < 3}>
+            <CornerDownLeft size={16} />
+            {cargando ? 'Consultando…' : 'Preguntar'}
+          </Button>
+        </form>
+      )}
 
-      {!respuesta && !cargando && !error && (
+      {!sinCupo && !respuesta && !cargando && !error && (
         <div className="mt-3 flex flex-wrap gap-2">
           {atajos.map((a) => (
             <button

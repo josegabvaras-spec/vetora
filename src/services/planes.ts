@@ -47,6 +47,15 @@ export interface DatosPlan {
    * verá la clínica suscripta. Por defecto incluye todos para veterinarias.
    */
   modulos_habilitados: ModuloVetora[]
+  /**
+   * Cupo mensual de IA (migración 0039), en dos números separados a
+   * propósito: un aviso en Haiku y una pregunta al copiloto en Sonnet
+   * cuestan ~19 veces distinto, y contarlos igual dejaba que uno se
+   * comiera el cupo del otro. Cero en cualquiera de los dos significa sin
+   * esa función, aunque el módulo `asistente_ia` esté marcado arriba.
+   */
+  ia_limite_redaccion: number
+  ia_limite_copiloto: number
 }
 
 export async function createPlan(datos: DatosPlan): Promise<Plan> {

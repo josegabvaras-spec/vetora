@@ -1,4 +1,4 @@
-import { LogOut, Menu, MessageCircle, Building2, ArrowLeft } from 'lucide-react'
+import { LogOut, Menu, MessageCircle, Sparkles, Building2, ArrowLeft } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
@@ -7,6 +7,8 @@ import { useTable } from '../../mocks/useDb'
 import { Badge } from '../ui/Badge'
 import { Select } from '../ui/Field'
 import { getCuotaWhatsapp } from '../../services/whatsapp'
+import { getCuotaIa } from '../../services/asistente'
+import { puedeUsarCopiloto } from '../../lib/personal'
 import { useMultiSucursal, usePlanActivo } from '../../hooks/usePlanActivo'
 import { PerfilModal } from '../../features/auth/PerfilModal'
 import { clsx } from 'clsx'
@@ -70,6 +72,67 @@ function CuotaWhatsapp({ className }: { className?: string }) {
   )
 }
 
+/**
+ * Barra de consumo del copiloto frente al tope del plan.
+ *
+ * Mismo patrón que `CuotaWhatsapp`, y a propósito: son el mismo problema
+ * —un contador mensual frente a un tope del plan— con otra unidad. No se
+ * muestra la de redacción (aviso/informe) al lado: su cupo es ~20 veces más
+ * grande justamente para que nadie tenga que vigilarlo en el día a día; el
+ * que de verdad conviene ver de un vistazo es este.
+ *
+ * Se oculta entera si el rol no puede usar el copiloto o si el plan no trae
+ * cupo (`limite === 0`) — una barra en «0/0» se lee como cuota agotada, y
+ * aquí lo correcto es que la función ni aparezca.
+ */
+function CuotaCopiloto({ className }: { className?: string }) {
+  const { usuario, tieneModulo } = useAuth()
+  const [cuota, setCuota] = useState<{ usados: number; limite: number } | null>(null)
+
+  const puedeVerla = puedeUsarCopiloto(usuario) && tieneModulo('asistente_ia')
+
+  useEffect(() => {
+    if (!usuario?.clinica_id || !puedeVerla) return
+    let montado = true
+    getCuotaIa(usuario.clinica_id)
+      .then((c) => {
+        if (montado) setCuota(c.copiloto)
+      })
+      .catch(() => {
+        if (montado) setCuota(null)
+      })
+    return () => { montado = false }
+  }, [usuario, puedeVerla])
+
+  if (!puedeVerla || (cuota && cuota.limite === 0)) return null
+
+  const pct = cuota && cuota.limite > 0 ? (cuota.usados / cuota.limite) * 100 : 0
+
+  return (
+    <div
+      className={clsx('flex flex-col gap-1', className)}
+      title={
+        cuota
+          ? `Preguntas al copiloto: ${cuota.usados} de ${cuota.limite} mensuales`
+          : 'No se pudo leer la cuota del copiloto'
+      }
+    >
+      <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+        <span className="flex items-center gap-1">
+          <Sparkles size={12} className="text-teal-600" /> Copiloto
+        </span>
+        <span>{cuota ? `${cuota.usados}/${cuota.limite}` : '—/—'}</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+        <div
+          className={clsx('h-full transition-all duration-500', pct > 90 ? 'bg-rose-500' : 'bg-teal-500')}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 /** Selector de sucursal: solo para admin y solo si el plan permite más de una. */
 function SelectorSucursal({ className }: { className?: string }) {
   const { usuario, sucursalActivaId, setSucursalActivaId } = useAuth()
@@ -105,6 +168,7 @@ export function ControlesMovil() {
   return (
     <div className="space-y-3">
       <CuotaWhatsapp />
+      <CuotaCopiloto />
       <SelectorSucursal className="w-full" />
     </div>
   )
@@ -169,6 +233,7 @@ export function Topbar({ onAbrirMenu }: { onAbrirMenu: () => void }) {
       {/* Acciones y perfil */}
       <div className="ml-auto flex items-center gap-3 lg:gap-5">
         <CuotaWhatsapp className="hidden w-32 lg:flex xl:w-40" />
+        <CuotaCopiloto className="hidden w-32 xl:flex xl:w-40" />
         <SelectorSucursal className="hidden w-44 md:block" />
 
         <div className="flex items-center gap-2 border-slate-200 sm:gap-3 sm:border-l sm:pl-3">

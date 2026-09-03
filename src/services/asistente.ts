@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { contextoDeAviso, plantillaAviso, plantillaAvisoInterno, plantillaInforme } from '../lib/asistente'
+import { enviadosEsteMes } from './whatsapp'
+import { getPlan } from './planes'
 import type { Programado, RespuestaCopiloto, ResumenDelDia } from '../types/views'
 
 export interface Redaccion {
@@ -67,6 +69,49 @@ async function pedirALaIA(tarea: Tarea, contexto: unknown): Promise<Intento> {
 async function clinicaEnSesion(): Promise<string> {
   const { data } = await supabase.from('clinicas').select('nombre').limit(1).maybeSingle()
   return data?.nombre ?? 'Su veterinaria'
+}
+
+export interface CuotaIa {
+  redaccion: { usados: number; limite: number }
+  copiloto: { usados: number; limite: number }
+}
+
+/**
+ * Cuánto lleva gastado la clínica de cada cupo de IA este mes, frente a su
+ * plan.
+ *
+ * Dos cupos, no uno (migración 0039): un aviso en Haiku y una pregunta al
+ * copiloto en Sonnet cuestan ~19 veces distinto, así que tienen contadores y
+ * topes separados. `enviadosEsteMes()` es la misma función que ya usa la
+ * cuota de WhatsApp —es genérica: contador más periodo, nada específico de
+ * WhatsApp— y no hay motivo para escribirla dos veces.
+ *
+ * Igual que `getCuotaWhatsapp`: si el plan no se pudo leer, lanza en vez de
+ * devolver un cupo en cero. Un fallo de lectura no es lo mismo que una cuota
+ * agotada, y no pueden verse igual en la interfaz.
+ */
+export async function getCuotaIa(clinicaId: string): Promise<CuotaIa> {
+  const { data: clinica } = await supabase
+    .from('clinicas')
+    .select('plan_id, ia_consultas_redaccion, ia_periodo_redaccion, ia_consultas_copiloto, ia_periodo_copiloto')
+    .eq('id', clinicaId)
+    .single()
+
+  if (!clinica) throw new Error('Clínica no encontrada')
+
+  const plan = await getPlan(clinica.plan_id)
+  if (!plan) throw new Error('No se pudo leer el plan de la clínica')
+
+  return {
+    redaccion: {
+      usados: enviadosEsteMes(clinica.ia_consultas_redaccion, clinica.ia_periodo_redaccion),
+      limite: plan.ia_limite_redaccion,
+    },
+    copiloto: {
+      usados: enviadosEsteMes(clinica.ia_consultas_copiloto, clinica.ia_periodo_copiloto),
+      limite: plan.ia_limite_copiloto,
+    },
+  }
 }
 
 export async function contactoAdministracion(): Promise<{ nombre: string; whatsapp: string }> {

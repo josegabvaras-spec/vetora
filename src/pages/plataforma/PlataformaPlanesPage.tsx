@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Building2, Check, MessageCircle, Pencil, Plus, Users } from 'lucide-react'
+import { Building2, Check, MessageCircle, Pencil, Plus, Sparkles, Users } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -150,6 +150,14 @@ export function PlataformaPlanesPage() {
                   <MessageCircle size={13} className="text-slate-400" />
                   {p.whatsapp_limite} mensajes de WhatsApp al mes
                 </div>
+                {/* Solo si el módulo está marcado: un cupo sin el módulo no
+                    sirve de nada, y mostrarlo igual sugeriría que sí. */}
+                {p.modulos_habilitados.includes('asistente_ia') && (
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={13} className="text-slate-400" />
+                    {p.ia_limite_redaccion} avisos + {p.ia_limite_copiloto} copiloto al mes
+                  </div>
+                )}
               </dl>
 
               {/* Los módulos no se veían en ninguna parte, y por eso este fallo
@@ -442,6 +450,11 @@ function PlanModal({
   const [whatsapp, setWhatsapp] = useState(plan ? String(plan.whatsapp_limite) : '200')
   const [sucursales, setSucursales] = useState(plan ? String(plan.max_sucursales) : '1')
   const [usuarios, setUsuarios] = useState(plan ? String(plan.max_usuarios) : '5')
+  // 0 por defecto en un plan nuevo, a propósito: sin el módulo `asistente_ia`
+  // marcado abajo tampoco importa, y así nadie regala cupo sin haberlo
+  // decidido — mismo criterio que `ia_limite` nació en 0038.
+  const [iaRedaccion, setIaRedaccion] = useState(plan ? String(plan.ia_limite_redaccion) : '0')
+  const [iaCopiloto, setIaCopiloto] = useState(plan ? String(plan.ia_limite_copiloto) : '0')
   const [modulos, setModulos] = useState<ModuloVetora[]>(
     (plan?.modulos_habilitados as ModuloVetora[] | undefined) ?? ['agenda', 'caja', 'inventario', 'portal_cliente', 'whatsapp']
   )
@@ -469,6 +482,8 @@ function PlanModal({
       max_sucursales: Number(sucursales),
       max_usuarios: Number(usuarios),
       modulos_habilitados: modulos,
+      ia_limite_redaccion: Number(iaRedaccion),
+      ia_limite_copiloto: Number(iaCopiloto),
     }
     try {
       if (plan) await updatePlan(plan.id, datos)
@@ -536,6 +551,27 @@ function PlanModal({
             Solo los módulos marcados estarán disponibles para las clínicas con este plan.
           </p>
         </FieldGroup>
+
+        {/* Solo tiene sentido si el módulo está marcado arriba: configurar un
+            cupo que nadie puede usar todavía confundiría más que ayudar. */}
+        {modulos.includes('asistente_ia') && (
+          <FieldGroup label="Cupo mensual de IA">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Input type="number" min="0" value={iaRedaccion} onChange={(e) => setIaRedaccion(e.target.value)} />
+                <p className="mt-1 text-[11px] text-slate-500">Avisos e informes redactados (Haiku)</p>
+              </div>
+              <div>
+                <Input type="number" min="0" value={iaCopiloto} onChange={(e) => setIaCopiloto(e.target.value)} />
+                <p className="mt-1 text-[11px] text-slate-500">Preguntas al copiloto (Sonnet)</p>
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Dos cupos separados: cuestan distinto, y así uno no se come el del otro. En 0, esa función no
+              corre aunque el módulo esté marcado.
+            </p>
+          </FieldGroup>
+        )}
 
         <p className="text-xs text-slate-500">
           Estos límites bloquean de verdad: una clínica no podrá crear más sucursales, usuarios ni enviar más
