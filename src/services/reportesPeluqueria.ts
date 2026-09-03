@@ -41,7 +41,7 @@ export async function getReportePeluqueria(
     .from('peluqueria_ordenes')
     .select(`
       *,
-      peluquero:usuarios(*),
+      peluquero:usuarios!peluqueria_ordenes_peluquero_id_fkey(*),
       servicio:servicios(*)
     `)
 

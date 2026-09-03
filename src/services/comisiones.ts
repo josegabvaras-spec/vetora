@@ -16,7 +16,7 @@ export async function listComisiones(filtros: FiltrosComisiones = {}): Promise<P
     .from('peluqueria_comisiones')
     .select(`
       *,
-      peluquero:usuarios(*),
+      peluquero:usuarios!peluqueria_comisiones_peluquero_id_fkey(*),
       orden:peluqueria_ordenes(
         *,
         paciente:pacientes(*),

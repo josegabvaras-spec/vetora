@@ -95,7 +95,7 @@ export async function listOrdenes(filtros: FiltrosOrdenes = {}): Promise<Peluque
       *,
       paciente:pacientes(*),
       cliente:clientes(*),
-      peluquero:usuarios(*),
+      peluquero:usuarios!peluqueria_ordenes_peluquero_id_fkey(*),
       servicio:servicios(*),
       fotos:peluqueria_fotos(*)
     `)
@@ -142,7 +142,7 @@ export async function getOrden(id: string): Promise<PeluqueriaOrdenConDetalle> {
       *,
       paciente:pacientes(*),
       cliente:clientes(*),
-      peluquero:usuarios(*),
+      peluquero:usuarios!peluqueria_ordenes_peluquero_id_fkey(*),
       servicio:servicios(*),
       fotos:peluqueria_fotos(*),
       cita:citas(*)

@@ -297,7 +297,7 @@ export async function listAtencionesPorCobrar(sucursalId?: string): Promise<Aten
 
   let pelQuery = supabase
     .from('peluqueria_ordenes')
-    .select('*, paciente:pacientes(*, cliente:clientes(*)), peluquero:usuarios(*), servicio:servicios(*)')
+    .select('*, paciente:pacientes(*, cliente:clientes(*)), peluquero:usuarios!peluqueria_ordenes_peluquero_id_fkey(*), servicio:servicios(*)')
     .in('estado', ['terminada', 'lista_recoger', 'entregada'])
     .is('cobro_id', null)
   if (sucursalId) pelQuery = pelQuery.eq('sucursal_id', sucursalId)
