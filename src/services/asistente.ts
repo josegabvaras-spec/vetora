@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { contextoDeAviso, plantillaAviso, plantillaAvisoInterno, plantillaInforme } from '../lib/asistente'
-import type { Programado, ResumenDelDia } from '../types/views'
+import type { Programado, RespuestaCopiloto, ResumenDelDia } from '../types/views'
 
 export interface Redaccion {
   texto: string
@@ -8,7 +8,7 @@ export interface Redaccion {
   motivo?: string
 }
 
-type Tarea = 'aviso' | 'aviso_interno' | 'informe'
+type Tarea = 'aviso' | 'aviso_interno' | 'informe' | 'copiloto'
 
 const SIN_IA = 'El asistente de IA no está configurado; texto generado con la plantilla del sistema.'
 
@@ -26,7 +26,7 @@ interface Intento {
  * clínica que agotó su cupo mensual ve exactamente lo mismo que una a la que
  * nunca le configuraron la clave, y concluye que la IA está rota.
  */
-async function motivoDelError(error: unknown): Promise<string> {
+async function motivoDelError(error: unknown, generico = SIN_IA): Promise<string> {
   const respuesta = (error as { context?: Response } | null)?.context
   if (respuesta && typeof respuesta.json === 'function') {
     try {
@@ -36,7 +36,7 @@ async function motivoDelError(error: unknown): Promise<string> {
       // El cuerpo no era JSON, o ya se había consumido. Vale el genérico.
     }
   }
-  return SIN_IA
+  return generico
 }
 
 /**
@@ -96,4 +96,30 @@ export async function redactarInforme(resumen: ResumenDelDia): Promise<Redaccion
   const { texto, motivo } = await pedirALaIA('informe', { clinica, ...resumen })
   if (texto) return { texto, origen: 'ia' }
   return { texto: plantillaInforme(resumen, clinica), origen: 'plantilla', motivo: motivo ?? SIN_IA }
+}
+
+/**
+ * Una pregunta al copiloto sobre el negocio.
+ *
+ * ⚠️ **Aquí no hay plantilla que valga.** Los avisos y el informe caen a un
+ * texto determinista cuando el modelo falla, porque hay algo sensato que
+ * escribir sin él. Una pregunta abierta no: inventarse una respuesta sería
+ * exactamente lo que el copiloto tiene prohibido hacer. Si falla, se dice.
+ *
+ * Los datos NO se mandan desde aquí. La Edge Function los consulta ella con el
+ * token de quien pregunta, así que la RLS acota lo que la IA puede ver igual
+ * que acota lo que ve la pantalla.
+ */
+export async function preguntarACopiloto(pregunta: string): Promise<RespuestaCopiloto> {
+  if (!supabase) throw new Error('No hay conexión con el servidor')
+
+  const { data, error } = await supabase.functions.invoke<{
+    respuesta?: RespuestaCopiloto
+    herramientas?: string[]
+  }>('asistente', { body: { tarea: 'copiloto', pregunta } })
+
+  if (error) throw new Error(await motivoDelError(error, 'No se pudo consultar al asistente'))
+  if (!data?.respuesta) throw new Error('El asistente no devolvió una respuesta')
+
+  return { ...data.respuesta, fuentes: data.herramientas ?? [] }
 }

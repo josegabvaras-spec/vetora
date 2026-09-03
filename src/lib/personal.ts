@@ -183,3 +183,22 @@ export function puedeVerHistorialClinico(
 ): boolean {
   return usuario?.rol === 'admin' || usuario?.rol === 'veterinario' || usuario?.rol === 'recepcion'
 }
+
+/**
+ * Quién puede preguntarle al copiloto.
+ *
+ * ⚠️ **Esta lista tiene que ser la MISMA que la de `autorizar()` en
+ * `supabase/functions/asistente/index.ts`.** Aquí es una decisión de pantalla
+ * —no enseñar un formulario que va a devolver 403— y allí es la barrera de
+ * verdad. Si diverge, o se oculta algo que funcionaría, o se ofrece algo que
+ * falla al pulsar.
+ *
+ * El `peluquero` queda fuera **por ahora**, y no por su rol en sí: las
+ * herramientas de hoy son de agenda clínica, pacientes, ventas e inventario, y
+ * su pantalla del asistente (`JornadaClinica`) es una cola derivada sin IA.
+ * Cuando existan las herramientas de peluquería hay que abrirlo **en los dos
+ * sitios a la vez**.
+ */
+export function puedeUsarCopiloto(usuario: { rol: string } | null | undefined): boolean {
+  return usuario?.rol === 'admin' || usuario?.rol === 'veterinario' || usuario?.rol === 'recepcion'
+}

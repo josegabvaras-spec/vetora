@@ -1,6 +1,7 @@
 import { useAuth } from '../context/useAuth'
 import { JornadaClinica } from '../features/asistente/JornadaClinica'
-import { peluqueroAcotado, veterinarioAcotado } from '../lib/personal'
+import { PreguntaleAVetora } from '../features/asistente/PreguntaleAVetora'
+import { peluqueroAcotado, puedeUsarCopiloto, veterinarioAcotado } from '../lib/personal'
 
 /**
  * Asistente de quien atiende directamente al paciente —veterinario o
@@ -25,6 +26,11 @@ export function AsistenteJornadaPage() {
           aparecen aquí, sin que tengas que buscar al paciente.
         </p>
       </div>
+
+      {/* El peluquero comparte esta pantalla y queda fuera del copiloto: sus
+          herramientas son de agenda clínica, pacientes, ventas e inventario.
+          `puedeUsarCopiloto` refleja el mismo guard que la Edge Function. */}
+      {puedeUsarCopiloto(usuario) && <PreguntaleAVetora />}
 
       <JornadaClinica
         veterinarioId={veterinarioAcotado(usuario) ?? peluqueroAcotado(usuario)}

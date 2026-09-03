@@ -7,6 +7,8 @@ import { Badge } from '../components/ui/Badge'
 import { Seccion } from '../components/ui/Seccion'
 import { TablaResponsive } from '../components/ui/Tabla'
 import { useAuth } from '../context/useAuth'
+import { PreguntaleAVetora } from '../features/asistente/PreguntaleAVetora'
+import { puedeUsarCopiloto } from '../lib/personal'
 import { getSugerenciasReposicion, listLotes, type SugerenciaReposicion } from '../services/petshop'
 import { enlaceWhatsapp } from '../lib/whatsapp'
 import { formatBs } from '../lib/currency'
@@ -35,7 +37,7 @@ import type { ProductoLoteConDetalle } from '../types/views'
  * se avisa a los clientes.
  */
 export function AsistentePetshopPage() {
-  const { sucursalActivaId } = useAuth()
+  const { usuario, sucursalActivaId } = useAuth()
 
   const [reposicion, setReposicion] = useState<SugerenciaReposicion[]>([])
   const [porVencer, setPorVencer] = useState<ProductoLoteConDetalle[]>([])
@@ -211,6 +213,8 @@ export function AsistentePetshopPage() {
           Lo que toca atender hoy en la mercadería: qué reponer y qué sacar antes de que venza.
         </p>
       </div>
+
+      {puedeUsarCopiloto(usuario) && <PreguntaleAVetora />}
 
       <Card padding="md" className="border border-slate-200/60">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

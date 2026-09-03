@@ -526,3 +526,33 @@ export interface ArticuloDeCatalogo {
   /** Su ficha en la Tienda, o null si no se está vendiendo ahí. */
   ficha: CatalogoProducto | null
 }
+
+/** Una cifra o una fila que respalda lo que dice el copiloto. */
+export interface DatoCopiloto {
+  etiqueta: string
+  valor: string
+}
+
+/**
+ * La respuesta del copiloto, con forma.
+ *
+ * **No es texto libre a propósito.** La estructura la garantiza la herramienta
+ * `responder` de la Edge Function, cuyo esquema valida la propia API: o la
+ * respuesta viene así, o no viene. Pedir un JSON en el prompt y confiar en que
+ * salga bien es lo que produce respuestas que hay que parsear a la defensiva.
+ *
+ * `fuentes` no es decorativo: sin decir qué se consultó, una recomendación es
+ * una afirmación sin respaldo, y quien la lee no tiene forma de comprobarla.
+ */
+export interface RespuestaCopiloto {
+  tipo: 'analisis' | 'resumen' | 'recomendacion'
+  titulo: string
+  resumen: string
+  datos: DatoCopiloto[]
+  recomendaciones: string[]
+  advertencias: string[]
+  /** Lo que propone lo decide o lo ejecuta una persona. La IA no actúa. */
+  requiere_accion_humana: boolean
+  /** Qué herramientas se consultaron para responder. */
+  fuentes: string[]
+}

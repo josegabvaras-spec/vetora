@@ -18,7 +18,8 @@ import { contactoAdministracion, redactarInforme, type Redaccion } from '../serv
 import { enviarMensajeWhatsapp } from '../services/whatsapp'
 import { TIPO_AVISO_LABEL, cuandoLegible } from '../lib/asistente'
 import { formatBs } from '../lib/currency'
-import { panelDelNegocio } from '../lib/personal'
+import { panelDelNegocio, puedeUsarCopiloto } from '../lib/personal'
+import { PreguntaleAVetora } from '../features/asistente/PreguntaleAVetora'
 import type { Programado, ResumenDelDia, TipoAviso } from '../types/views'
 
 const TONO_AVISO: Record<TipoAviso, 'teal' | 'rose' | 'amber' | 'slate' | 'indigo'> = {
@@ -238,6 +239,8 @@ export function AsistentePage() {
             : 'Lo que toca avisar hoy: citas, refuerzos de vacuna y desparasitaciones. El texto se redacta solo; usted lo revisa y lo envía.'}
         </p>
       </div>
+
+      {puedeUsarCopiloto(usuario) && <PreguntaleAVetora />}
 
       {/* Resumen del día */}
       {resumen && (

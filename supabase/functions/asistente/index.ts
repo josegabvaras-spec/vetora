@@ -37,6 +37,7 @@ import {
   type Tarea,
   type TokensDeEntrada,
 } from './modelos.ts'
+import { orquestar } from './orquestador.ts'
 
 const URL_SUPABASE = Deno.env.get('SUPABASE_URL')!
 const CLAVE_ANONIMA = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -145,12 +146,15 @@ const ESQUEMA = {
  * funciones de la API que aquí se usan. Cuando se suba el pin y las declare,
  * esto se borra y los dos vuelven al literal.
  */
-function parametrosNoDeclaradosPorElSdk(tarea: Tarea): object {
+function parametrosNoDeclaradosPorElSdk(esfuerzo: string, conEsquema: boolean): object {
   return {
     fallbacks: 'default',
     output_config: {
-      effort: ESFUERZO_POR_TAREA[tarea],
-      format: { type: 'json_schema', schema: ESQUEMA },
+      effort: esfuerzo,
+      // El copiloto NO lleva esquema de salida: su estructura la garantiza la
+      // herramienta `responder`, cuyo `input_schema` valida la propia API.
+      // Pedir las dos cosas a la vez sería exigir dos formas de la respuesta.
+      ...(conEsquema ? { format: { type: 'json_schema', schema: ESQUEMA } } : {}),
     },
   }
 }
@@ -231,15 +235,22 @@ async function autorizar(
  * `usuarios`.
  *
  * Falla cerrado: si no se puede leer, no hay copiloto.
+ *
+ * Devuelve también el nombre, que el copiloto necesita para su contexto: es la
+ * misma fila y no tiene sentido pedirla dos veces.
  */
-async function tieneModuloIa(jwt: string): Promise<boolean> {
+async function datosDeLaClinica(jwt: string): Promise<{ nombre: string; tieneIa: boolean }> {
   const { data } = await clienteDeUsuario(jwt)
     .from('clinicas')
-    .select('planes(modulos_habilitados)')
+    .select('nombre, planes(modulos_habilitados)')
     .maybeSingle()
 
-  const plan = (data as { planes?: { modulos_habilitados?: string[] } | null } | null)?.planes
-  return Array.isArray(plan?.modulos_habilitados) && plan!.modulos_habilitados!.includes('asistente_ia')
+  const fila = data as { nombre?: string; planes?: { modulos_habilitados?: string[] } | null } | null
+  const modulos = fila?.planes?.modulos_habilitados
+  return {
+    nombre: fila?.nombre ?? 'la clínica',
+    tieneIa: Array.isArray(modulos) && modulos.includes('asistente_ia'),
+  }
 }
 
 /**
@@ -297,13 +308,19 @@ Deno.serve(async (peticion) => {
     if ('error' in acceso) return responder({ error: acceso.error }, acceso.status)
     const { jwt, perfil } = acceso
 
-    const { tarea, contexto } = await peticion.json()
-    // `copiloto` existe en el tipo pero su orquestador llega en la fase 3.
-    if (!esTarea(tarea) || tarea === 'copiloto') {
-      return responder({ error: 'Tarea desconocida' }, 400)
+    const { tarea, contexto, pregunta } = await peticion.json()
+    if (!esTarea(tarea)) return responder({ error: 'Tarea desconocida' }, 400)
+
+    // El copiloto es lo único que recibe texto libre de quien pregunta, así que
+    // es lo único que hay que acotar por tamaño: sin tope, el cuerpo de la
+    // petición es una vía directa a inflar la factura de tokens.
+    const consulta = typeof pregunta === 'string' ? pregunta.trim() : ''
+    if (tarea === 'copiloto' && (consulta.length < 3 || consulta.length > 2000)) {
+      return responder({ error: 'La pregunta tiene que tener entre 3 y 2000 caracteres' }, 400)
     }
 
-    if (!await tieneModuloIa(jwt)) {
+    const clinica = await datosDeLaClinica(jwt)
+    if (!clinica.tieneIa) {
       return responder({ error: 'El plan de la clínica no incluye el asistente de IA' }, 403)
     }
 
@@ -329,6 +346,37 @@ Deno.serve(async (peticion) => {
       )
     }
 
+    // El copiloto tiene su propio camino: un bucle de herramientas, no una sola
+    // llamada. Las herramientas las ejecutamos NOSOTROS con el token de quien
+    // preguntó, así que la RLS sigue aplicando igual que en cualquier pantalla.
+    if (tarea === 'copiloto') {
+      const resultado = await orquestar({
+        cliente: client,
+        sb: clienteDeUsuario(jwt),
+        modelo,
+        esfuerzo: ESFUERZO_POR_TAREA.copiloto,
+        pregunta: consulta,
+        rol: perfil.rol,
+        clinica: clinica.nombre,
+        parametrosExtra: (esfuerzo) => parametrosNoDeclaradosPorElSdk(esfuerzo, false),
+      })
+
+      await registrarUso(jwt, perfil, {
+        modelo, tarea,
+        // Sin repetidos: interesa QUÉ se consultó, no cuántas veces.
+        herramientas: [...new Set(resultado.herramientas)],
+        entrada: resultado.entrada,
+        tokens_salida: resultado.salida,
+        duracion_ms: Date.now() - inicio,
+        resultado: 'ok',
+      })
+
+      return responder({
+        respuesta: resultado.respuesta,
+        herramientas: [...new Set(resultado.herramientas)],
+      })
+    }
+
     const respuesta = await client.beta.messages.create({
       model: modelo,
       // En Opus 5 el pensamiento está activo por defecto y comparte este techo
@@ -343,7 +391,7 @@ Deno.serve(async (peticion) => {
           cache_control: { type: 'ephemeral' },
         },
       ],
-      ...parametrosNoDeclaradosPorElSdk(tarea),
+      ...parametrosNoDeclaradosPorElSdk(ESFUERZO_POR_TAREA[tarea], true),
       messages: [{ role: 'user', content: JSON.stringify(contexto) }],
     })
 
