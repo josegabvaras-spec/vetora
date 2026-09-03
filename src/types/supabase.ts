@@ -157,8 +157,10 @@ export type Database = {
           estado: string
           estado_pago: string
           fecha_alta: string
-          ia_consultas: number
-          ia_periodo: string
+          ia_consultas_redaccion: number
+          ia_periodo_redaccion: string
+          ia_consultas_copiloto: number
+          ia_periodo_copiloto: string
           id: string
           logo_url: string | null
           nombre: string
@@ -177,8 +179,10 @@ export type Database = {
           estado?: string
           estado_pago?: string
           fecha_alta?: string
-          ia_consultas?: number
-          ia_periodo?: string
+          ia_consultas_redaccion?: number
+          ia_periodo_redaccion?: string
+          ia_consultas_copiloto?: number
+          ia_periodo_copiloto?: string
           id?: string
           logo_url?: string | null
           nombre: string
@@ -197,8 +201,10 @@ export type Database = {
           estado?: string
           estado_pago?: string
           fecha_alta?: string
-          ia_consultas?: number
-          ia_periodo?: string
+          ia_consultas_redaccion?: number
+          ia_periodo_redaccion?: string
+          ia_consultas_copiloto?: number
+          ia_periodo_copiloto?: string
           id?: string
           logo_url?: string | null
           nombre?: string
@@ -1228,7 +1234,8 @@ export type Database = {
           activo: boolean
           created_at: string
           id: string
-          ia_limite: number
+          ia_limite_redaccion: number
+          ia_limite_copiloto: number
           max_sucursales: number
           max_usuarios: number
           modulos_habilitados: string[]
@@ -1240,7 +1247,8 @@ export type Database = {
           activo?: boolean
           created_at?: string
           id?: string
-          ia_limite?: number
+          ia_limite_redaccion?: number
+          ia_limite_copiloto?: number
           max_sucursales: number
           max_usuarios: number
           modulos_habilitados?: string[]
@@ -1252,7 +1260,8 @@ export type Database = {
           activo?: boolean
           created_at?: string
           id?: string
-          ia_limite?: number
+          ia_limite_redaccion?: number
+          ia_limite_copiloto?: number
           max_sucursales?: number
           max_usuarios?: number
           modulos_habilitados?: string[]
@@ -2587,7 +2596,10 @@ export type Database = {
       aprobar_pago_suscripcion: { Args: { p_pago_id: string }; Returns: string }
       consumir_cuota_whatsapp: { Args: never; Returns: number }
       // Migración 0038. Añadida a mano, por lo mismo que las de 0028.
-      consumir_cuota_ia: { Args: never; Returns: number }
+      // Migración 0039: gana un parámetro (qué cupo consumir) y por tanto
+      // cambia de firma — sigue añadida a mano por el mismo motivo que las
+      // demás de esta sección.
+      consumir_cuota_ia: { Args: { p_tarea: string }; Returns: number }
       espacio_estudios_bytes: { Args: never; Returns: number }
       get_citas_end_time: { Args: { start_time: string }; Returns: string }
       // Migración 0028. Añadidas a mano: este fichero se genera desde la base,

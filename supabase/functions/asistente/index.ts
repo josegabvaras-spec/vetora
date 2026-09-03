@@ -352,7 +352,12 @@ Deno.serve(async (peticion) => {
     // La cuota se consume ANTES de llamar al modelo, y en una sola sentencia
     // SQL: comprobar aquí y consumir después dejaría pasar dos pestañas con la
     // cuota al límite. Mismo criterio que `consumir_cuota_whatsapp()`.
-    const { error: errorCuota } = await clienteDeUsuario(jwt).rpc('consumir_cuota_ia')
+    //
+    // ⚠️ Dos cupos, no uno (migración 0039): la función decide cuál tocar
+    // según `p_tarea`. Un aviso en Haiku y una pregunta al copiloto en Sonnet
+    // ya no compiten por el mismo número — costaban ~19× distinto y contarlos
+    // igual dejaba que uno se comiera el cupo del otro.
+    const { error: errorCuota } = await clienteDeUsuario(jwt).rpc('consumir_cuota_ia', { p_tarea: tarea })
     if (errorCuota) {
       // `P0001` es el errcode que levanta a mano la función cuando no hay cuota.
       // Cualquier otro es un fallo de verdad (la función sin desplegar, la red)
