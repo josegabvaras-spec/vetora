@@ -36,27 +36,47 @@ export function NuevoProductoModal({
   const [ubicacion, setUbicacion] = useState(productoAEditar?.ubicacion || '')
   const [presentacion, setPresentacion] = useState(productoAEditar?.presentacion || 'Unidad')
   const [unidadMedida, setUnidadMedida] = useState(productoAEditar?.unidad_medida || 'unidad')
+  // ⚠️ Los seis campos numéricos van en texto, no en número — mismo motivo
+  // que en `LoteModal.tsx`: un `<input type="number">` controlado con estado
+  // NUMÉRICO deja un cero pegado en pantalla al escribir encima (React no
+  // toca el DOM cuando el valor tecleado y el anterior son el mismo número,
+  // p. ej. "05" y "5"). Con el estado en texto, lo que se ve es exactamente
+  // lo que se tecleó.
   const [contenidoPresentacion, setContenidoPresentacion] = useState(
-    productoAEditar?.contenido_presentacion || 1,
+    String(productoAEditar?.contenido_presentacion || 1),
   )
-  const [costoBs, setCostoBs] = useState<number>(productoAEditar?.costo_bs || 0)
-  const [precioBs, setPrecioBs] = useState<number>(productoAEditar?.precio_bs || 0)
-  const [stockMinimo, setStockMinimo] = useState<number>(productoAEditar?.stock_minimo || 3)
-  const [stockMaximo, setStockMaximo] = useState<number>(productoAEditar?.stock_maximo || 50)
-  const [stockInicial, setStockInicial] = useState<number>(0)
+  const [costoBs, setCostoBs] = useState(String(productoAEditar?.costo_bs || 0))
+  const [precioBs, setPrecioBs] = useState(String(productoAEditar?.precio_bs || 0))
+  const [stockMinimo, setStockMinimo] = useState(String(productoAEditar?.stock_minimo || 3))
+  const [stockMaximo, setStockMaximo] = useState(String(productoAEditar?.stock_maximo || 50))
+  const [stockInicial, setStockInicial] = useState('0')
   const [proveedorId, setProveedorId] = useState(productoAEditar?.proveedor_id || '')
   const [requiereLote, setRequiereLote] = useState(productoAEditar?.requiere_lote || false)
 
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const gananciaBs = Math.max(0, precioBs - costoBs)
-  const margenPct = precioBs > 0 ? (gananciaBs / precioBs) * 100 : 0
+  // Solo para el resumen de margen en pantalla: se lee tal cual se teclea,
+  // sin esperar al submit.
+  const precioNumero = Number(precioBs) || 0
+  const costoNumero = Number(costoBs) || 0
+  const gananciaBs = Math.max(0, precioNumero - costoNumero)
+  const margenPct = precioNumero > 0 ? (gananciaBs / precioNumero) * 100 : 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setGuardando(true)
     setError(null)
+
+    // Los seis campos numéricos se convierten aquí, una sola vez, no en cada
+    // tecla — mismo criterio que `LoteModal.tsx`.
+    const datosNumericos = {
+      contenidoPresentacion: Number(contenidoPresentacion) || 1,
+      costoBs: Number(costoBs) || 0,
+      precioBs: Number(precioBs) || 0,
+      stockMinimo: Number(stockMinimo) || 0,
+      stockMaximo: Number(stockMaximo) || 0,
+    }
 
     try {
       if (productoAEditar) {
@@ -69,11 +89,7 @@ export function NuevoProductoModal({
           ubicacion,
           presentacion,
           unidadMedida,
-          contenidoPresentacion,
-          costoBs,
-          precioBs,
-          stockMinimo,
-          stockMaximo,
+          ...datosNumericos,
           proveedorId: proveedorId || undefined,
           requiereLote,
         })
@@ -87,12 +103,8 @@ export function NuevoProductoModal({
           ubicacion,
           presentacion,
           unidadMedida,
-          contenidoPresentacion,
-          costoBs,
-          precioBs,
-          stockMinimo,
-          stockMaximo,
-          stockInicial,
+          ...datosNumericos,
+          stockInicial: Number(stockInicial) || 0,
           proveedorId: proveedorId || undefined,
           requiereLote,
         })
@@ -204,7 +216,7 @@ export function NuevoProductoModal({
               step="0.01"
               min="0.01"
               value={contenidoPresentacion}
-              onChange={(e) => setContenidoPresentacion(parseFloat(e.target.value) || 1)}
+              onChange={(e) => setContenidoPresentacion(e.target.value)}
               required
             />
           </FieldGroup>
@@ -219,7 +231,7 @@ export function NuevoProductoModal({
                 step="0.5"
                 min="0"
                 value={costoBs}
-                onChange={(e) => setCostoBs(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setCostoBs(e.target.value)}
                 required
               />
             </FieldGroup>
@@ -230,7 +242,7 @@ export function NuevoProductoModal({
                 step="0.5"
                 min="0"
                 value={precioBs}
-                onChange={(e) => setPrecioBs(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setPrecioBs(e.target.value)}
                 required
               />
             </FieldGroup>
@@ -251,7 +263,7 @@ export function NuevoProductoModal({
               type="number"
               min="0"
               value={stockMinimo}
-              onChange={(e) => setStockMinimo(parseInt(e.target.value) || 0)}
+              onChange={(e) => setStockMinimo(e.target.value)}
               required
             />
           </FieldGroup>
@@ -261,7 +273,7 @@ export function NuevoProductoModal({
               type="number"
               min="1"
               value={stockMaximo}
-              onChange={(e) => setStockMaximo(parseInt(e.target.value) || 50)}
+              onChange={(e) => setStockMaximo(e.target.value)}
               required
             />
           </FieldGroup>
@@ -272,7 +284,7 @@ export function NuevoProductoModal({
                 type="number"
                 min="0"
                 value={stockInicial}
-                onChange={(e) => setStockInicial(parseInt(e.target.value) || 0)}
+                onChange={(e) => setStockInicial(e.target.value)}
               />
             </FieldGroup>
           )}

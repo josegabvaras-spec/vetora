@@ -25,8 +25,15 @@ export function LoteModal({
   const [productoId, setProductoId] = useState(productoPreseleccionadoId || '')
   const [numeroLote, setNumeroLote] = useState('')
   const [fechaVencimiento, setFechaVencimiento] = useState('')
-  const [cantidad, setCantidad] = useState<number>(1)
-  const [costoUnitarioBs, setCostoUnitarioBs] = useState<number>(0)
+  // ⚠️ Texto, no número. Un `<input type="number">` controlado con estado
+  // NUMÉRICO tiene un efecto conocido de React: si lo que se acaba de teclear
+  // y el valor anterior son el mismo número (`"05"` y `"5"` son los dos un 5),
+  // React no toca el DOM para no interrumpir la escritura de un decimal a
+  // medias — y el "0" que ya estaba se queda pegado en pantalla aunque el
+  // estado interno ya diga 5. Con el estado en texto, lo que se ve es
+  // exactamente lo que se tecleó, sin ese redondeo de por medio.
+  const [cantidad, setCantidad] = useState('1')
+  const [costoUnitarioBs, setCostoUnitarioBs] = useState('0')
   const [proveedorId, setProveedorId] = useState('')
 
   const [guardando, setGuardando] = useState(false)
@@ -46,6 +53,20 @@ export function LoteModal({
       setError('Ingresa la fecha de vencimiento')
       return
     }
+    const cantidadNumero = Number(cantidad)
+    // ⚠️ La base exige `cantidad_inicial > 0` (check de `producto_lotes`).
+    // Sin esta comprobación, un campo que quedó en 0 —justo lo que el bug
+    // del cero pegado facilitaba— llegaba hasta el insert y volvía como un
+    // 400 en bruto, sin decir por qué.
+    if (!Number.isFinite(cantidadNumero) || cantidadNumero <= 0) {
+      setError('La cantidad tiene que ser mayor a cero')
+      return
+    }
+    const costoNumero = Number(costoUnitarioBs)
+    if (!Number.isFinite(costoNumero) || costoNumero < 0) {
+      setError('El costo unitario no puede ser negativo')
+      return
+    }
 
     setGuardando(true)
     setError(null)
@@ -56,8 +77,8 @@ export function LoteModal({
         productoId,
         numeroLote,
         fechaVencimiento,
-        cantidad,
-        costoUnitarioBs,
+        cantidad: cantidadNumero,
+        costoUnitarioBs: costoNumero,
         proveedorId: proveedorId || undefined,
       })
 
@@ -121,7 +142,7 @@ export function LoteModal({
               step="0.01"
               min="0.01"
               value={cantidad}
-              onChange={(e) => setCantidad(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setCantidad(e.target.value)}
               required
             />
           </FieldGroup>
@@ -132,7 +153,7 @@ export function LoteModal({
               step="0.5"
               min="0"
               value={costoUnitarioBs}
-              onChange={(e) => setCostoUnitarioBs(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setCostoUnitarioBs(e.target.value)}
             />
           </FieldGroup>
         </div>
