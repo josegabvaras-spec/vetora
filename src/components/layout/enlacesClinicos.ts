@@ -157,12 +157,23 @@ export function enlacesVisibles(rol: Rol | undefined, modulos?: ModuloVetora[]):
  * - `/respaldo` — bajarse una copia de sus datos. No depende de ningún módulo:
  *   son suyos.
  * - `/catalogo` — la vitrina que ve el dueño de mascota en la Tienda.
+ * - `/pacientes` y `/clientes` — **imprescindibles, y no «no son de su
+ *   negocio»**: es donde se da de alta la mascota y su dueño. Faltaron aquí
+ *   desde que existe esta lista (0034), y una peluquería se quedó sin ningún
+ *   camino en el menú para registrar un paciente nuevo — su propia sección
+ *   «Mascotas» (`ENLACES_PELUQUERIA`) solo LISTA pacientes existentes (ficha
+ *   de grooming, agendar), no los crea. La ruta en sí nunca estuvo cerrada
+ *   (`RolRoute` ya admite `peluquero` desde 0025); lo que faltaba era el
+ *   enlace. Pasan por `enlacesVisibles` como el resto de supervivientes, así
+ *   que respetan su propio `modulo: 'fichas'` — el plan PetShop no lo trae
+ *   (vende productos, no lleva expediente de mascota), así que ahí se caen
+ *   solos sin necesidad de excluirlos a mano.
  *
- * Todo lo demás del menú clínico se cae: o no es de su negocio (Pacientes,
- * Internación) o está duplicado dentro de su propio panel apuntando a la
- * versión clínica (Agenda, Servicios, Inventario, Métricas).
+ * Todo lo demás del menú clínico se cae: o no es de su negocio (Internación)
+ * o está duplicado dentro de su propio panel apuntando a la versión clínica
+ * (Agenda, Servicios, Inventario, Métricas).
  */
-const SOBREVIVEN_FUERA_DE_LA_CLINICA = ['/caja', '/asistente', '/respaldo', '/catalogo']
+const SOBREVIVEN_FUERA_DE_LA_CLINICA = ['/caja', '/asistente', '/respaldo', '/catalogo', '/pacientes', '/clientes']
 
 /**
  * Cómo se llaman los supervivientes fuera de una clínica.
