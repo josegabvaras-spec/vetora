@@ -103,8 +103,9 @@ export const ESQUEMAS_HERRAMIENTAS = [
     name: 'obtener_resumen_paciente',
     description:
       'Ficha de un paciente: datos básicos, alergias, antecedentes, sus últimas consultas ' +
-      'cerradas y su esquema de vacunas. Necesita el identificador del paciente, que sale ' +
-      'de obtener_agenda o de buscar_paciente.',
+      'cerradas, su esquema de vacunas y sus recetas —medicamento, dosis, vía, frecuencia—. ' +
+      'Úsala también para preguntas sobre medicamentos o dosis de un paciente concreto. ' +
+      'Necesita el identificador del paciente, que sale de obtener_agenda o de buscar_paciente.',
     input_schema: {
       type: 'object',
       properties: {
@@ -260,7 +261,7 @@ async function obtenerResumenPaciente(sb: SupabaseClient, args: Argumentos) {
   exigirSinError(error, 'el paciente')
   if (!paciente) return { encontrado: false }
 
-  const [consultas, vacunas] = await Promise.all([
+  const [consultas, vacunas, recetas] = await Promise.all([
     // Solo las CERRADAS: un borrador es una consulta a medio escribir, y
     // resumirla como si fuera un hecho clínico sería inventar.
     sb.from('historial_clinico')
@@ -271,9 +272,18 @@ async function obtenerResumenPaciente(sb: SupabaseClient, args: Argumentos) {
       .select('nombre_vacuna, fecha_aplicacion, fecha_refuerzo')
       .eq('paciente_id', id)
       .order('fecha_aplicacion', { ascending: false }).limit(15),
+    // Las recetas SÍ incluyen las de una consulta todavía abierta —a propósito:
+    // es justo ahí donde revisar una dosis antes de firmar es más útil— pero se
+    // anota `cerrada` para que no se presente como definitivo algo que el
+    // veterinario todavía puede cambiar.
+    sb.from('recetas')
+      .select('medicamento, dosis, via, frecuencia, duracion, indicaciones, created_at, historial_clinico(editable)')
+      .eq('paciente_id', id)
+      .order('created_at', { ascending: false }).limit(10),
   ])
   exigirSinError(consultas.error, 'el historial')
   exigirSinError(vacunas.error, 'las vacunas')
+  exigirSinError(recetas.error, 'las recetas')
 
   const p = paciente as any
   return {
@@ -286,6 +296,17 @@ async function obtenerResumenPaciente(sb: SupabaseClient, args: Argumentos) {
     },
     ultimas_consultas: consultas.data ?? [],
     vacunas: vacunas.data ?? [],
+    recetas: (recetas.data ?? []).map((r: any) => ({
+      medicamento: r.medicamento,
+      dosis: r.dosis,
+      via: r.via,
+      frecuencia: r.frecuencia,
+      duracion: r.duracion,
+      indicaciones: r.indicaciones,
+      fecha: r.created_at,
+      // false si la consulta que la recetó todavía está en borrador.
+      cerrada: r.historial_clinico?.editable === false,
+    })),
   }
 }
 
