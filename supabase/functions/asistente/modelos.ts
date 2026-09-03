@@ -16,34 +16,74 @@ export function esTarea(valor: unknown): valor is Tarea {
 /**
  * Modelo por tarea.
  *
- * De momento las cuatro apuntan a `claude-opus-5`, que es lo que el código ya
- * usaba: esta fase cambia la seguridad y el control de coste, **no el
- * comportamiento del modelo**. La fase 5 baja las tres primeras a Sonnet 5 y
- * mide la diferencia en el texto de los avisos antes de darlo por bueno.
+ * **Aviso, aviso interno e informe: `claude-haiku-4-5`.** Las tres son
+ * redacción o reordenar cifras que ya vienen calculadas — nada que decidir,
+ * solo escribirlo bien. Pedirle eso a un modelo de razonamiento es pagar de
+ * más por lo mismo.
  *
- * Existir ya como mapa es lo que permite ese cambio sin tocar nada más — y
- * permite también dejar una tarea en Opus si Sonnet la empeora, que es
+ * **Copiloto: `claude-sonnet-5`.** Es la única tarea que de verdad razona:
+ * decide qué herramienta consultar, en qué orden, y sintetiza el resultado
+ * para una pregunta que no tiene forma fija.
+ *
+ * Existir como mapa es lo que permite este reparto sin tocar nada más — y
+ * permite dejar una tarea en un modelo distinto si el elegido no rinde, que es
  * exactamente la clase de decisión que no debe exigir reescribir la función.
+ *
+ * ⚠️ Haiku 4.5 **no admite `output_config.effort`** — lo rechaza con error, a
+ * diferencia de Opus 5 y Sonnet 5. Ver `SOPORTA_EFFORT` más abajo: sin esa
+ * comprobación, las tres tareas de aquí fallarían en cuanto se llamaran.
  */
 export const MODELO_POR_TAREA: Record<Tarea, string> = {
-  aviso: 'claude-opus-5',
-  aviso_interno: 'claude-opus-5',
-  informe: 'claude-opus-5',
-  copiloto: 'claude-opus-5',
+  aviso: 'claude-haiku-4-5',
+  aviso_interno: 'claude-haiku-4-5',
+  informe: 'claude-haiku-4-5',
+  copiloto: 'claude-sonnet-5',
 }
 
 /**
- * Esfuerzo de razonamiento por tarea.
+ * Qué modelos admiten `output_config.effort`.
  *
- * Redactar cuatro frases no da para más, y esto se llama una vez por aviso: la
- * diferencia se nota en la factura. El copiloto sí razona —decide qué
- * herramienta consultar y cómo encadenarla—, así que va más alto.
+ * Opus 5 y Sonnet 5 sí; Haiku 4.5 no —es de una familia anterior a esa
+ * palanca— y lo devuelve como error, no como advertencia. `index.ts` tiene
+ * que consultar esto antes de construir la llamada, no asumir que todos los
+ * modelos aceptan los mismos parámetros.
+ */
+const SOPORTA_EFFORT = new Set(['claude-opus-5', 'claude-sonnet-5'])
+
+export function soportaEffort(modelo: string): boolean {
+  return SOPORTA_EFFORT.has(modelo)
+}
+
+/**
+ * Esfuerzo de razonamiento por tarea, para los modelos que lo admiten.
+ *
+ * ⚠️ Hoy solo se aplica a `copiloto`: las otras tres van en Haiku 4.5, que no
+ * tiene esta palanca (ver `soportaEffort()`). El mapa se conserva completo de
+ * todos modos, para que volver a subir una tarea a Opus o Sonnet no obligue a
+ * inventarle un esfuerzo nuevo — ya lo tiene.
  */
 export const ESFUERZO_POR_TAREA: Record<Tarea, 'low' | 'medium' | 'high'> = {
   aviso: 'low',
   aviso_interno: 'low',
   informe: 'medium',
   copiloto: 'medium',
+}
+
+/**
+ * Tope de tokens de salida por tarea.
+ *
+ * Un aviso son 2 a 4 frases; una nota interna, 1 a 3; el informe, 3 a 5
+ * líneas. Acotarlo no es solo coste: es la red de seguridad frente al límite
+ * de salida de cada modelo, que **no es el mismo en todos** —Haiku 4.5 es más
+ * bajo que Opus o Sonnet 5— y un `max_tokens` que lo supere es un 400, no un
+ * recorte silencioso. El copiloto se queda en el techo de siempre: puede
+ * necesitar varias vueltas de herramientas antes de responder.
+ */
+export const MAX_TOKENS_POR_TAREA: Record<Tarea, number> = {
+  aviso: 1024,
+  aviso_interno: 1024,
+  informe: 2048,
+  copiloto: 16000,
 }
 
 /**
@@ -60,7 +100,8 @@ export const ESFUERZO_POR_TAREA: Record<Tarea, 'low' | 'medium' | 'high'> = {
 const TARIFAS: Record<string, { entrada: number; salida: number }> = {
   'claude-opus-5': { entrada: 15, salida: 75 },
   'claude-sonnet-5': { entrada: 3, salida: 15 },
-  'claude-haiku-4-5-20251001': { entrada: 1, salida: 5 },
+  // Sin sufijo de fecha: `claude-haiku-4-5` es el identificador completo.
+  'claude-haiku-4-5': { entrada: 1, salida: 5 },
 }
 
 /**

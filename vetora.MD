@@ -241,7 +241,9 @@ Cada una tiene su barrera en la base de datos. Si el código las esquiva, está 
 **Encendida el 2 de septiembre de 2026.** Hasta ese día la función estaba desplegada pero
 `ANTHROPIC_API_KEY` no estaba en los secretos, así que **nunca había llamado al modelo**: todo salía de las plantillas deterministas de `lib/asistente.ts` y la interfaz lo indicaba con la insignia «Plantilla del sistema».
 
-**Lo que hace:** la Edge Function `asistente`, en Deno, llama a `claude-opus-5` con salida estructurada, caché del prompt, esfuerzo ajustado por tarea y respaldo ante rechazos del clasificador. Redacta tres cosas: **el aviso de WhatsApp al cliente**, **la nota interna al equipo** y **el informe del día** para administración.
+**Lo que hace:** la Edge Function `asistente`, en Deno, con salida estructurada, caché del prompt y respaldo ante rechazos del clasificador. Redacta tres cosas: **el aviso de WhatsApp al cliente**, **la nota interna al equipo** y **el informe del día** para administración — y responde preguntas abiertas sobre el negocio con el copiloto **«Pregúntale a Vetora»**, que consulta la base con herramientas de solo lectura y RLS (detalle técnico en `CLAUDE.md`).
+
+**No es un solo modelo, son dos, y la elección vive en el servidor** (`modelos.ts`): redactar y ordenar cifras ya dadas no exige razonar, así que aviso, nota interna e informe van con **`claude-haiku-4-5`**; el copiloto —que decide qué consultar y encadena varias herramientas— va con **`claude-sonnet-5`**. El modelo nunca llega del cliente.
 
 **El tope de gasto es una segunda palanca, y va aparte del módulo.** `planes.ia_limite` cuenta consultas al mes y lo consume `consumir_cuota_ia()` (migración 0038), con el mismo mecanismo atómico que la cuota de WhatsApp. **Cero significa sin copiloto aunque el plan traiga `asistente_ia`**: el módulo abre la pantalla, el tope paga los tokens. Se reparte a razón de unas tres consultas por dólar de suscripción, y `ia_uso` registra qué costó cada llamada — sin guardar la pregunta, la respuesta ni ningún identificador de paciente.
 
@@ -289,7 +291,7 @@ Cuando el negocio **es** una peluquería o un petshop, sus secciones **son** el 
 | Frontend | React 19 + Vite 8, TypeScript estricto |
 | Estilos | Tailwind CSS v4 |
 | Base de datos y auth | Supabase — PostgreSQL + Auth + Edge Functions + Storage |
-| Modelo de IA | `claude-opus-5` vía Edge Function en Deno |
+| Modelo de IA | `claude-haiku-4-5` (redacción) + `claude-sonnet-5` (copiloto), vía Edge Function en Deno |
 | Despliegue | Vercel desde `main`; funciones y migraciones a mano |
 
 **Verificación:** no hay runner de tests. La comprobación real es `npm run build` (los errores de tipo rompen el build), `npm run lint` y probar en el navegador con una cuenta real.

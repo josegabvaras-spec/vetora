@@ -30,9 +30,11 @@ import Anthropic from 'npm:@anthropic-ai/sdk@^0.68.0'
 import { createClient } from 'npm:@supabase/supabase-js@^2.58.0'
 import {
   ESFUERZO_POR_TAREA,
+  MAX_TOKENS_POR_TAREA,
   MODELO_POR_TAREA,
   costoEstimadoUsd,
   esTarea,
+  soportaEffort,
   totalDeEntrada,
   type Tarea,
   type TokensDeEntrada,
@@ -145,12 +147,17 @@ const ESQUEMA = {
  * ⚠️ Es deuda del SDK, no del código: la versión fijada va por detrás de las
  * funciones de la API que aquí se usan. Cuando se suba el pin y las declare,
  * esto se borra y los dos vuelven al literal.
+ *
+ * ⚠️ **`effort` no es universal.** Desde que las tareas de redacción bajaron a
+ * Haiku 4.5 —que no admite `output_config.effort` y lo rechaza con error—,
+ * mandarlo a ciegas para cualquier modelo rompería esas tres tareas. Por eso
+ * recibe el modelo y consulta `soportaEffort()` antes de incluirlo.
  */
-function parametrosNoDeclaradosPorElSdk(esfuerzo: string, conEsquema: boolean): object {
+function parametrosNoDeclaradosPorElSdk(modelo: string, esfuerzo: string, conEsquema: boolean): object {
   return {
     fallbacks: 'default',
     output_config: {
-      effort: esfuerzo,
+      ...(soportaEffort(modelo) ? { effort: esfuerzo } : {}),
       // El copiloto NO lleva esquema de salida: su estructura la garantiza la
       // herramienta `responder`, cuyo `input_schema` valida la propia API.
       // Pedir las dos cosas a la vez sería exigir dos formas de la respuesta.
@@ -358,7 +365,7 @@ Deno.serve(async (peticion) => {
         pregunta: consulta,
         rol: perfil.rol,
         clinica: clinica.nombre,
-        parametrosExtra: (esfuerzo) => parametrosNoDeclaradosPorElSdk(esfuerzo, false),
+        parametrosExtra: (esfuerzo) => parametrosNoDeclaradosPorElSdk(modelo, esfuerzo, false),
       })
 
       await registrarUso(jwt, perfil, {
@@ -379,9 +386,10 @@ Deno.serve(async (peticion) => {
 
     const respuesta = await client.beta.messages.create({
       model: modelo,
-      // En Opus 5 el pensamiento está activo por defecto y comparte este techo
-      // con el texto de salida: apretarlo cortaría la respuesta a media frase.
-      max_tokens: 16000,
+      // Por tarea, no una constante: el techo real depende del modelo (Haiku
+      // 4.5 es más bajo que Opus o Sonnet 5), y estos textos son cortos de
+      // sobra — 2 a 5 líneas — como para no necesitar más margen que ese.
+      max_tokens: MAX_TOKENS_POR_TAREA[tarea],
       betas: ['server-side-fallback-2026-07-01'],
       system: [
         {
@@ -391,7 +399,7 @@ Deno.serve(async (peticion) => {
           cache_control: { type: 'ephemeral' },
         },
       ],
-      ...parametrosNoDeclaradosPorElSdk(ESFUERZO_POR_TAREA[tarea], true),
+      ...parametrosNoDeclaradosPorElSdk(modelo, ESFUERZO_POR_TAREA[tarea], true),
       messages: [{ role: 'user', content: JSON.stringify(contexto) }],
     })
 

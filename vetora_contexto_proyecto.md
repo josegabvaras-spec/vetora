@@ -31,7 +31,7 @@ operador (5 pantallas).
 - **Estilos:** Tailwind CSS v4, tema en `src/index.css`, sin `tailwind.config.js`.
 - **Backend:** Supabase completo — Postgres + Auth + Edge Functions + Storage. No hay
   modo mock: `isMockMode` es `false` constante.
-- **IA:** `claude-opus-5` desde una Edge Function en Deno.
+- **IA:** `claude-haiku-4-5` (redacción) + `claude-sonnet-5` (copiloto), desde una Edge Function en Deno.
 - **Idioma:** todo en español, incluidos los nombres de columna.
 - **Moneda:** bolivianos con dos decimales; **solo la suscripción va en dólares**.
 - **Zona horaria:** estricta `America/La_Paz`.
@@ -104,10 +104,15 @@ Se cobra sin pasarela: QR, comprobante subido por el admin y aprobación del sup
 
 ## 8. Estado de la IA
 
-**Encendida el 2026-09-02.** La función `asistente` está desplegada y con clave, con
-`claude-opus-5`, salida estructurada, caché de prompt y respaldo ante rechazos. Redacta el
-aviso al cliente, la nota interna al equipo y el informe del día. Hasta ese día la clave no
-estaba puesta y todo salía de plantilla.
+**Encendida el 2026-09-02.** La función `asistente` está desplegada y con clave, con salida
+estructurada, caché de prompt y respaldo ante rechazos. Redacta el aviso al cliente, la nota
+interna al equipo y el informe del día, y responde preguntas abiertas sobre el negocio con el
+copiloto «Pregúntale a Vetora». Hasta ese día la clave no estaba puesta y todo salía de
+plantilla.
+
+**Dos modelos, no uno, elegidos en el servidor.** `claude-haiku-4-5` redacta y ordena cifras
+ya dadas (aviso, nota interna, informe); `claude-sonnet-5` razona en el copiloto, que decide
+qué herramienta consultar y encadena varias. El modelo nunca llega del cliente.
 
 **Dos palancas, no una.** El módulo `asistente_ia` del plan abre la pantalla;
 `planes.ia_limite` paga los tokens, y **en cero no hay copiloto aunque el módulo esté**. Lo

@@ -88,12 +88,17 @@ las herramientas de la Fase 4 son consultas **planas y cortas**, no copias de se
 de negocio. Las que exigirían duplicar lógica compleja (rentabilidad, comisiones, fidelización) se
 posponen a fases posteriores y se resolverán con un RPC en SQL, no con una copia en TypeScript.
 
-### Cambio de modelo
+### Cambio de modelo — ✅ hecho, con un reparto más fino que «todo Sonnet»
 
-El encargo (§9) fija **Claude Sonnet 5** como modelo de los usuarios finales. Hoy el código usa
-`claude-opus-5` para las dos tareas existentes. Se implementa un mapa `MODELO_POR_TAREA` **en el
-servidor**; el cliente nunca elige modelo. Queda anotado que esto **cambia el comportamiento de una
-función ya desplegada**, y que `CLAUDE.md` menciona `claude-opus-5`: hay que actualizarlo.
+El encargo (§9) proponía Sonnet 5 para los usuarios finales. Al implementarlo, el dueño pidió un
+paso más: **Haiku 4.5** para lo que solo redacta u ordena cifras ya dadas (aviso, nota interna,
+informe) y **Sonnet 5** solo para lo que de verdad razona (el copiloto). `MODELO_POR_TAREA` en
+`modelos.ts` lo resuelve **en el servidor**; el cliente nunca elige modelo.
+
+⚠️ El cambio no fue solo de nombre: **Haiku 4.5 rechaza `output_config.effort` con un error**, a
+diferencia de Opus 5 y Sonnet 5. `soportaEffort()` lo comprueba antes de incluirlo, y de paso
+`max_tokens` pasó de una constante única a `MAX_TOKENS_POR_TAREA`, porque el límite de salida
+tampoco es el mismo en todos los modelos.
 
 ---
 
@@ -210,7 +215,7 @@ una cuenta real. La matriz obligatoria:
 | **2** | Migración `0038` + seguridad y autorización en la función + C-1, C-2, C-3 | ✅ **Aplicada y desplegada el 2026-09-02.** Cuota, módulo, bitácora, tipos, y la clave puesta. Función en versión 4 |
 | **3** | Orquestador con tope de iteraciones y la regla de los dos clientes | ✅ `orquestador.ts`, tope de 6 vueltas |
 | **4** | Las 5 herramientas | ✅ `herramientas.ts` — **6**, con `buscar_paciente` que no estaba prevista: sin ella el modelo no tenía forma de pasar de un nombre a un identificador, y `obtener_resumen_paciente` era inalcanzable |
-| **5** | Sonnet 5 + `MODELO_POR_TAREA` + registro de tokens | Parcial: el mapa y el registro ya están; falta bajar el modelo a Sonnet y medir |
+| **5** | `MODELO_POR_TAREA` + registro de tokens | ✅ Haiku 4.5 en aviso/aviso_interno/informe, Sonnet 5 en copiloto — reparto por complejidad de tarea, no un solo modelo para todo |
 | **6** | `RespuestaCopiloto` y su validación | ✅ Garantizada por la herramienta `responder`, no por el prompt |
 | **7** | «Pregúntale a Vetora» | ✅ `PreguntaleAVetora.tsx`, en las tres pantallas del asistente |
 | **8** | WhatsApp asistido sobre el flujo existente | reutiliza `MensajeModal` |
