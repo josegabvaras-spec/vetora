@@ -75,6 +75,31 @@ supabase/functions/asistente/                           Deno + claude-opus-5
 - **La IA no escribe en la base.** `services/programados.ts` deriva los avisos de las citas, las vacunas y las desparasitaciones ya registradas; enviar pasa por `enviarAviso()`, y crear una cita sigue siendo `crearCita()` con sus invariantes.
 - Los refuerzos de vacuna y desparasitación **no guardan «ya avisado»**. Un refuerzo pendiente deja de aparecer cuando se registra la dosis nueva o se agenda la cita, no cuando alguien manda el mensaje.
 
+### El copiloto: «Pregúntale a Vetora»
+
+Además de redactar textos, el asistente **responde preguntas sobre el negocio** — «¿qué citas tengo hoy?», «¿qué productos tengo que reponer?», «¿qué pacientes no vienen hace seis meses?». Lo monta [PreguntaleAVetora](src/features/asistente/PreguntaleAVetora.tsx) en las **tres** pantallas del asistente.
+
+```
+PreguntaleAVetora → services/asistente.ts  preguntarACopiloto()
+                         ↓  tarea: 'copiloto'
+supabase/functions/asistente/orquestador.ts   el bucle, tope de 6 vueltas
+                         ↓
+supabase/functions/asistente/herramientas.ts  la lista blanca
+                         ↓  clienteDeUsuario(jwt)  →  PostgREST  →  RLS
+```
+
+⚠️ **El modelo no toca la base.** Pide una herramienta, la ejecutamos **nosotros** con el token de quien preguntó, y le devolvemos el resultado. Así una herramienta lee exactamente lo que esa persona lee desde el navegador: **no hay un `where clinica_id` escrito a mano en ninguna**, que es justo lo que no habría que acertar seis veces seguidas.
+
+- **Que la IA no pueda modificar nada no se le pide en el prompt: no tiene el verbo.** Ninguna herramienta escribe, borra ni llama a la red, y un modelo no puede hacer aquello para lo que no tiene herramienta. El prompt lo dice además, pero la garantía es la lista.
+- **La estructura de la respuesta no se pide, se garantiza.** Llega como una llamada a la herramienta `responder`, cuyo `input_schema` valida la propia API. Pedir un JSON en el prompt y confiar en que salga bien es lo que produce respuestas que hay que parsear a la defensiva. ⚠️ Por eso el copiloto **no** lleva `output_config.format`: serían dos formas de la misma respuesta compitiendo.
+- ⚠️ **Sin plantilla de respaldo, al revés que los avisos.** Ahí, cuando el modelo falla, hay un texto determinista sensato que escribir. Aquí no: inventarse la respuesta a una pregunta abierta es exactamente lo que el copiloto tiene prohibido. Si falla, se dice que falló.
+- **La pantalla enseña siempre qué se consultó** (`RespuestaCopiloto.fuentes`, rotulado en [lib/copiloto.ts](src/lib/copiloto.ts)). Sin eso, una recomendación es una afirmación sin respaldo y quien la lee no puede comprobarla.
+- **Lo que NO sale hacia el modelo**, con el mismo criterio que `contextoDeAviso()`: `obtener_resumen_paciente` no manda el CI ni el WhatsApp del dueño ni la foto, y solo incluye consultas **cerradas** (`editable = false`) — un borrador es una consulta a medio escribir, y resumirla como hecho clínico sería inventar.
+- ⚠️ **Ningún `.or()` con texto del usuario dentro.** `buscar_paciente` hace **dos** consultas y las une en memoria: es el hallazgo H-1 de [SEGURIDAD.md](SEGURIDAD.md), y aquí el término viaja siempre como **valor** de un `ilike`, nunca como sintaxis de filtro.
+- **El tope de 6 vueltas es de coste, no de corrección.** Sin él, un modelo confundido encadena llamadas hasta agotar la función. Cuando se agota se explica qué pasó en vez de devolver un error opaco.
+- ⚠️ **`puedeUsarCopiloto()` ([lib/personal.ts](src/lib/personal.ts)) tiene que listar los MISMOS roles que `autorizar()` en la Edge Function.** Aquí es decisión de pantalla —no enseñar un formulario que va a devolver 403— y allí es la barrera. Si divergen, o se oculta algo que funciona, o se ofrece algo que falla al pulsar. El `peluquero` queda fuera **por ahora**: las herramientas de hoy son de agenda clínica, pacientes, ventas e inventario. Cuando existan las de peluquería hay que abrirlo **en los dos sitios a la vez**.
+- **Añadir una herramienta son tres sitios**, y el que se olvida es el tercero: su esquema y su ejecutor en `herramientas.ts`, y su rótulo en `ETIQUETA_HERRAMIENTA` de `lib/copiloto.ts` — sin él la interfaz enseña el nombre técnico.
+
 ### La jornada clínica
 
 [JornadaClinica](src/features/asistente/JornadaClinica.tsx) es la **cola de trabajo clínico**: las consultas abiertas que esperan, las citas de hoy y los internados. Existe para cerrar un camino que estaba a ciegas — recepción abre la consulta desde la cita, y el borrador quedaba colgado del paciente sin ninguna pantalla que los enseñara juntos.

@@ -208,11 +208,11 @@ una cuenta real. La matriz obligatoria:
 |---|---|---|
 | **1** | Auditoría del asistente | ✅ `AUDITORIA_IA_VETORA.md` |
 | **2** | Migración `0038` + seguridad y autorización en la función + C-1, C-2, C-3 | ✅ **Aplicada y desplegada el 2026-09-02.** Cuota, módulo, bitácora, tipos, y la clave puesta. Función en versión 4 |
-| **3** | Orquestador con tope de iteraciones y la regla de los dos clientes | `orquestador.ts` |
-| **4** | Las 5 herramientas | `herramientas.ts` |
-| **5** | Sonnet 5 + `MODELO_POR_TAREA` + registro de tokens | `modelos.ts` |
-| **6** | `RespuestaCopiloto` y su validación | tipos + servicio |
-| **7** | «Pregúntale a Vetora» | interfaz |
+| **3** | Orquestador con tope de iteraciones y la regla de los dos clientes | ✅ `orquestador.ts`, tope de 6 vueltas |
+| **4** | Las 5 herramientas | ✅ `herramientas.ts` — **6**, con `buscar_paciente` que no estaba prevista: sin ella el modelo no tenía forma de pasar de un nombre a un identificador, y `obtener_resumen_paciente` era inalcanzable |
+| **5** | Sonnet 5 + `MODELO_POR_TAREA` + registro de tokens | Parcial: el mapa y el registro ya están; falta bajar el modelo a Sonnet y medir |
+| **6** | `RespuestaCopiloto` y su validación | ✅ Garantizada por la herramienta `responder`, no por el prompt |
+| **7** | «Pregúntale a Vetora» | ✅ `PreguntaleAVetora.tsx`, en las tres pantallas del asistente |
 | **8** | WhatsApp asistido sobre el flujo existente | reutiliza `MensajeModal` |
 | **9–11** | Peluquería · PetShop · Inteligencia cruzada | herramientas nuevas |
 | **12–13** | Motor proactivo · Resumen diario | sobre lo ya derivado |
