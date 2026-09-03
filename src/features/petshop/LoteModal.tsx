@@ -41,6 +41,17 @@ export function LoteModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    // ⚠️ `producto_lotes.sucursal_id` es `not null`, sin valor por defecto.
+    // Sin esta comprobación, un `sucursalId` vacío —el admin viendo «todas las
+    // sucursales» sin que quien invoca el modal le pusiera un respaldo—
+    // llegaba tal cual al insert y Postgres lo rechazaba con un 400 en bruto
+    // («invalid input syntax for type uuid»). Esto no reemplaza el respaldo
+    // de quien abre el modal (`PanelLotes.tsx`): es la última red antes de
+    // tocar la base.
+    if (!sucursalId) {
+      setError('No se pudo determinar la sucursal. Elige una sucursal específica arriba y vuelve a intentar.')
+      return
+    }
     if (!productoId) {
       setError('Selecciona un producto')
       return

@@ -10,6 +10,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { useAuth } from '../../context/useAuth'
+import { useTable } from '../../mocks/useDb'
 import { formatBs } from '../../lib/currency'
 import { formatClinicDate } from '../../lib/datetime'
 import {
@@ -42,6 +43,7 @@ import { Link } from 'react-router-dom'
  */
 export function PanelLotes({ conCabecera = true }: { conCabecera?: boolean }) {
   const { sucursalActivaId } = useAuth()
+  const sucursales = useTable('sucursales')
   const [tab, setTab] = useState<'lotes' | 'reposicion'>('lotes')
   const [estadoFiltroLote, setEstadoFiltroLote] = useState<'todos' | 'proximo' | 'vencido' | 'normal'>('todos')
 
@@ -336,7 +338,14 @@ export function PanelLotes({ conCabecera = true }: { conCabecera?: boolean }) {
       {/* Modal de Lote */}
       {modalLote && (
         <LoteModal
-          sucursalId={sucursalActivaId || ''}
+          // ⚠️ Un lote pertenece a UNA sucursal concreta (`producto_lotes.sucursal_id`
+          // es `not null`, sin valor por defecto). El admin puede estar viendo
+          // «todas las sucursales» (`sucursalActivaId` es `null` a propósito, ver
+          // CLAUDE.md §Sesión y acceso) — sin este respaldo, el modal mandaba una
+          // cadena vacía y Postgres la rechazaba con «invalid input syntax for type
+          // uuid», que PostgREST devuelve como 400 sin más explicación. Mismo
+          // criterio que ya usa `InventarioPage.tsx` para `NuevoProductoModal`.
+          sucursalId={sucursalActivaId || sucursales[0]?.id || ''}
           productos={productos}
           proveedores={proveedores}
           onClose={() => setModalLote(false)}
