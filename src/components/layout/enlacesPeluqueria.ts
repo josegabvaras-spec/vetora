@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   CalendarDays,
-  ClipboardList,
   Scissors,
   PawPrint,
   Users,
@@ -41,12 +40,6 @@ export const ENLACES_PELUQUERIA: EnlaceClinico[] = [
     to: '/peluqueria/agenda',
     label: 'Agenda',
     icon: CalendarDays,
-    roles: [...TODO_EL_PERSONAL_DE_PELUQUERIA],
-  },
-  {
-    to: '/peluqueria/ordenes',
-    label: 'Órdenes',
-    icon: ClipboardList,
     roles: [...TODO_EL_PERSONAL_DE_PELUQUERIA],
   },
   { to: '/peluqueria/servicios', label: 'Servicios', icon: Scissors, roles: ['admin'] },
