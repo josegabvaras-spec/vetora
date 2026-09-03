@@ -35,6 +35,7 @@ import {
   costoEstimadoUsd,
   esTarea,
   soportaEffort,
+  soportaFallbacks,
   totalDeEntrada,
   type Tarea,
   type TokensDeEntrada,
@@ -148,14 +149,16 @@ const ESQUEMA = {
  * funciones de la API que aquí se usan. Cuando se suba el pin y las declare,
  * esto se borra y los dos vuelven al literal.
  *
- * ⚠️ **`effort` no es universal.** Desde que las tareas de redacción bajaron a
- * Haiku 4.5 —que no admite `output_config.effort` y lo rechaza con error—,
- * mandarlo a ciegas para cualquier modelo rompería esas tres tareas. Por eso
- * recibe el modelo y consulta `soportaEffort()` antes de incluirlo.
+ * ⚠️ **Ni `effort` ni `fallbacks` son universales.** Desde que las tareas de
+ * redacción bajaron a Haiku 4.5 y el copiloto a Sonnet, mandar estos dos
+ * parámetros a ciegas rompe la llamada: Haiku rechaza `output_config.effort`,
+ * y `fallbacks` —según la documentación de Anthropic— solo está confirmado
+ * para Opus 5 y la familia Fable. Los dos se consultan antes de incluirse,
+ * nunca se asumen.
  */
 function parametrosNoDeclaradosPorElSdk(modelo: string, esfuerzo: string, conEsquema: boolean): object {
   return {
-    fallbacks: 'default',
+    ...(soportaFallbacks(modelo) ? { fallbacks: 'default' } : {}),
     output_config: {
       ...(soportaEffort(modelo) ? { effort: esfuerzo } : {}),
       // El copiloto NO lleva esquema de salida: su estructura la garantiza la
@@ -310,13 +313,25 @@ Deno.serve(async (peticion) => {
 
   const inicio = Date.now()
 
+  // Fuera del `try`, para que el `catch` de más abajo pueda registrar el
+  // fallo en `ia_uso` si ya se conocían cuando la excepción saltó. Antes no
+  // se registraba nunca desde ahí, así que un error real —como el de
+  // `fallbacks` sin condición que rompió esta misma función— no dejaba
+  // ningún rastro salvo la consola de la función, que nadie puede leer sin
+  // el panel de Supabase.
+  let jwt: string | undefined
+  let perfil: Perfil | undefined
+  let tareaConocida = 'desconocida'
+  let modeloConocido = 'desconocido'
+
   try {
     const acceso = await autorizar(peticion)
     if ('error' in acceso) return responder({ error: acceso.error }, acceso.status)
-    const { jwt, perfil } = acceso
+    ;({ jwt, perfil } = acceso)
 
     const { tarea, contexto, pregunta } = await peticion.json()
     if (!esTarea(tarea)) return responder({ error: 'Tarea desconocida' }, 400)
+    tareaConocida = tarea
 
     // El copiloto es lo único que recibe texto libre de quien pregunta, así que
     // es lo único que hay que acotar por tamaño: sin tope, el cuerpo de la
@@ -332,6 +347,7 @@ Deno.serve(async (peticion) => {
     }
 
     const modelo = MODELO_POR_TAREA[tarea]
+    modeloConocido = modelo
 
     // La cuota se consume ANTES de llamar al modelo, y en una sola sentencia
     // SQL: comprobar aquí y consumir después dejaría pasar dos pestañas con la
@@ -390,7 +406,7 @@ Deno.serve(async (peticion) => {
       // 4.5 es más bajo que Opus o Sonnet 5), y estos textos son cortos de
       // sobra — 2 a 5 líneas — como para no necesitar más margen que ese.
       max_tokens: MAX_TOKENS_POR_TAREA[tarea],
-      betas: ['server-side-fallback-2026-07-01'],
+      ...(soportaFallbacks(modelo) ? { betas: ['server-side-fallback-2026-07-01'] } : {}),
       system: [
         {
           type: 'text',
@@ -442,9 +458,19 @@ Deno.serve(async (peticion) => {
   } catch (error) {
     console.error('asistente:', error)
     // El frontend cae a su plantilla ante cualquier fallo, así que aquí basta
-    // con no fingir que salió bien. No se registra el uso: si se llegó hasta
-    // aquí sin perfil resuelto no hay a quién cargárselo, y si se llegó con él
-    // el error ya está en la consola de la función.
+    // con no fingir que salió bien.
+    //
+    // ⚠️ Si ya se conocía quién llamaba, se registra igual que cualquier otro
+    // fallo. Antes esta rama nunca escribía en `ia_uso`, así que un error real
+    // —como el de `fallbacks` sin condición que rompió esta misma función el
+    // primer día que dejó de correr todo en Opus— no dejaba ningún rastro
+    // salvo la consola de la función, invisible sin el panel de Supabase.
+    if (jwt && perfil) {
+      await registrarUso(jwt, perfil, {
+        modelo: modeloConocido, tarea: tareaConocida,
+        duracion_ms: Date.now() - inicio, resultado: 'error',
+      })
+    }
     return responder({ error: 'No se pudo redactar el mensaje' }, 500)
   }
 })

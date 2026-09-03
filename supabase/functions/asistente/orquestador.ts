@@ -10,6 +10,7 @@ import {
   ejecutarHerramienta,
   hoyEnLaClinica,
 } from './herramientas.ts'
+import { soportaFallbacks } from './modelos.ts'
 
 /**
  * Cuántas veces puede el modelo pedir datos antes de tener que responder.
@@ -168,7 +169,11 @@ export async function orquestar(opciones: {
     const respuesta = await cliente.beta.messages.create({
       model: modelo,
       max_tokens: 16000,
-      betas: ['server-side-fallback-2026-07-01'],
+      // ⚠️ Condicionado, no fijo: `fallbacks` (más abajo, en `parametrosExtra`)
+      // solo está confirmado para Opus 5 y la familia Fable. Mandar la beta
+      // sin el parámetro —o al revés— es tan probable que rompa la llamada
+      // como mandar los dos a un modelo que no los admite.
+      ...(soportaFallbacks(modelo) ? { betas: ['server-side-fallback-2026-07-01'] } : {}),
       system: [
         {
           type: 'text',

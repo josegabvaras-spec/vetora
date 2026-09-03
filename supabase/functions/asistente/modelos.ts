@@ -55,6 +55,27 @@ export function soportaEffort(modelo: string): boolean {
 }
 
 /**
+ * Qué modelos admiten el respaldo ante rechazo del clasificador (`fallbacks` +
+ * su beta `server-side-fallback`).
+ *
+ * ⚠️ **Este es el fallo que rompió producción el día que aviso, aviso_interno
+ * e informe bajaron a Haiku y el copiloto a Sonnet.** El parámetro se mandaba
+ * sin condición a los cuatro, pero la documentación de Anthropic solo lo
+ * describe para Opus 5 y la familia Fable — nunca para Sonnet ni Haiku. Hasta
+ * el cambio de modelo, TODO corría en Opus, así que esta combinación nunca se
+ * había probado fuera de ahí: el 500 no era un fallo de lógica, era un
+ * parámetro que la API rechaza en un modelo donde nunca se había usado.
+ *
+ * Mismo patrón que `soportaEffort()`: consultar antes de construir la
+ * llamada, nunca mandar un parámetro a un modelo sin saber si lo admite.
+ */
+const SOPORTA_FALLBACKS = new Set(['claude-opus-5'])
+
+export function soportaFallbacks(modelo: string): boolean {
+  return SOPORTA_FALLBACKS.has(modelo)
+}
+
+/**
  * Esfuerzo de razonamiento por tarea, para los modelos que lo admiten.
  *
  * ⚠️ Hoy solo se aplica a `copiloto`: las otras tres van en Haiku 4.5, que no
