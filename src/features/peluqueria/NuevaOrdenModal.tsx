@@ -38,7 +38,10 @@ export function NuevaOrdenModal({
 
   const [servicios, setServicios] = useState<PeluqueriaServicioConConfig[]>([])
   const [servicioId, setServicioId] = useState('')
-  const [precioBase, setPrecioBase] = useState<number>(0)
+  // ⚠️ Texto, no número — mismo motivo que en `NuevaCompraModal.tsx` y
+  // `LoteModal.tsx`: un `<input type="number">` controlado con estado
+  // NUMÉRICO deja un cero pegado en pantalla al escribir encima.
+  const [precioBase, setPrecioBase] = useState('0')
   const [suplementos, setSuplementos] = useState<SuplementoOrden[]>([])
   const [suplementosDisponibles, setSuplementosDisponibles] = useState<SuplementoOrden[]>([])
 
@@ -67,7 +70,7 @@ export function NuevaOrdenModal({
       setServicios(res)
       if (res.length > 0) {
         setServicioId(res[0].id)
-        setPrecioBase(res[0].precio_bs)
+        setPrecioBase(String(res[0].precio_bs))
       }
     })
     getConfiguracionPeluqueria().then((cfg) => {
@@ -82,7 +85,7 @@ export function NuevaOrdenModal({
     setServicioId(id)
     const serv = servicios.find((s) => s.id === id)
     if (serv) {
-      setPrecioBase(serv.precio_bs)
+      setPrecioBase(String(serv.precio_bs))
     }
   }
 
@@ -105,7 +108,8 @@ export function NuevaOrdenModal({
   }
 
   const totalSuplementos = suplementos.reduce((acc, s) => acc + (Number(s.monto_bs) || 0), 0)
-  const precioTotal = Number((precioBase + totalSuplementos).toFixed(2))
+  const precioBaseNumero = Number(precioBase) || 0
+  const precioTotal = Number((precioBaseNumero + totalSuplementos).toFixed(2))
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -133,7 +137,7 @@ export function NuevaOrdenModal({
         clienteId: pacienteSeleccionado.cliente_id,
         peluqueroId,
         servicioId: servicioId || null,
-        precioEstimadoBs: precioBase,
+        precioEstimadoBs: precioBaseNumero,
         precioFinalBs: precioTotal,
         suplementos,
         observacionesRecepcion: observaciones,
@@ -218,7 +222,7 @@ export function NuevaOrdenModal({
               step="0.5"
               min="0"
               value={precioBase}
-              onChange={(e) => setPrecioBase(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setPrecioBase(e.target.value)}
               required
             />
           </FieldGroup>
@@ -357,7 +361,7 @@ export function NuevaOrdenModal({
             <p className="text-2xl font-black text-teal-900">{formatBs(precioTotal)}</p>
           </div>
           <div className="text-right text-xs text-slate-500">
-            <p>Base: {formatBs(precioBase)}</p>
+            <p>Base: {formatBs(precioBaseNumero)}</p>
             {totalSuplementos > 0 && <p>Suplementos: +{formatBs(totalSuplementos)}</p>}
           </div>
         </div>
