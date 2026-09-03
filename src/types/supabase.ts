@@ -157,6 +157,8 @@ export type Database = {
           estado: string
           estado_pago: string
           fecha_alta: string
+          ia_consultas: number
+          ia_periodo: string
           id: string
           logo_url: string | null
           nombre: string
@@ -175,6 +177,8 @@ export type Database = {
           estado?: string
           estado_pago?: string
           fecha_alta?: string
+          ia_consultas?: number
+          ia_periodo?: string
           id?: string
           logo_url?: string | null
           nombre: string
@@ -193,6 +197,8 @@ export type Database = {
           estado?: string
           estado_pago?: string
           fecha_alta?: string
+          ia_consultas?: number
+          ia_periodo?: string
           id?: string
           logo_url?: string | null
           nombre?: string
@@ -757,6 +763,53 @@ export type Database = {
         }
         Relationships: []
       }
+      // Migración 0038. Bitácora de consumo del copiloto: solo INSERT, y solo
+      // la plataforma la lee. No guarda ni la pregunta ni la respuesta.
+      ia_uso: {
+        Row: {
+          clinica_id: string | null
+          costo_estimado_usd: number
+          created_at: string
+          duracion_ms: number
+          herramientas: string[]
+          id: string
+          modelo: string
+          resultado: string
+          tarea: string
+          tokens_entrada: number
+          tokens_salida: number
+          usuario_id: string | null
+        }
+        Insert: {
+          clinica_id?: string | null
+          costo_estimado_usd?: number
+          created_at?: string
+          duracion_ms?: number
+          herramientas?: string[]
+          id?: string
+          modelo: string
+          resultado: string
+          tarea: string
+          tokens_entrada?: number
+          tokens_salida?: number
+          usuario_id?: string | null
+        }
+        Update: {
+          clinica_id?: string | null
+          costo_estimado_usd?: number
+          created_at?: string
+          duracion_ms?: number
+          herramientas?: string[]
+          id?: string
+          modelo?: string
+          resultado?: string
+          tarea?: string
+          tokens_entrada?: number
+          tokens_salida?: number
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       registro_errores: {
         Row: {
           clinica_id: string | null
@@ -1175,6 +1228,7 @@ export type Database = {
           activo: boolean
           created_at: string
           id: string
+          ia_limite: number
           max_sucursales: number
           max_usuarios: number
           modulos_habilitados: string[]
@@ -1186,6 +1240,7 @@ export type Database = {
           activo?: boolean
           created_at?: string
           id?: string
+          ia_limite?: number
           max_sucursales: number
           max_usuarios: number
           modulos_habilitados?: string[]
@@ -1197,6 +1252,7 @@ export type Database = {
           activo?: boolean
           created_at?: string
           id?: string
+          ia_limite?: number
           max_sucursales?: number
           max_usuarios?: number
           modulos_habilitados?: string[]
@@ -2530,6 +2586,8 @@ export type Database = {
       }
       aprobar_pago_suscripcion: { Args: { p_pago_id: string }; Returns: string }
       consumir_cuota_whatsapp: { Args: never; Returns: number }
+      // Migración 0038. Añadida a mano, por lo mismo que las de 0028.
+      consumir_cuota_ia: { Args: never; Returns: number }
       espacio_estudios_bytes: { Args: never; Returns: number }
       get_citas_end_time: { Args: { start_time: string }; Returns: string }
       // Migración 0028. Añadidas a mano: este fichero se genera desde la base,

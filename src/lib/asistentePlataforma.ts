@@ -8,10 +8,14 @@ import { formatClinicDate } from './datetime'
  * usuarios, planes e invitaciones —su `clinica_id` es null y la RLS le cierra
  * las tablas clínicas—, así que todo lo de aquí sale de esas cuatro.
  *
- * **Sin IA, a propósito.** La única integración del proyecto es la API de
- * Anthropic, que no está desplegada ni configurada; y estos mensajes (un cobro
- * vencido, un plan que se queda corto) son repetitivos y se escriben mejor con
- * plantilla que con un modelo.
+ * **Sin IA, a propósito, y el motivo no es que no exista.** La Edge Function
+ * `asistente` está desplegada y en pie (lo que le falta es la clave). No se usa
+ * aquí por dos razones distintas: estos mensajes —un cobro vencido, un plan que
+ * se queda corto— son repetitivos y se escriben mejor con plantilla que con un
+ * modelo; y la cuota de IA es **por clínica** (`consumir_cuota_ia()` resuelve el
+ * inquilino con `auth_clinica_id()`), mientras el superadmin tiene
+ * `clinica_id = null`: no hay cuota que consumir aquí, igual que sus enlaces de
+ * acceso tampoco gastan la de WhatsApp.
  */
 
 export type TipoTareaPlataforma =

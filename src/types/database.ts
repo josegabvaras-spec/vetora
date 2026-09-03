@@ -133,6 +133,15 @@ export interface Plan {
    * Los planes de veterinaria existentes tienen todos los módulos por defecto.
    */
   modulos_habilitados: ModuloVetora[]
+  /**
+   * Consultas al copiloto de IA por mes (migración 0038).
+   *
+   * **Cero significa sin copiloto**, aunque `modulos_habilitados` traiga
+   * `asistente_ia`: el módulo abre la pantalla y esto paga los tokens. Son dos
+   * palancas distintas a propósito — el módulo es el empaquetado del producto y
+   * esto es la factura de Anthropic.
+   */
+  ia_limite: number
   /** Se desactivan en vez de borrarse: hay clínicas contratadas en ellos. */
   activo: boolean
   created_at: string
@@ -155,6 +164,15 @@ export interface Clinica {
    * contador para saber cuánto se lleva gastado de verdad.
    */
   whatsapp_periodo: string
+  /** Consultas al copiloto gastadas en `ia_periodo` (migración 0038). */
+  ia_consultas: number
+  /**
+   * Mes al que pertenece `ia_consultas`. Mismo mecanismo que
+   * `whatsapp_periodo`, y con la misma consecuencia: hay que leerlo junto al
+   * contador, porque el reinicio lo hace la primera consulta del mes nuevo
+   * dentro de `consumir_cuota_ia()`, no el reloj.
+   */
+  ia_periodo: string
   /**
    * Segmento de negocio del establecimiento (migración 0023).
    * Determina qué módulos se muestran y qué flujo es el principal del sistema.
@@ -897,6 +915,40 @@ export interface PetshopConfiguracion {
   exigir_autorizacion_devolucion: boolean
   impresion_ticket_automatica: boolean
   mensaje_ticket_pie: string
+  created_at: string
+}
+
+/** Cómo terminó una llamada al modelo. Ver `ia_uso.resultado` (migración 0038). */
+export type ResultadoIa = 'ok' | 'error' | 'rechazo' | 'sin_cuota'
+
+/**
+ * Una llamada al copiloto, para saber qué cuesta (migración 0038).
+ *
+ * **Solo INSERT**, como `registro_errores` y por el mismo motivo: una bitácora
+ * que se puede reescribir no sirve de nada. Y **solo la lee la plataforma**: es
+ * su factura de Anthropic la que se está midiendo. A la clínica le basta con
+ * `Clinica.ia_consultas` frente a `Plan.ia_limite`, que sí puede leer.
+ *
+ * ⚠️ **No guarda ni la pregunta ni la respuesta**, ni ningún identificador de
+ * paciente. Para medir un coste no hacen falta, y lo que no se guarda no se
+ * filtra.
+ */
+export interface IaUso {
+  id: string
+  /** Nulo si el fallo ocurrió sin sesión resuelta. */
+  clinica_id?: string | null
+  usuario_id?: string | null
+  modelo: string
+  /** `aviso`, `aviso_interno`, `informe`, `copiloto`… */
+  tarea: string
+  /** Nombres de las herramientas consultadas, nunca sus resultados. */
+  herramientas: string[]
+  tokens_entrada: number
+  tokens_salida: number
+  /** Seis decimales: una consulta cuesta céntimos de céntimo. */
+  costo_estimado_usd: number
+  duracion_ms: number
+  resultado: ResultadoIa
   created_at: string
 }
 
