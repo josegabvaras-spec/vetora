@@ -33,7 +33,9 @@ import {
   MODELO_POR_TAREA,
   costoEstimadoUsd,
   esTarea,
+  totalDeEntrada,
   type Tarea,
+  type TokensDeEntrada,
 } from './modelos.ts'
 
 const URL_SUPABASE = Deno.env.get('SUPABASE_URL')!
@@ -256,14 +258,14 @@ async function registrarUso(
     modelo: string
     tarea: string
     herramientas?: string[]
-    tokens_entrada?: number
+    entrada?: TokensDeEntrada
     tokens_salida?: number
     duracion_ms: number
     resultado: 'ok' | 'error' | 'rechazo' | 'sin_cuota'
   },
 ) {
   try {
-    const entrada = datos.tokens_entrada ?? 0
+    const entrada = datos.entrada ?? { frescos: 0, cacheEscritura: 0, cacheLectura: 0 }
     const salida = datos.tokens_salida ?? 0
     const { error } = await clienteDeUsuario(jwt).from('ia_uso').insert({
       clinica_id: perfil.clinica_id,
@@ -271,7 +273,9 @@ async function registrarUso(
       modelo: datos.modelo,
       tarea: datos.tarea,
       herramientas: datos.herramientas ?? [],
-      tokens_entrada: entrada,
+      // El TOTAL, caché incluida. Si solo se guardara `input_tokens`, la
+      // columna diría «entrada» y contaría una parte.
+      tokens_entrada: totalDeEntrada(entrada),
       tokens_salida: salida,
       costo_estimado_usd: costoEstimadoUsd(datos.modelo, entrada, salida),
       duracion_ms: datos.duracion_ms,
@@ -343,10 +347,23 @@ Deno.serve(async (peticion) => {
       messages: [{ role: 'user', content: JSON.stringify(contexto) }],
     })
 
+    // ⚠️ Las tres, no solo `input_tokens`: los tokens de caché viajan aparte y
+    // dejarlos fuera hace que el contador y el coste digan menos de lo que fue.
+    const consumo = respuesta.usage as {
+      input_tokens?: number
+      output_tokens?: number
+      cache_creation_input_tokens?: number
+      cache_read_input_tokens?: number
+    } | undefined
+
     const uso = {
       modelo, tarea,
-      tokens_entrada: respuesta.usage?.input_tokens ?? 0,
-      tokens_salida: respuesta.usage?.output_tokens ?? 0,
+      entrada: {
+        frescos: consumo?.input_tokens ?? 0,
+        cacheEscritura: consumo?.cache_creation_input_tokens ?? 0,
+        cacheLectura: consumo?.cache_read_input_tokens ?? 0,
+      },
+      tokens_salida: consumo?.output_tokens ?? 0,
       duracion_ms: Date.now() - inicio,
     }
 

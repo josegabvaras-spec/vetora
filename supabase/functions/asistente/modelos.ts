@@ -63,10 +63,47 @@ const TARIFAS: Record<string, { entrada: number; salida: number }> = {
   'claude-haiku-4-5-20251001': { entrada: 1, salida: 5 },
 }
 
-export function costoEstimadoUsd(modelo: string, entrada: number, salida: number): number {
+/**
+ * La entrada no es un número, son tres, y cada una se paga distinto.
+ *
+ * ⚠️ **`usage.input_tokens` NO incluye los tokens de caché**: la creación y la
+ * lectura viajan en campos aparte. La primera versión de esto solo leía
+ * `input_tokens`, así que tanto `tokens_entrada` como el coste **quedaban por
+ * debajo de lo real** — y lo delató la propia bitácora, con dos llamadas de 92
+ * tokens y una de 601 para el mismo tamaño de contexto: la diferencia era el
+ * prompt del sistema entrando sin cachear.
+ *
+ * Hoy son céntimos. Con el copiloto, donde los resultados de las herramientas
+ * se cachean, la caché será la mayor parte de la entrada y un contador que la
+ * ignore no sirve para nada.
+ */
+export interface TokensDeEntrada {
+  /** Los que no vienen ni van a la caché. */
+  frescos: number
+  /** Escribir en la caché cuesta más que leer normal: se paga a 1,25×. */
+  cacheEscritura: number
+  /** Leerla es lo barato, y es el motivo de cachear: 0,1×. */
+  cacheLectura: number
+}
+
+const MULTIPLICADOR_ESCRITURA = 1.25
+const MULTIPLICADOR_LECTURA = 0.1
+
+/** Todo lo que entró, para que `tokens_entrada` signifique lo que dice. */
+export function totalDeEntrada(t: TokensDeEntrada): number {
+  return t.frescos + t.cacheEscritura + t.cacheLectura
+}
+
+export function costoEstimadoUsd(modelo: string, entrada: TokensDeEntrada, salida: number): number {
   const tarifa = TARIFAS[modelo]
   if (!tarifa) return 0
-  const bruto = (entrada * tarifa.entrada + salida * tarifa.salida) / 1_000_000
+
+  const costeEntrada =
+    entrada.frescos * tarifa.entrada +
+    entrada.cacheEscritura * tarifa.entrada * MULTIPLICADOR_ESCRITURA +
+    entrada.cacheLectura * tarifa.entrada * MULTIPLICADOR_LECTURA
+
+  const bruto = (costeEntrada + salida * tarifa.salida) / 1_000_000
   // Seis decimales, los mismos que la columna: una consulta cuesta céntimos de
   // céntimo y redondear a dos las contaría todas como cero.
   return Math.round(bruto * 1_000_000) / 1_000_000
