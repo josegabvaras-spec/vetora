@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { clsx } from 'clsx'
+import { useBloqueoScroll } from '../../hooks/useBloqueoScroll'
 
 /**
  * Envoltorio del menú lateral, común al área clínica y a la de plataforma.
@@ -25,16 +26,15 @@ export function PanelLateral({
   className?: string
   children: ReactNode
 }) {
+  useBloqueoScroll(abierto)
+
   useEffect(() => {
     if (!abierto) return
     function alPulsarTecla(e: KeyboardEvent) {
       if (e.key === 'Escape') onCerrar()
     }
-    const overflowPrevio = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', alPulsarTecla)
     return () => {
-      document.body.style.overflow = overflowPrevio
       document.removeEventListener('keydown', alPulsarTecla)
     }
   }, [abierto, onCerrar])

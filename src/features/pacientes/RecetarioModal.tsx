@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, Printer, Plus, Trash2 } from 'lucide-react'
+import { useBloqueoScroll } from '../../hooks/useBloqueoScroll'
 import { useTable } from '../../mocks/useDb'
 import { calcularEdad } from '../../lib/paciente'
 import { formatClinicDate, formatClinicDateTime } from '../../lib/datetime'
@@ -76,18 +77,12 @@ export function RecetarioModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // Bloquear scroll del body.
-  //
-  // Se restaura el valor PREVIO, no cadena vacía: el recetario se abre desde la
-  // ficha de consulta, que ya vive dentro de un `Modal` con el scroll
-  // bloqueado. Al cerrar el recetario, vaciar el estilo devolvía el scroll a la
-  // página de detrás con el modal padre todavía encima. Es el mismo patrón que
-  // usa components/ui/Modal.
-  useEffect(() => {
-    const overflowPrevio = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = overflowPrevio }
-  }, [])
+  // Bloquear scroll del body — mismo hook que usa `components/ui/Modal`. El
+  // recetario se abre desde la ficha de consulta, que ya vive dentro de un
+  // `Modal` con el scroll bloqueado; `useBloqueoScroll` restaura el estado
+  // que encuentra al montarse (ya bloqueado por el modal padre), no un valor
+  // fijo, así que anidar los dos no rompe nada al cerrar el recetario.
+  useBloqueoScroll(true)
 
   function set<K extends keyof typeof FORM_VACIO>(key: K, value: (typeof FORM_VACIO)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -155,7 +150,10 @@ export function RecetarioModal({
       <div className="flex flex-1 overflow-hidden print:overflow-visible">
 
         {/* ════ PANEL IZQUIERDO: formulario (oculto al imprimir) ════ */}
-        <div className="flex w-full max-w-sm shrink-0 flex-col gap-4 overflow-y-auto border-r border-slate-200 bg-white p-5 print:hidden lg:max-w-md">
+        <div
+          className="flex w-full max-w-sm shrink-0 flex-col gap-4 overflow-y-auto border-r border-slate-200 bg-white p-5 print:hidden lg:max-w-md"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           <p className="text-xs font-bold uppercase tracking-widest text-teal-600">Medicamentos recetados</p>
 
           {/* Lista actual */}
@@ -282,7 +280,10 @@ export function RecetarioModal({
         </div>
 
         {/* ════ PANEL DERECHO: vista previa / documento imprimible ════ */}
-        <div className="flex-1 overflow-y-auto bg-slate-200 p-6 print:overflow-visible print:bg-white print:p-0">
+        <div
+          className="flex-1 overflow-y-auto bg-slate-200 p-6 print:overflow-visible print:bg-white print:p-0"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
 
           {/* Estilos exclusivos de impresión */}
           <style>{`
