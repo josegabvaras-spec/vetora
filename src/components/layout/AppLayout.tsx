@@ -37,7 +37,16 @@ export function AppLayout() {
       <Sidebar abierto={menuAbierto} onCerrar={cerrarMenu} pie={<ControlesMovil />} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onAbrirMenu={abrirMenu} />
-        <main className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 md:pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-8">
+        {/* ⚠️ `overflow-x-hidden` explícito, no implícito. Por CSS, fijar solo
+            `overflow-y` ya obliga al navegador a resolver `overflow-x` como
+            `auto` (no puede quedar "visible" en un eje si el otro no lo es) —
+            así que cualquier elemento un poco más ancho que la pantalla
+            convertía TODA la página en algo que hay que desplazar de lado,
+            en vez de recortarse. Aquí se decide a propósito: se recorta, no
+            se desplaza. Las tablas y los modales ya llevan su propio
+            `overflow-x-auto` interno cuando SÍ hace falta desplazar contenido
+            ancho (ver Tabla.tsx y Modal.tsx) — este es el límite exterior. */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 sm:p-6 md:pb-[max(1rem,env(safe-area-inset-bottom))] lg:p-8">
           <Outlet />
         </main>
       </div>

@@ -123,7 +123,11 @@ export function PlataformaLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
+        {/* `overflow-x-hidden` explícito — mismo motivo que en AppLayout.tsx:
+            fijar solo `overflow-y` deja `overflow-x` en `auto` por defecto de
+            CSS, y cualquier elemento un poco más ancho que la pantalla vuelve
+            desplazable TODA la página en vez de recortarse. */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
           <Outlet />
         </main>
       </div>
