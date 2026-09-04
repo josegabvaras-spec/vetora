@@ -331,9 +331,18 @@ export function FichaPacientePage() {
         </div>
       </div>
 
-      {/* Dos columnas: la ficha queda fija a la izquierda y el historial ocupa el ancho restante */}
+      {/* Dos columnas: la ficha queda fija a la izquierda y el historial ocupa el ancho restante.
+          ⚠️ `min-w-0` en las DOS columnas, y no es decorativo: un grid item nace
+          con `min-width: auto`, o sea que se niega a encogerse por debajo del
+          ancho mínimo de su contenido. La barra de pestañas de la derecha son
+          cinco botones `whitespace-nowrap` (~700 px sin cortar), así que
+          arrastraba a su columna hasta 743 px dentro de una pantalla de 375 —
+          medido — y con ella toda la página. Su `overflow-x-auto` no llegaba a
+          servir de nada: nunca era el contenedor quien la limitaba. Con
+          `min-w-0` la columna cabe y es la nav la que se desplaza sola, que es
+          lo que se buscaba desde el principio. */}
       <div className="grid items-start gap-5 lg:grid-cols-3">
-        <div className="space-y-4 lg:sticky lg:top-6">
+        <div className="min-w-0 space-y-4 lg:sticky lg:top-6">
           {/* Identificación del paciente */}
           <Card className="border border-slate-200/50 bg-[radial-gradient(ellipse_at_top_right,_var(--color-teal-50)_0%,_white_80%)]">
             <div className="flex items-center gap-3">
@@ -537,8 +546,8 @@ export function FichaPacientePage() {
           </Card>
         </div>
 
-        {/* Columna del historial */}
-        <div className="space-y-4 lg:col-span-2">
+        {/* Columna del historial (ver el `min-w-0` de arriba) */}
+        <div className="min-w-0 space-y-4 lg:col-span-2">
           
           {/* Para el peluquero, el expediente clínico entero se sustituye por
               esta nota: lo que necesita de la mascota (raza, tamaño, alergias,

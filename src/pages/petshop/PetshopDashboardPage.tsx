@@ -185,8 +185,13 @@ export function PetshopDashboardPage() {
           )}
         </Card>
 
-        {/* Top Productos Más Vendidos */}
-        <Card className="p-5 border-slate-200 space-y-4 lg:col-span-2">
+        {/* Top Productos Más Vendidos.
+            `min-w-0` porque dentro hay una tabla con su propio
+            `overflow-x-auto`: sin esto el grid item se niega a encogerse por
+            debajo del ancho de la tabla (nace con `min-width: auto`), la tabla
+            nunca llega a desplazarse sola y es la página entera la que se va de
+            ancho. Mismo caso que la ficha del paciente. */}
+        <Card className="min-w-0 p-5 border-slate-200 space-y-4 lg:col-span-2">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="font-bold text-sm text-slate-900">Productos Más Vendidos Hoy</h3>
             <Link to="/petshop/productos" className="text-xs font-bold text-teal-700 hover:text-teal-900">
