@@ -682,8 +682,15 @@ export function FichaPacientePage() {
                           desplegada ? 'border-teal-300 ring-1 ring-teal-300/20' : 'border-slate-200',
                         )}
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-3 p-3">
-                          <div className="min-w-0 flex-1">
+                        {/* Apilado en celular, en fila desde `sm`. Con `flex-wrap` a
+                            secas la fila NO se parte: la columna de información es
+                            `flex-1` (base 0, así que no cuenta para decidir el salto) y
+                            la de acciones es `shrink-0`, de modo que los botones se
+                            quedaban con su ancho natural y la información se comprimía.
+                            Medido a 375 px: 55 px para la fecha, los badges y el
+                            veterinario, contra 250 px de botones. */}
+                        <div className="flex flex-col gap-3 p-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                          <div className="min-w-0 sm:flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-sm font-bold text-slate-800">
                                 {formatClinicDate(c.fecha_hora)} {formatClinicTime(c.fecha_hora)}
@@ -715,7 +722,7 @@ export function FichaPacientePage() {
                             )}
                           </div>
 
-                          <div className="flex shrink-0 flex-col items-end justify-center gap-1.5 text-xs">
+                          <div className="flex flex-col gap-1.5 text-xs sm:shrink-0 sm:items-end sm:justify-center">
                             {/* Igual que en la agenda: se firma antes de imprimir. */}
                             {esCirugia &&
                               (c.consentimiento ? (
@@ -852,9 +859,12 @@ export function FichaPacientePage() {
                     {internaciones.map((i) => (
                       <li
                         key={i.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3"
+                        // Misma corrección que las tarjetas de cita: en fila, el badge
+                        // y «Hoja» dejaban 129 px al motivo y lo truncaban a 18 de 40
+                        // caracteres. Apilado en celular, entra entero.
+                        className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
                       >
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 sm:flex-1">
                           <p className="truncate text-sm font-bold text-slate-800" title={i.motivo}>
                             {i.motivo}
                           </p>
@@ -864,7 +874,7 @@ export function FichaPacientePage() {
                             {i.veterinario_nombre}
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
+                        <div className="flex items-center gap-2 sm:shrink-0">
                           <Badge tone={ESTADO_INTERNACION_TONE[i.estado]} size="sm">
                             {ESTADO_INTERNACION_LABEL[i.estado]} · {etiquetaDias(i.dias)}
                           </Badge>
