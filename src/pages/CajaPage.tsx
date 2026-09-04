@@ -8,6 +8,7 @@ import {
   ChevronRight,
   FlaskConical,
   LogOut,
+  Package,
   Pill,
   Printer,
   QrCode,
@@ -85,6 +86,17 @@ export function CajaPage() {
   ].join('-')
 
   const sucursalId = sucursalActivaId || usuario?.sucursal_id || sucursales[0]?.id || ''
+
+  // "Venta de Medicamentos" tiene sentido en una veterinaria, donde el
+  // inventario es sobre todo fármaco — pero una peluquería o un petshop
+  // puros venden shampoos, perfumes o artículos de retail, nunca
+  // medicamentos. Mismo criterio que `esRetail` en MetricasPage.tsx:
+  // `!tieneModulo('historial_clinico')` es lo que distingue "peluquería/
+  // petshop puro" de "veterinaria con peluquería o petshop integrados",
+  // donde sí conviene seguir diciendo "Medicamentos" porque eso es lo que
+  // de verdad se vende ahí.
+  const vendeSoloProductos =
+    (tieneModulo('peluqueria') || tieneModulo('petshop')) && !tieneModulo('historial_clinico')
 
   const [turno, setTurno] = useState<TurnoCaja | undefined>(undefined)
   const [resumen, setResumen] = useState<ResumenTurno | null>(null)
@@ -164,7 +176,8 @@ export function CajaPage() {
               onClick={() => setVendiendoMedicamentos(true)}
               className="w-full sm:w-auto shadow-xs"
             >
-              <Pill size={16} /> Venta de Medicamentos
+              {vendeSoloProductos ? <Package size={16} /> : <Pill size={16} />}{' '}
+              {vendeSoloProductos ? 'Venta de Productos' : 'Venta de Medicamentos'}
             </Button>
             <Button variant="secondary" onClick={() => setCerrando(true)} className="w-full sm:w-auto">
               <LogOut size={16} /> Cerrar Turno
@@ -303,6 +316,7 @@ export function CajaPage() {
       {vendiendoMedicamentos && turno && (
         <VentaMedicamentosModal
           sucursalId={sucursalId}
+          soloProductos={vendeSoloProductos}
           onClose={() => setVendiendoMedicamentos(false)}
           onVentaCompletada={async () => {
             setVendiendoMedicamentos(false)
@@ -818,14 +832,17 @@ function CerrarTurnoModal({
 
 function VentaMedicamentosModal({
   sucursalId,
+  soloProductos,
   onClose,
   onVentaCompletada,
 }: {
   sucursalId: string
+  soloProductos: boolean
   onClose: () => void
   onVentaCompletada: () => void
 }) {
   const { usuario } = useAuth()
+  const nombreArticulo = soloProductos ? 'producto' : 'medicamento'
   // Un producto dado de baja no se vende, aunque siga en los recibos antiguos.
   const productosSucursal = useTable('productos').filter((p) => p.sucursal_id === sucursalId && p.activo)
   const [clienteNombre, setClienteNombre] = useState('')
@@ -931,7 +948,7 @@ function VentaMedicamentosModal({
 
   async function confirmarVenta() {
     if (items.length === 0) {
-      setError('Selecciona al menos un medicamento o producto para vender')
+      setError(`Selecciona al menos un ${nombreArticulo} para vender`)
       return
     }
     setEnviando(true)
@@ -957,7 +974,11 @@ function VentaMedicamentosModal({
   }
 
   return (
-    <Modal title="Venta de medicamentos e inventario" onClose={onClose} widthClassName="max-w-2xl">
+    <Modal
+      title={soloProductos ? 'Venta de productos' : 'Venta de medicamentos e inventario'}
+      onClose={onClose}
+      widthClassName="max-w-2xl"
+    >
       <div className="space-y-4">
         {/* Nombre del cliente */}
         <FieldGroup label="Nombre del cliente / comprador (opcional)">
@@ -968,10 +989,12 @@ function VentaMedicamentosModal({
           />
         </FieldGroup>
 
-        {/* Buscador de medicamentos */}
+        {/* Buscador de productos */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Medicamentos disponibles</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              {soloProductos ? 'Productos disponibles' : 'Medicamentos disponibles'}
+            </p>
             <span className="text-xs text-slate-400">{productosSucursal.length} productos en sucursal</span>
           </div>
 
@@ -1009,7 +1032,7 @@ function VentaMedicamentosModal({
             {productosFiltrados.length === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
                 {busqueda
-                  ? 'No se encontraron medicamentos con ese criterio.'
+                  ? `No se encontraron ${soloProductos ? 'productos' : 'medicamentos'} con ese criterio.`
                   : 'No hay productos registrados en el inventario de esta sucursal.'}
               </div>
             ) : (
@@ -1102,7 +1125,7 @@ function VentaMedicamentosModal({
             <thead>
             <tr>
               <th className="border-b border-slate-200 pb-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                Medicamento / Producto
+                {soloProductos ? 'Producto' : 'Medicamento / Producto'}
               </th>
               <th className="border-b border-slate-200 pb-2 text-right text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Cant.
@@ -1137,7 +1160,7 @@ function VentaMedicamentosModal({
             {lineasVenta.length === 0 && (
               <tr>
                 <td className="py-3 text-sm text-slate-400" colSpan={3}>
-                  Selecciona al menos un medicamento para cobrar.
+                  Selecciona al menos un {nombreArticulo} para cobrar.
                 </td>
               </tr>
             )}
