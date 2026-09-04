@@ -211,9 +211,10 @@ const RENOMBRES_POR_PANEL: Record<
  * propias del panel y recién después los supervivientes (Caja, Asistente,
  * Pacientes, Catálogo, Respaldo), en el orden fijo de `ENLACES_CLINICOS` —
  * un orden que nadie pidió y que intercalaba mal con lo que sí se pidió:
- * Caja y Agenda primero, Pacientes junto a Catálogo, Reportes antes de
- * Respaldo. Un panel sin entrada aquí conserva el orden natural
- * propias-luego-supervivientes (petshop, por ahora).
+ * Caja y Agenda primero, Clientes (propia) justo después de Pacientes/Mascotas
+ * (superviviente), Reportes antes de Respaldo. Un panel sin entrada aquí
+ * conserva el orden natural propias-luego-supervivientes (petshop, por
+ * ahora).
  */
 const ORDEN_PERSONALIZADO_POR_PANEL: Record<string, string[]> = {
   peluqueria: [
@@ -221,9 +222,9 @@ const ORDEN_PERSONALIZADO_POR_PANEL: Record<string, string[]> = {
     '/peluqueria/agenda',
     '/asistente',
     '/pacientes',
+    '/peluqueria/clientes',
     '/catalogo',
     '/peluqueria/peluqueros',
-    '/peluqueria/clientes',
     '/peluqueria/insumos',
     '/peluqueria/reportes',
     '/respaldo',
