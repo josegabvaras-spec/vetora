@@ -145,13 +145,14 @@ export function enlacesVisibles(rol: Rol | undefined, modulos?: ModuloVetora[]):
  * Las entradas del menú clínico que sobreviven en una peluquería o un petshop:
  * no son clínicas y **no existen dentro de sus paneles**.
  *
- * - `/caja` — **el turno de caja, y es imprescindible.** La caja del panel no
- *   abre ni cierra turno: `PetshopCajaPage` lo dice ella misma cuando no hay
- *   ninguno abierto («Debes abrir un turno en el módulo de Caja para facturar
- *   en el POS») y `PeluqueriaCajaPage` deja el botón de cobrar deshabilitado
- *   sin turno. Quitarla del menú dejaba el POS del petshop **sin poder
- *   facturar**. Se renombra a «Caja General» para que no se confunda con la
- *   del panel, que es la de sus propias ventas.
+ * - `/caja` — **el turno de caja, y es imprescindible.** Ni la peluquería ni
+ *   el petshop tienen ya una caja propia en su panel: las dos que hubo
+ *   (`PeluqueriaCajaPage`, `PetshopCajaPage`) eran vistas de solo lectura del
+ *   mismo turno que abre y cierra esta pantalla —ninguna abría ni cerraba
+ *   nada ella misma, las dos remitían aquí cuando no había turno abierto—,
+ *   así que había dos entradas para lo mismo y solo una servía de verdad.
+ *   Quitarla del menú dejaba el POS **sin poder facturar**, así que sigue
+ *   aquí como única «Caja» — sin renombrar, ya no hay con qué confundirla.
  * - `/asistente` — qué toca hacer hoy. `AsistenteSegunRol` reparte la pantalla
  *   por rol y por negocio, así que cada uno ve la suya.
  * - `/respaldo` — bajarse una copia de sus datos. No depende de ningún módulo:
@@ -185,23 +186,17 @@ const SOBREVIVEN_FUERA_DE_LA_CLINICA = ['/caja', '/asistente', '/respaldo', '/ca
 /**
  * Cómo se llaman los supervivientes fuera de una clínica.
  *
- * «Caja» a secas funciona en una veterinaria, donde es la única; en una
- * peluquería o un petshop convive con la caja del panel y hay que decir cuál
- * es. Se renombra aquí y no en `ENLACES_CLINICOS` porque en una veterinaria el
- * nombre correcto sigue siendo el de siempre.
+ * Ninguno de los dos paneles renombra ya su Caja — ni peluquería ni petshop
+ * conservan una caja propia (ver el comentario de `/caja` más arriba), así
+ * que «Caja» a secas no se confunde con nada. El renombre que sí queda es de
+ * peluquería: «Pacientes» → «Mascotas» (mismo destino, `/pacientes`; quien
+ * atiende una peluquería piensa en «mascotas», no en «pacientes»).
  */
 const RENOMBRES_POR_PANEL: Record<
   string,
   Record<string, Pick<EnlaceClinico, 'label' | 'etiquetaCorta'>>
 > = {
-  // El petshop conserva su propia «Caja Pet Shop» —es otra vista: la
-  // recaudación del POS dentro del turno—, así que hay que decir cuál es cuál.
-  petshop: { '/caja': { label: 'Caja General', etiquetaCorta: 'General' } },
-  // La peluquería **no** renombra su Caja: su caja y esta son la misma
-  // pantalla desde que se unificaron, así que «General» sobraba y solo
-  // sembraba la duda de si había dos sitios donde cobrar. Sí renombra
-  // «Pacientes» — mismo destino (`/pacientes`), pero quien atiende una
-  // peluquería piensa en «mascotas», no en «pacientes».
+  petshop: {},
   peluqueria: { '/pacientes': { label: 'Mascotas' } },
 }
 

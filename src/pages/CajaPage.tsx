@@ -13,6 +13,7 @@ import {
   QrCode,
   Scissors,
   Search,
+  ShoppingCart,
   Sparkles,
   Stethoscope,
   Wallet,
@@ -71,7 +72,7 @@ function Cifra({ etiqueta, valor, destacado }: { etiqueta: string; valor: string
 }
 
 export function CajaPage() {
-  const { usuario, sucursalActivaId } = useAuth()
+  const { usuario, sucursalActivaId, tieneModulo } = useAuth()
   const sucursales = useTable('sucursales')
   // Suscripción sin descarga: estas tres tablas no se leen aquí, solo hacen
   // falta para saber cuándo recargar. Con `useTable` se bajaban enteras y,
@@ -147,6 +148,18 @@ export function CajaPage() {
             sin recargar la página, y sin caja no se cobra. */}
         {!turno ? null : (
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            {/* Fusión de "Caja Pet Shop" con esta pantalla: esa página no
+                abría ni cerraba turno (remitía aquí cuando no había ninguno
+                abierto) y su recaudación por método de pago ya está arriba,
+                en el resumen del turno — lo único propio que aportaba era
+                este atajo al POS. */}
+            {tieneModulo('petshop') && (
+              <Link to="/petshop/pos" className="w-full sm:w-auto">
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <ShoppingCart size={16} /> Ir al POS
+                </Button>
+              </Link>
+            )}
             <Button
               onClick={() => setVendiendoMedicamentos(true)}
               className="w-full sm:w-auto shadow-xs"

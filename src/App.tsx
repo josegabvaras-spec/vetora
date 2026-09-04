@@ -70,7 +70,6 @@ import { PetshopProveedoresPage } from './pages/petshop/PetshopProveedoresPage'
 import { PetshopOrdenesPage } from './pages/petshop/PetshopOrdenesPage'
 import { PetshopClientesPage } from './pages/petshop/PetshopClientesPage'
 import { PetshopPromocionesPage } from './pages/petshop/PetshopPromocionesPage'
-import { PetshopCajaPage } from './pages/petshop/PetshopCajaPage'
 import { PetshopReportesPage } from './pages/petshop/PetshopReportesPage'
 import { PetshopConfiguracionPage } from './pages/petshop/PetshopConfiguracionPage'
 
@@ -235,7 +234,12 @@ export default function App() {
                     <Route path="ordenes" element={<PetshopOrdenesPage />} />
                     <Route path="clientes" element={<PetshopClientesPage />} />
                     <Route path="promociones" element={<PetshopPromocionesPage />} />
-                    <Route path="caja" element={<PetshopCajaPage />} />
+                    {/* La MISMA caja que /caja, no otra — mismo motivo que
+                        /peluqueria/caja más arriba: PetshopCajaPage no abría
+                        ni cerraba turno, remitía a "Caja General" cuando no
+                        había ninguno abierto. La ruta se conserva para no
+                        romper enlaces guardados. */}
+                    <Route path="caja" element={<CajaPage />} />
                     <Route path="reportes" element={<PetshopReportesPage />} />
                     <Route path="configuracion" element={<PetshopConfiguracionPage />} />
                   </Route>

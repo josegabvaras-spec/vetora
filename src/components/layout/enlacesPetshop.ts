@@ -8,7 +8,6 @@ import {
   Receipt,
   Users,
   Percent,
-  Wallet,
   BarChart3,
   Settings,
 } from 'lucide-react'
@@ -39,10 +38,14 @@ export const ENLACES_PETSHOP: EnlaceClinico[] = [
   { to: '/petshop/ordenes', label: 'Órdenes / Ventas', icon: Receipt, etiquetaCorta: 'Órdenes' },
   { to: '/petshop/clientes', label: 'Clientes', icon: Users },
   { to: '/petshop/promociones', label: 'Promociones', icon: Percent },
-  // «Caja Pet Shop» y no «Caja»: en el menú principal convive con «Caja
-  // General» (`/caja`), que es donde se abre y se cierra el turno — esta
-  // pantalla lo dice ella misma cuando no hay ninguno abierto.
-  { to: '/petshop/caja', label: 'Caja Pet Shop', icon: Wallet, etiquetaCorta: 'Caja' },
+  // ⚠️ Aquí NO va ninguna caja propia, y es a propósito — mismo motivo que
+  // en `enlacesPeluqueria.ts`: «Caja Pet Shop» era una vista de solo lectura
+  // del mismo turno que abre y cierra `/caja` (nunca abría ni cerraba nada
+  // ella misma; remitía ahí cuando no había turno abierto), así que había
+  // dos entradas para lo mismo y solo una servía de verdad. El menú lleva
+  // `/caja` como única «Caja» (superviviente, ver `SOBREVIVEN_FUERA_DE_LA_CLINICA`
+  // en `enlacesClinicos.ts`). `/petshop/caja` se conserva como ruta —monta la
+  // misma `CajaPage`— solo para no romper enlaces guardados.
   { to: '/petshop/reportes', label: 'Reportes', icon: BarChart3 },
   { to: '/petshop/configuracion', label: 'Configuración', icon: Settings, etiquetaCorta: 'Config.' },
 ].map((enlace) => ({ ...enlace, roles: [...TODO_EL_PERSONAL_DE_PETSHOP] }))
