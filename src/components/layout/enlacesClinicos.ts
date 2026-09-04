@@ -212,15 +212,14 @@ const RENOMBRES_POR_PANEL: Record<
 }
 
 /**
- * El orden exacto del menú para el negocio que lo pide explícito — hoy solo
- * peluquería. Sin esto, `menuDelNegocio` pone primero TODAS las secciones
- * propias del panel y recién después los supervivientes (Caja, Asistente,
- * Pacientes, Catálogo, Respaldo), en el orden fijo de `ENLACES_CLINICOS` —
- * un orden que nadie pidió y que intercalaba mal con lo que sí se pidió:
- * Caja y Agenda primero, Clientes (propia) justo después de Pacientes/Mascotas
- * (superviviente), Reportes antes de Respaldo. Un panel sin entrada aquí
- * conserva el orden natural propias-luego-supervivientes (petshop, por
- * ahora).
+ * El orden exacto del menú para el negocio que lo pide explícito. Sin esto,
+ * `menuDelNegocio` pone primero TODAS las secciones propias del panel y
+ * recién después los supervivientes (Caja, Asistente, Pacientes, Catálogo,
+ * Respaldo, Inventario), en el orden fijo de `ENLACES_CLINICOS` — un orden
+ * que nadie pidió y que intercalaba mal con lo que sí se pidió: Caja
+ * primero, Asistente entre Agenda/POS y las secciones propias, Catálogo
+ * junto a Clientes/Inventario en vez de al final. Un panel sin entrada aquí
+ * conserva el orden natural propias-luego-supervivientes.
  */
 const ORDEN_PERSONALIZADO_POR_PANEL: Record<string, string[]> = {
   peluqueria: [
@@ -236,6 +235,19 @@ const ORDEN_PERSONALIZADO_POR_PANEL: Record<string, string[]> = {
     '/respaldo',
     '/peluqueria/servicios',
     '/peluqueria/configuracion',
+  ],
+  petshop: [
+    '/caja',
+    '/petshop/pos',
+    '/asistente',
+    '/petshop/ordenes',
+    '/petshop/clientes',
+    '/petshop/inventario',
+    '/catalogo',
+    '/petshop/promociones',
+    '/petshop/reportes',
+    '/respaldo',
+    '/petshop/configuracion',
   ],
 }
 
