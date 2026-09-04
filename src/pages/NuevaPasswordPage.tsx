@@ -109,7 +109,9 @@ export function NuevaPasswordPage() {
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tu cuenta</p>
-              <p className="font-mono text-sm font-semibold text-slate-800">{correo}</p>
+              {/* Mismo caso que `AccesoPage`: en monoespaciada a `text-sm` un
+                  correo largo pide más ancho del que tiene la tarjeta. */}
+              <p className="font-mono text-sm font-semibold text-slate-800 break-words">{correo}</p>
             </div>
 
             <FieldGroup label="Contraseña nueva">

@@ -62,20 +62,26 @@ export function PortalPerfilPage() {
           </h3>
         </div>
         <div className="divide-y divide-slate-100">
+          {/* Un correo largo no tiene por donde partirse solo: sin `min-w-0`
+              en la columna de texto —y sin `break-words` en el propio párrafo—
+              se sale de la tarjeta, y `<main>` lo recorta. Medido a 375 px:
+              «administracion.veterinaria@…» pide 336 px en los 263 que quedan
+              junto al icono. El icono lleva `shrink-0` para que lo que ceda
+              sea el texto y no él. */}
           <div className="flex items-center gap-3 p-4">
-            <div className="h-9 w-9 rounded-full bg-blue-50 flex items-center justify-center">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50">
               <Mail className="h-4 w-4 text-blue-500" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-slate-400 font-medium">Correo electrónico</p>
-              <p className="text-sm font-medium text-slate-900">{usuario.email}</p>
+              <p className="text-sm font-medium text-slate-900 break-words">{usuario.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 p-4">
-            <div className="h-9 w-9 rounded-full bg-emerald-50 flex items-center justify-center">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50">
               <Shield className="h-4 w-4 text-emerald-500" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-slate-400 font-medium">Tipo de cuenta</p>
               <p className="text-sm font-medium text-slate-900">Portal de Clientes</p>
             </div>

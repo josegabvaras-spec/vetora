@@ -162,7 +162,7 @@ export function PlataformaAsistentePage() {
       celda: (u) => (
         <div>
           <p className="font-bold text-slate-800">{u.usuario.nombre}</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 break-words">
             {u.usuario.email} · {u.clinica_nombre}
           </p>
         </div>

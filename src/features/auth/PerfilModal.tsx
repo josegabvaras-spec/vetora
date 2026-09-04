@@ -77,7 +77,7 @@ export function PerfilModal({ onClose }: { onClose: () => void }) {
           nada que elegir es ruido. */}
       {conFacturacion && (
         <div className="mb-5 border-b border-slate-200">
-          <nav className="-mb-px flex gap-6" aria-label="Secciones de la cuenta">
+          <nav className="-mb-px flex gap-6 overflow-x-auto" aria-label="Secciones de la cuenta">
             {([
               ['cuenta', 'Mi cuenta'],
               ['facturacion', 'Facturación'],
@@ -106,7 +106,7 @@ export function PerfilModal({ onClose }: { onClose: () => void }) {
           <Seccion titulo="Mis Datos">
             <div className="flex flex-col gap-1 rounded-lg border border-slate-100 bg-slate-50 p-4">
               <p className="text-sm font-bold text-slate-900">{usuario.nombre}</p>
-              <p className="text-sm text-slate-500">{usuario.email}</p>
+              <p className="text-sm text-slate-500 break-words">{usuario.email}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <Badge tone="teal">{ROL_LABEL[usuario.rol]}</Badge>
                 <Badge tone="slate">{sucursalNombre}</Badge>

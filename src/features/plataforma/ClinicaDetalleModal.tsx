@@ -477,7 +477,7 @@ export function ClinicaDetalleModal({
                     {ROL_LABEL[u.rol] ?? u.rol} ·{' '}
                     {u.sucursal_id ? sucursales.find((s) => s.id === u.sucursal_id)?.nombre : 'Todas las sucursales'}
                   </p>
-                  <p className="font-mono text-[11px] text-slate-400">
+                  <p className="font-mono text-[11px] text-slate-400 break-words">
                     {u.email} · {u.whatsapp}
                   </p>
                   <p

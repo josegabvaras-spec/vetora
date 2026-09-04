@@ -126,7 +126,7 @@ export function ClientesPage() {
                   <p className="font-semibold text-slate-900">
                     {s.cuenta.nombre} <span className="font-normal text-slate-400">se registró en el portal</span>
                   </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-slate-500 break-words">
                     {s.cuenta.email} · {s.cuenta.whatsapp}
                   </p>
                   <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-teal-700">
@@ -166,7 +166,7 @@ export function ClientesPage() {
           </p>
           <ul className="mt-2 space-y-1 text-xs text-slate-500">
             {sueltasSinSugerencia.map((c) => (
-              <li key={c.id} className="font-mono">
+              <li key={c.id} className="font-mono break-words">
                 {c.nombre} · {c.email} · {c.whatsapp}
               </li>
             ))}
@@ -217,7 +217,10 @@ export function ClientesPage() {
                     <IdCard size={12} /> CI {c.ci}
                   </span>
                 )}
-                {c.email && <span className="font-mono">{c.email}</span>}
+                {/* Item de un flex: `break-words` solo no basta, hace falta
+                    `min-w-0` para que el `min-width: auto` deje de fijarlo a su
+                    ancho completo (medido: 377 px sin él, 309 con él). */}
+                {c.email && <span className="min-w-0 break-words font-mono">{c.email}</span>}
               </p>
             </div>
             <div className="flex items-center gap-3">

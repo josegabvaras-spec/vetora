@@ -104,7 +104,11 @@ export function AccesoPage() {
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tu cuenta</p>
-              <p className="font-mono text-sm font-semibold text-slate-800">{acceso.usuario.email}</p>
+              {/* `break-words`: en monoespaciada a `text-sm` un correo de 49
+                  caracteres pide 377 px y la tarjeta tiene 343. */}
+              <p className="font-mono text-sm font-semibold text-slate-800 break-words">
+                {acceso.usuario.email}
+              </p>
             </div>
 
             <FieldGroup label="Contraseña nueva">

@@ -123,7 +123,7 @@ export function PlataformaUsuariosPage() {
       {/* Dos mundos distintos, no un filtro: el personal ocupa plaza del plan
           y se edita; las cuentas del portal ni lo uno ni lo otro. */}
       <div className="border-b border-slate-200">
-        <nav className="-mb-px flex gap-6" aria-label="Tipo de cuenta">
+        <nav className="-mb-px flex gap-6 overflow-x-auto" aria-label="Tipo de cuenta">
           {([
             ['personal', 'Personal'],
             ['portal', 'Cuentas del portal'],
@@ -173,7 +173,7 @@ export function PlataformaUsuariosPage() {
                     key={c.id}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2"
                   >
-                    <p className="font-mono text-[11px] text-slate-600">{c.email}</p>
+                    <p className="min-w-0 break-words font-mono text-[11px] text-slate-600">{c.email}</p>
                     <Button
                       variant="secondary"
                       className="px-3 py-1 text-xs"
@@ -242,7 +242,7 @@ export function PlataformaUsuariosPage() {
                     ))}
                 </div>
                 <p className="text-xs text-slate-500">{esPortal ? 'Dueño de mascota' : ROL_LABEL[u.rol] ?? u.rol}</p>
-                <p className="font-mono text-[11px] text-slate-400">
+                <p className="font-mono text-[11px] text-slate-400 break-words">
                   {u.email} · {u.whatsapp}
                 </p>
               </div>

@@ -157,7 +157,10 @@ export function PanelLotes({ conCabecera = true }: { conCabecera?: boolean }) {
       </div>
 
       {/* Pestañas de Vista: Lotes vs Reposición */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      {/* `flex-wrap`: a 375 px los dos rótulos no caben en una línea y cada
+          botón se partía en dos renglones (48 px de alto). Envueltos, cada uno
+          ocupa su propia fila y se lee de un vistazo. */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
         <button
           type="button"
           onClick={() => setTab('lotes')}
@@ -186,9 +189,9 @@ export function PanelLotes({ conCabecera = true }: { conCabecera?: boolean }) {
       {/* Tab: Lotes */}
       {tab === 'lotes' && (
         <Card className="p-0 overflow-hidden border-slate-200">
-          <div className="p-3 border-b border-slate-100 bg-slate-50/70 flex justify-between items-center">
+          <div className="p-3 border-b border-slate-100 bg-slate-50/70 flex flex-wrap justify-between items-center gap-2">
             <span className="text-xs font-bold text-slate-700">Filtrar por estado de vencimiento:</span>
-            <div className="w-48">
+            <div className="w-48 max-w-full">
               <Select
                 value={estadoFiltroLote}
                 onChange={(e) => setEstadoFiltroLote(e.target.value as any)}

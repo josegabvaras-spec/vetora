@@ -62,7 +62,7 @@ export function PeluqueriaPeluquerosPage() {
       {/* Pestañas — solo se ven las que ese rol tenía antes de fusionar */}
       {veEquipo && veComisiones && (
         <div className="border-b border-slate-200">
-          <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+          <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
             <button
               type="button"
               onClick={() => setTab('equipo')}
