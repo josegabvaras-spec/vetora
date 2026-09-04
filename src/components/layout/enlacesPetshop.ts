@@ -1,5 +1,4 @@
 import {
-  LayoutDashboard,
   ShoppingCart,
   Boxes,
   Receipt,
@@ -32,11 +31,17 @@ import type { EnlaceClinico } from './enlacesClinicos'
  * Proveedores, Compras»—, el mismo patrón que `/inventario` ya usa en la
  * clínica. Las tres rutas siguen montadas en `App.tsx` (misma página, para
  * no romper enlaces guardados), solo se quitaron del menú.
+ *
+ * ⚠️ **«Dashboard» no está aquí a propósito, y eso NO cierra la pantalla** —
+ * mismo tratamiento que ya tiene `enlacesPeluqueria.ts`. `PetshopDashboardPage`
+ * sigue siendo la ruta `index` de `/petshop` (`App.tsx`) y `/petshop/dashboard`
+ * sigue montada; solo se quitó del menú, no del sistema. Se sigue llegando
+ * ahí al entrar al panel, lo que no hay es un enlace para volver una vez que
+ * se navegó a otra sección.
  */
 const TODO_EL_PERSONAL_DE_PETSHOP = ['admin', 'recepcion', 'veterinario'] as const
 
 export const ENLACES_PETSHOP: EnlaceClinico[] = [
-  { to: '/petshop/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/petshop/pos', label: 'Punto de Venta', icon: ShoppingCart, etiquetaCorta: 'POS' },
   { to: '/petshop/inventario', label: 'Inventario', icon: Boxes },
   { to: '/petshop/ordenes', label: 'Órdenes / Ventas', icon: Receipt, etiquetaCorta: 'Órdenes' },
