@@ -51,6 +51,67 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
   // clínica en su menú, pero `/agenda` sigue siendo el destino de rebote.
   { to: '/agenda', label: 'Agenda', icon: CalendarDays, modulo: 'agenda' },
   {
+    to: '/asistente',
+    label: 'Asistente',
+    // Un robot, no una campana: la campana decía «notificaciones», y esto es el
+    // asistente. El icono sale de aquí para el menú lateral y para la barra
+    // inferior del celular, que leen la misma lista.
+    icon: Bot,
+    // Un enlace, dos pantallas: `AsistenteSegunRol` decide cuál según el rol.
+    roles: ['recepcion', 'admin', 'veterinario', 'peluquero'],
+    modulo: 'asistente_ia',
+  },
+  // El peluquero entra: sin dar de alta a la mascota no hay a quién agendarle
+  // ni qué enseñarle al dueño en el portal. Lo que no ve es el expediente
+  // clínico — `FichaPacientePage` le oculta las pestañas (ver
+  // `puedeVerHistorialClinico`).
+  {
+    to: '/pacientes',
+    label: 'Pacientes',
+    icon: PawPrint,
+    roles: ['admin', 'veterinario', 'recepcion', 'peluquero'],
+    modulo: 'fichas',
+  },
+  // `roles` explícito aunque parezca redundante: sin él estas dos salían en el
+  // menú del peluquero, cuyo `RolRoute` no las admite, y el enlace le rebotaba
+  // a la agenda. El menú y la ruta tienen que decir lo mismo.
+  {
+    to: '/internacion',
+    label: 'Internación',
+    icon: BedDouble,
+    etiquetaCorta: 'Internac.',
+    roles: ['admin', 'veterinario', 'recepcion'],
+    modulo: 'internacion',
+  },
+  // Los dueños. `/pacientes` lista mascotas, así que una ficha sin mascotas
+  // —la que queda cuando el registro del portal no encuentra a su dueño— no
+  // se veía en ninguna pantalla hasta que existió esta.
+  {
+    to: '/clientes',
+    label: 'Clientes',
+    icon: Contact,
+    roles: ['admin', 'veterinario', 'recepcion', 'peluquero'],
+    modulo: 'fichas',
+  },
+  { to: '/catalogo', label: 'Catálogo', icon: ShoppingBag, roles: ['admin'], modulo: 'catalogo' },
+  {
+    to: '/inventario',
+    label: 'Inventario',
+    icon: Boxes,
+    roles: ['admin', 'veterinario', 'recepcion'],
+    modulo: 'inventario',
+  },
+  { to: '/servicios', label: 'Servicios', icon: Tags, roles: ['admin'], modulo: 'servicios' },
+  { to: '/metricas', label: 'Métricas', icon: BarChart3, roles: ['admin'], modulo: 'metricas' },
+  { to: '/movimientos', label: 'Movimientos', icon: ArrowLeftRight, roles: ['admin'], modulo: 'caja' },
+  { to: '/respaldo', label: 'Respaldo', icon: Download, roles: ['recepcion', 'admin'] },
+  // Pet Shop y Peluquería no estaban en el orden que se pidió — se dejan al
+  // final en vez de intercalarlas, para no partir la secuencia exacta que sí
+  // se especificó. Son el enlace único que abre el panel integrado cuando
+  // esos módulos son una sección más de una veterinaria completa (ver
+  // `menuDelNegocio`): no cambian de lugar según lo urgente que sea el día a
+  // día, así que el final es una posición neutral tanto como cualquier otra.
+  {
     to: '/petshop/dashboard',
     label: 'Pet Shop',
     icon: ShoppingCart,
@@ -64,61 +125,6 @@ export const ENLACES_CLINICOS: EnlaceClinico[] = [
     roles: ['admin', 'recepcion', 'peluquero'],
     modulo: 'peluqueria',
   },
-  // El peluquero entra: sin dar de alta a la mascota no hay a quién agendarle
-  // ni qué enseñarle al dueño en el portal. Lo que no ve es el expediente
-  // clínico — `FichaPacientePage` le oculta las pestañas (ver
-  // `puedeVerHistorialClinico`).
-  {
-    to: '/pacientes',
-    label: 'Pacientes',
-    icon: PawPrint,
-    roles: ['admin', 'veterinario', 'recepcion', 'peluquero'],
-    modulo: 'fichas',
-  },
-  // Los dueños. `/pacientes` lista mascotas, así que una ficha sin mascotas
-  // —la que queda cuando el registro del portal no encuentra a su dueño— no
-  // se veía en ninguna pantalla hasta que existió esta.
-  {
-    to: '/clientes',
-    label: 'Clientes',
-    icon: Contact,
-    roles: ['admin', 'veterinario', 'recepcion', 'peluquero'],
-    modulo: 'fichas',
-  },
-  {
-    to: '/asistente',
-    label: 'Asistente',
-    // Un robot, no una campana: la campana decía «notificaciones», y esto es el
-    // asistente. El icono sale de aquí para el menú lateral y para la barra
-    // inferior del celular, que leen la misma lista.
-    icon: Bot,
-    // Un enlace, dos pantallas: `AsistenteSegunRol` decide cuál según el rol.
-    roles: ['recepcion', 'admin', 'veterinario', 'peluquero'],
-    modulo: 'asistente_ia',
-  },
-  // `roles` explícito aunque parezca redundante: sin él estas dos salían en el
-  // menú del peluquero, cuyo `RolRoute` no las admite, y el enlace le rebotaba
-  // a la agenda. El menú y la ruta tienen que decir lo mismo.
-  {
-    to: '/internacion',
-    label: 'Internación',
-    icon: BedDouble,
-    etiquetaCorta: 'Internac.',
-    roles: ['admin', 'veterinario', 'recepcion'],
-    modulo: 'internacion',
-  },
-  {
-    to: '/inventario',
-    label: 'Inventario',
-    icon: Boxes,
-    roles: ['admin', 'veterinario', 'recepcion'],
-    modulo: 'inventario',
-  },
-  { to: '/metricas', label: 'Métricas', icon: BarChart3, roles: ['admin'], modulo: 'metricas' },
-  { to: '/respaldo', label: 'Respaldo', icon: Download, roles: ['recepcion', 'admin'] },
-  { to: '/servicios', label: 'Servicios', icon: Tags, roles: ['admin'], modulo: 'servicios' },
-  { to: '/movimientos', label: 'Movimientos', icon: ArrowLeftRight, roles: ['admin'], modulo: 'caja' },
-  { to: '/catalogo', label: 'Catálogo', icon: ShoppingBag, roles: ['admin'], modulo: 'catalogo' },
 ]
 
 /**
