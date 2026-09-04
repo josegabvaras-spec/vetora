@@ -13,11 +13,19 @@ import { EditarPacienteModal } from '../features/pacientes/EditarPacienteModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useSuscripcionTabla } from '../mocks/useDb'
 import { useAuth } from '../context/useAuth'
+import { useEsEscritorio } from '../hooks/useMediaQuery'
 import { puedeVerHistorialClinico } from '../lib/personal'
 import { etiquetaDias } from '../lib/internacion'
 import type { PacienteConDueno } from '../types/views'
 import { formatClinicTime } from '../lib/datetime'
 import { TIPO_LABEL, TIPO_TONE } from '../lib/citas'
+
+// En celular, la lista completa (hasta 200 pacientes) era justo lo que
+// confundía a quien busca rápido desde el consultorio: aterrizar en la
+// pantalla y encontrarse una cartera entera para desplazar, sin haber escrito
+// nada todavía. El tope solo aplica ahí — en escritorio, con mouse y más
+// pantalla, desplazar una tabla no es el problema que se está resolviendo.
+const LIMITE_MOVIL = 8
 
 const ESPECIE_LABEL: Record<string, string> = {
   canino: 'Canino',
@@ -29,6 +37,7 @@ const ESPECIE_LABEL: Record<string, string> = {
 
 export function PacientesListPage() {
   const { usuario } = useAuth()
+  const esEscritorio = useEsEscritorio()
   // Borrar un paciente se lleva por cascada todo su historial clínico. El
   // peluquero da de alta y edita la ficha, pero no destruye el expediente que
   // llevan otros.
@@ -76,8 +85,20 @@ export function PacientesListPage() {
   }, [busqueda])
 
   const recargar = useCallback(async () => {
-    setPacientes(await listPacientes(busquedaAplicada))
-  }, [busquedaAplicada])
+    // En celular, sin nada escrito, no se trae ni se pinta nada — aterrizar en
+    // la pantalla y encontrarse con la cartera entera para desplazar es
+    // exactamente lo que se quiere evitar. En escritorio se sigue viendo la
+    // cartera completa como siempre.
+    if (!esEscritorio && !busquedaAplicada.trim()) {
+      setPacientes([])
+      return
+    }
+    // Un resultado de más que LIMITE_MOVIL alcanza para saber "hay más" sin
+    // traer los 200 de siempre — en celular no se van a pintar de todas
+    // formas (ver `filtrados` más abajo).
+    const limite = esEscritorio ? undefined : LIMITE_MOVIL + 1
+    setPacientes(await listPacientes(busquedaAplicada, limite))
+  }, [busquedaAplicada, esEscritorio])
 
   useEffect(() => {
     setErrorCarga(null)
@@ -86,8 +107,12 @@ export function PacientesListPage() {
     )
   }, [recargar, revisionInternaciones])
 
-  // El filtrado ya lo hizo la base; aquí solo se pinta lo que llegó.
-  const filtrados = pacientes
+  // En celular se pide un resultado de más que LIMITE_MOVIL para poder
+  // distinguir "hay exactamente 8" de "hay más de 8" — ese sobrante nunca se
+  // pinta, solo dispara el aviso de que conviene acotar la búsqueda.
+  const hayMasDeLosMostrados = !esEscritorio && pacientes.length > LIMITE_MOVIL
+  const filtrados = hayMasDeLosMostrados ? pacientes.slice(0, LIMITE_MOVIL) : pacientes
+  const busquedaVaciaEnMovil = !esEscritorio && !busquedaAplicada.trim()
 
   // En celular la fila se convierte en tarjeta: el nombre y la agenda del día
   // encabezan, y el resto baja como pares etiqueta/valor.
@@ -207,15 +232,34 @@ export function PacientesListPage() {
         <Input className="pl-9" placeholder="Buscar por mascota, dueño o raza…" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
       </div>
 
-      <Card padding="none" className="overflow-hidden">
-        <TablaResponsive
-          columnas={columnas}
-          filas={filtrados}
-          claveDe={(p) => p.id}
-          onFilaClick={(p) => navigate(`/pacientes/${p.id}`)}
-          vacio="No se encontraron pacientes."
-        />
-      </Card>
+      {busquedaVaciaEnMovil ? (
+        // Ni una fila hasta que se escriba algo: es justo lo contrario de
+        // "No se encontraron pacientes" (que sí hay, y muchos — es que no se
+        // ha buscado nada todavía), así que lleva su propio mensaje.
+        <Card padding="none">
+          <div className="p-8 text-center text-sm text-slate-500">
+            <Search size={22} className="mx-auto mb-2 text-slate-300" />
+            Escribe el nombre de la mascota, del dueño o la raza para buscar.
+          </div>
+        </Card>
+      ) : (
+        <>
+          <Card padding="none" className="overflow-hidden">
+            <TablaResponsive
+              columnas={columnas}
+              filas={filtrados}
+              claveDe={(p) => p.id}
+              onFilaClick={(p) => navigate(`/pacientes/${p.id}`)}
+              vacio="No se encontraron pacientes."
+            />
+          </Card>
+          {hayMasDeLosMostrados && (
+            <p className="text-center text-xs text-slate-400">
+              Hay más resultados — sigue escribiendo para acotar la búsqueda.
+            </p>
+          )}
+        </>
+      )}
 
       {modalNuevo && (
         <NuevoPacienteModal
