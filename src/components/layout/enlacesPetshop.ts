@@ -1,10 +1,7 @@
 import {
   LayoutDashboard,
   ShoppingCart,
-  Package,
   Boxes,
-  Truck,
-  Building2,
   Receipt,
   Users,
   Percent,
@@ -25,16 +22,23 @@ import type { EnlaceClinico } from './enlacesClinicos'
  * El enlace «Tienda» que la barra añadía a `/catalogo` no está aquí: cuando el
  * negocio *es* un petshop, Catálogo ya es una de las tres entradas del menú
  * principal que sobreviven (ver `menuDelNegocio`).
+ *
+ * ⚠️ **«Productos», «Compras» y «Proveedores» no están aquí — son pestañas
+ * de «Inventario», no pantallas propias.** Eran cuatro enlaces para tres
+ * tablas que siempre fueron de la CLÍNICA (`producto_lotes`, `proveedores`,
+ * `ordenes_compra` — policies por `clinica_id`, sin relación con el módulo
+ * del plan) más el catálogo retail del petshop. `PetshopInventarioPage`
+ * ahora las anida en pestañas — «Productos, Lotes y vencimientos,
+ * Proveedores, Compras»—, el mismo patrón que `/inventario` ya usa en la
+ * clínica. Las tres rutas siguen montadas en `App.tsx` (misma página, para
+ * no romper enlaces guardados), solo se quitaron del menú.
  */
 const TODO_EL_PERSONAL_DE_PETSHOP = ['admin', 'recepcion', 'veterinario'] as const
 
 export const ENLACES_PETSHOP: EnlaceClinico[] = [
   { to: '/petshop/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/petshop/pos', label: 'Punto de Venta', icon: ShoppingCart, etiquetaCorta: 'POS' },
-  { to: '/petshop/productos', label: 'Productos', icon: Package },
   { to: '/petshop/inventario', label: 'Inventario', icon: Boxes },
-  { to: '/petshop/compras', label: 'Compras', icon: Truck },
-  { to: '/petshop/proveedores', label: 'Proveedores', icon: Building2 },
   { to: '/petshop/ordenes', label: 'Órdenes / Ventas', icon: Receipt, etiquetaCorta: 'Órdenes' },
   { to: '/petshop/clientes', label: 'Clientes', icon: Users },
   { to: '/petshop/promociones', label: 'Promociones', icon: Percent },

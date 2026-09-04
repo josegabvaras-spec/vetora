@@ -169,6 +169,17 @@ export function enlacesVisibles(rol: Rol | undefined, modulos?: ModuloVetora[]):
  *   excluirlo a mano. Se renombra a «Mascotas» en el panel de peluquería (ver
  *   `RENOMBRES_POR_PANEL`) — mismo destino, mejor nombre para quien no piensa
  *   en «pacientes».
+ * - `/inventario` — **productos, lotes y vencimientos, proveedores y
+ *   compras, las cuatro secciones que ya tiene la clínica.** El plan
+ *   Peluquería SÍ trae el módulo `inventario` (a diferencia de PetShop, que
+ *   no lo trae — vende retail, no fármacos por dosis), pero antes no había
+ *   ningún enlace a esta pantalla: lo único que existía en su lugar era
+ *   «Insumos» (`PeluqueriaInsumosPage`, borrada), que no era inventario —
+ *   era la receta de qué consume cada servicio, y esa edición ya vive en
+ *   «Servicios» → Configurar. Reusar `/inventario` en vez de construir un
+ *   `/peluqueria/inventario` propio es a propósito: es la MISMA pantalla que
+ *   ve una veterinaria, con sus mismas pestañas, y `modulo: 'inventario'` en
+ *   `ENLACES_CLINICOS` ya la cierra para PetShop sin excluirla a mano aquí.
  *
  * `/clientes` NO está en esta lista: la peluquería tiene su propia entrada
  * «Clientes» en `ENLACES_PELUQUERIA`, que fusiona el CRUD general de dueños
@@ -179,9 +190,9 @@ export function enlacesVisibles(rol: Rol | undefined, modulos?: ModuloVetora[]):
  *
  * Todo lo demás del menú clínico se cae: o no es de su negocio (Internación)
  * o está duplicado dentro de su propio panel apuntando a la versión clínica
- * (Agenda, Servicios, Inventario, Métricas).
+ * (Agenda, Servicios, Métricas).
  */
-const SOBREVIVEN_FUERA_DE_LA_CLINICA = ['/caja', '/asistente', '/respaldo', '/catalogo', '/pacientes']
+const SOBREVIVEN_FUERA_DE_LA_CLINICA = ['/caja', '/asistente', '/respaldo', '/catalogo', '/pacientes', '/inventario']
 
 /**
  * Cómo se llaman los supervivientes fuera de una clínica.
@@ -220,7 +231,7 @@ const ORDEN_PERSONALIZADO_POR_PANEL: Record<string, string[]> = {
     '/peluqueria/clientes',
     '/catalogo',
     '/peluqueria/peluqueros',
-    '/peluqueria/insumos',
+    '/inventario',
     '/peluqueria/reportes',
     '/respaldo',
     '/peluqueria/servicios',

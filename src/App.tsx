@@ -55,7 +55,6 @@ import { PeluqueriaDashboardPage } from './pages/peluqueria/PeluqueriaDashboardP
 import { PeluqueriaAgendaPage } from './pages/peluqueria/PeluqueriaAgendaPage'
 import { PeluqueriaServiciosPage } from './pages/peluqueria/PeluqueriaServiciosPage'
 import { PeluqueriaPeluquerosPage } from './pages/peluqueria/PeluqueriaPeluquerosPage'
-import { PeluqueriaInsumosPage } from './pages/peluqueria/PeluqueriaInsumosPage'
 import { PeluqueriaClientesPage } from './pages/peluqueria/PeluqueriaClientesPage'
 import { PeluqueriaReportesPage } from './pages/peluqueria/PeluqueriaReportesPage'
 import { PeluqueriaConfiguracionPage } from './pages/peluqueria/PeluqueriaConfiguracionPage'
@@ -63,10 +62,7 @@ import { PeluqueriaConfiguracionPage } from './pages/peluqueria/PeluqueriaConfig
 import { PetshopLayout } from './pages/petshop/PetshopLayout'
 import { PetshopDashboardPage } from './pages/petshop/PetshopDashboardPage'
 import { PetshopPosPage } from './pages/petshop/PetshopPosPage'
-import { PetshopProductosPage } from './pages/petshop/PetshopProductosPage'
 import { PetshopInventarioPage } from './pages/petshop/PetshopInventarioPage'
-import { PetshopComprasPage } from './pages/petshop/PetshopComprasPage'
-import { PetshopProveedoresPage } from './pages/petshop/PetshopProveedoresPage'
 import { PetshopOrdenesPage } from './pages/petshop/PetshopOrdenesPage'
 import { PetshopClientesPage } from './pages/petshop/PetshopClientesPage'
 import { PetshopPromocionesPage } from './pages/petshop/PetshopPromocionesPage'
@@ -203,7 +199,6 @@ export default function App() {
                         llega solo desde ahí, para no tener dos caminos al
                         mismo contenido. */}
                     <Route path="peluqueros" element={<PeluqueriaPeluquerosPage />} />
-                    <Route path="insumos" element={<PeluqueriaInsumosPage />} />
                     {/* Clientes ahora INCLUYE Fidelización (Clientes
                         frecuentes) como pestaña — ver
                         PeluqueriaClientesPage.tsx. Mismo motivo que arriba:
@@ -227,10 +222,18 @@ export default function App() {
                     <Route index element={<PetshopDashboardPage />} />
                     <Route path="dashboard" element={<PetshopDashboardPage />} />
                     <Route path="pos" element={<PetshopPosPage />} />
-                    <Route path="productos" element={<PetshopProductosPage />} />
+                    {/* Productos, Inventario, Compras y Proveedores eran
+                        cuatro enlaces para tres tablas de la CLÍNICA
+                        (producto_lotes, proveedores, ordenes_compra) más el
+                        catálogo propio del petshop — ahora son pestañas
+                        dentro de la MISMA PetshopInventarioPage. Las cuatro
+                        rutas se conservan para no romper enlaces guardados;
+                        todas caen en la misma pantalla, con "Productos"
+                        como pestaña inicial. */}
+                    <Route path="productos" element={<PetshopInventarioPage />} />
                     <Route path="inventario" element={<PetshopInventarioPage />} />
-                    <Route path="compras" element={<PetshopComprasPage />} />
-                    <Route path="proveedores" element={<PetshopProveedoresPage />} />
+                    <Route path="compras" element={<PetshopInventarioPage />} />
+                    <Route path="proveedores" element={<PetshopInventarioPage />} />
                     <Route path="ordenes" element={<PetshopOrdenesPage />} />
                     <Route path="clientes" element={<PetshopClientesPage />} />
                     <Route path="promociones" element={<PetshopPromocionesPage />} />

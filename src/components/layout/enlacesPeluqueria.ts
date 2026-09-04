@@ -2,7 +2,6 @@ import {
   CalendarDays,
   Scissors,
   Users,
-  Boxes,
   Contact,
   BarChart3,
   Settings,
@@ -48,6 +47,19 @@ import type { EnlaceClinico } from './enlacesClinicos'
  * pero solo ve Todos (nunca tuvo Frecuentes). Bajar ese filtro a `roles`
  * aquí sería todo o nada; el resto vive en cada página, ver sus propios
  * comentarios.
+ *
+ * ⚠️ **«Insumos» no está aquí, y no es una fusión de pantallas — es que
+ * nunca fue inventario.** `PeluqueriaInsumosPage` (borrada) configuraba qué
+ * productos consume cada servicio (la receta que descuenta el kardex solo),
+ * y esa edición YA vivía también en «Servicios» → Configurar
+ * (`ServicioConfigModal`, sección «Insumos de Inventario»): la pantalla
+ * entera era 100% redundante, no solo el nombre. El inventario de verdad
+ * (productos, lotes y vencimientos, proveedores, compras) no tenía NINGÚN
+ * camino en este menú pese a que el plan Peluquería sí trae el módulo
+ * `inventario` — se resuelve dejando que `/inventario` sobreviva aquí (ver
+ * `SOBREVIVEN_FUERA_DE_LA_CLINICA` en `enlacesClinicos.ts`), la misma
+ * pantalla con pestañas que ya usa la clínica, en vez de construir una
+ * copia.
  */
 const TODO_EL_PERSONAL_DE_PELUQUERIA = ['admin', 'recepcion', 'peluquero'] as const
 
@@ -70,7 +82,6 @@ export const ENLACES_PELUQUERIA: EnlaceClinico[] = [
     icon: Contact,
     roles: [...TODO_EL_PERSONAL_DE_PELUQUERIA],
   },
-  { to: '/peluqueria/insumos', label: 'Insumos', icon: Boxes, roles: ['admin'] },
   { to: '/peluqueria/reportes', label: 'Reportes', icon: BarChart3, roles: ['admin'] },
   // ⚠️ Aquí NO va ninguna caja, y es a propósito: la de la peluquería y la de
   // la clínica pasaron a ser **la misma pantalla**. `/peluqueria/caja` seguía
