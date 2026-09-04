@@ -36,7 +36,12 @@ export function PreguntaleAVetora() {
   // «no te queda nada» no pueden mostrarse igual.
   const [cuota, setCuota] = useState<{ usados: number; limite: number } | null>(null)
 
-  const atajos = atajosDelCopiloto(usuario?.rol, modulosHabilitados)
+  // Una semilla por visita: se calcula al montar y no vuelve a cambiar, así que
+  // las sugerencias se quedan quietas mientras estás en la pantalla —moverse
+  // bajo el dedo sería peor que no rotar— pero salen otras al volver a entrar.
+  // El azar vive aquí y no en `lib/copiloto.ts`, que sigue siendo puro.
+  const [semilla] = useState(() => Math.floor(Math.random() * 1_000_000))
+  const atajos = atajosDelCopiloto(usuario?.rol, modulosHabilitados, semilla)
   const sinCupo = cuota !== null && cuota.limite > 0 && cuota.usados >= cuota.limite
 
   useEffect(() => {
