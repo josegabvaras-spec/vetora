@@ -54,7 +54,6 @@ import { PeluqueriaLayout } from './pages/peluqueria/PeluqueriaLayout'
 import { PeluqueriaDashboardPage } from './pages/peluqueria/PeluqueriaDashboardPage'
 import { PeluqueriaAgendaPage } from './pages/peluqueria/PeluqueriaAgendaPage'
 import { PeluqueriaServiciosPage } from './pages/peluqueria/PeluqueriaServiciosPage'
-import { PeluqueriaMascotasPage } from './pages/peluqueria/PeluqueriaMascotasPage'
 import { PeluqueriaPeluquerosPage } from './pages/peluqueria/PeluqueriaPeluquerosPage'
 import { PeluqueriaInsumosPage } from './pages/peluqueria/PeluqueriaInsumosPage'
 import { PeluqueriaComisionesPage } from './pages/peluqueria/PeluqueriaComisionesPage'
@@ -201,7 +200,6 @@ export default function App() {
                     <Route path="dashboard" element={<PeluqueriaDashboardPage />} />
                     <Route path="agenda" element={<PeluqueriaAgendaPage />} />
                     <Route path="servicios" element={<PeluqueriaServiciosPage />} />
-                    <Route path="mascotas" element={<PeluqueriaMascotasPage />} />
                     <Route path="peluqueros" element={<PeluqueriaPeluquerosPage />} />
                     <Route path="insumos" element={<PeluqueriaInsumosPage />} />
                     <Route path="comisiones" element={<PeluqueriaComisionesPage />} />

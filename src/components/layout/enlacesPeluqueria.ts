@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   CalendarDays,
   Scissors,
-  PawPrint,
   Users,
   Boxes,
   Percent,
@@ -43,12 +42,6 @@ export const ENLACES_PELUQUERIA: EnlaceClinico[] = [
     roles: [...TODO_EL_PERSONAL_DE_PELUQUERIA],
   },
   { to: '/peluqueria/servicios', label: 'Servicios', icon: Scissors, roles: ['admin'] },
-  {
-    to: '/peluqueria/mascotas',
-    label: 'Mascotas',
-    icon: PawPrint,
-    roles: [...TODO_EL_PERSONAL_DE_PELUQUERIA],
-  },
   { to: '/peluqueria/peluqueros', label: 'Peluqueros', icon: Users, roles: ['admin', 'recepcion'] },
   { to: '/peluqueria/insumos', label: 'Insumos', icon: Boxes, roles: ['admin'] },
   {
