@@ -113,13 +113,13 @@ function CuotaCopiloto({ className }: { className?: string }) {
       className={clsx('flex flex-col gap-1', className)}
       title={
         cuota
-          ? `Preguntas al copiloto: ${cuota.usados} de ${cuota.limite} mensuales`
-          : 'No se pudo leer la cuota del copiloto'
+          ? `Preguntas a Vetora AI: ${cuota.usados} de ${cuota.limite} mensuales`
+          : 'No se pudo leer la cuota de Vetora AI'
       }
     >
       <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
         <span className="flex items-center gap-1">
-          <Sparkles size={12} className="text-teal-600" /> Copiloto
+          <Sparkles size={12} className="text-teal-600" /> Vetora AI
         </span>
         <span>{cuota ? `${cuota.usados}/${cuota.limite}` : '—/—'}</span>
       </div>

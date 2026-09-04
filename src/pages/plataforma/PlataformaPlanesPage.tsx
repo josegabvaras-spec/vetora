@@ -155,7 +155,7 @@ export function PlataformaPlanesPage() {
                 {p.modulos_habilitados.includes('asistente_ia') && (
                   <div className="flex items-center gap-2">
                     <Sparkles size={13} className="text-slate-400" />
-                    {p.ia_limite_redaccion} avisos + {p.ia_limite_copiloto} copiloto al mes
+                    {p.ia_limite_redaccion} avisos + {p.ia_limite_copiloto} consultas a Vetora AI al mes
                   </div>
                 )}
               </dl>
@@ -563,7 +563,7 @@ function PlanModal({
               </div>
               <div>
                 <Input type="number" min="0" value={iaCopiloto} onChange={(e) => setIaCopiloto(e.target.value)} />
-                <p className="mt-1 text-[11px] text-slate-500">Preguntas al copiloto (Sonnet)</p>
+                <p className="mt-1 text-[11px] text-slate-500">Preguntas a Vetora AI (Sonnet)</p>
               </div>
             </div>
             <p className="mt-1 text-xs text-slate-500">

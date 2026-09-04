@@ -89,7 +89,7 @@ export function PreguntaleAVetora() {
 
       {sinCupo ? (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
-          Se alcanzó el límite mensual de consultas al copiloto de tu plan. Vuelve a estar disponible el
+          Se alcanzó el límite mensual de consultas a Vetora AI de tu plan. Vuelve a estar disponible el
           próximo mes, o puedes ampliarlo desde tu suscripción.
         </p>
       ) : (
