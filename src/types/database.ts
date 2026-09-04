@@ -497,6 +497,46 @@ export interface RecetaItem {
   created_at: string
 }
 
+/** En cuántas de estas unidades viene medido `concentracion_mg`. */
+export type UnidadDosificacion = 'ml' | 'tableta' | 'capsula' | 'g' | 'gota'
+
+/** Una misma molécula se dosifica distinto en gato que en perro. */
+export type EspecieVademecum = 'todos' | 'canino' | 'felino'
+
+/**
+ * Ficha del vademécum propio de la clínica (migración 0042).
+ *
+ * ⚠️ **No cuelga de `productos`, a propósito.** `productos` es por sucursal, así
+ * que el mismo fármaco es una fila distinta en cada sede; lo que hace falta para
+ * pasar de mg/kg a mililitros no es el producto sino la CONCENTRACIÓN, que es
+ * del fármaco. Por eso `concentracion_mg` vive aquí.
+ *
+ * Escribirlo es de `admin` y `veterinario` (`auth_es_clinico()` en el SQL);
+ * leerlo, de todo el personal.
+ */
+export interface FichaVademecum {
+  id: string
+  clinica_id: string
+  nombre: string
+  principio_activo: string
+  presentacion: string
+  /** Miligramos de principio activo por UNA `unidad_dosificacion`. */
+  concentracion_mg?: number | null
+  unidad_dosificacion: UnidadDosificacion
+  especie: EspecieVademecum
+  via: ViaAdministracion
+  dosis_min_mg_kg?: number | null
+  dosis_max_mg_kg?: number | null
+  frecuencia: string
+  duracion_habitual: string
+  contraindicaciones?: string | null
+  notas?: string | null
+  /** Retira la ficha del uso sin perder lo escrito. */
+  activo: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface ConsentimientoCirugia {
   id: string
   clinica_id: string

@@ -15,6 +15,7 @@ import { ProductoModal } from '../features/inventario/ProductoModal'
 import { PanelLotes } from '../features/inventario/PanelLotes'
 import { PanelProveedores } from '../features/inventario/PanelProveedores'
 import { PanelCompras } from '../features/inventario/PanelCompras'
+import { PanelVademecum } from '../features/inventario/PanelVademecum'
 import { formatBs } from '../lib/currency'
 import type { ProductoConMovimientos } from '../types/views'
 
@@ -66,7 +67,7 @@ export function InventarioPage() {
    * relación con el módulo del plan. Estaban detrás de la puerta equivocada, y
    * una veterinaria no tenía ninguna forma de saber que un fármaco vence.
    */
-  const [seccion, setSeccion] = useState<'productos' | 'lotes' | 'proveedores' | 'compras'>(
+  const [seccion, setSeccion] = useState<'productos' | 'lotes' | 'proveedores' | 'compras' | 'vademecum'>(
     'productos',
   )
 
@@ -252,6 +253,7 @@ export function InventarioPage() {
               ['lotes', 'Lotes y vencimientos'],
               ['proveedores', 'Proveedores'],
               ['compras', 'Compras'],
+              ['vademecum', 'Vademécum'],
             ] as const
           ).map(([clave, etiqueta]) => (
             <button
@@ -273,6 +275,7 @@ export function InventarioPage() {
       {seccion === 'lotes' && <PanelLotes conCabecera={false} />}
       {seccion === 'proveedores' && <PanelProveedores conCabecera={false} />}
       {seccion === 'compras' && <PanelCompras conCabecera={false} />}
+      {seccion === 'vademecum' && <PanelVademecum conCabecera={false} />}
 
       {seccion === 'productos' && (
         <>

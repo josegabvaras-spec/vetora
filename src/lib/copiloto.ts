@@ -25,6 +25,7 @@ export const ETIQUETA_HERRAMIENTA: Record<string, string> = {
   obtener_clientes_inactivos: 'los pacientes sin visitas recientes',
   obtener_ventas: 'los cobros',
   obtener_productos_bajo_minimo: 'el inventario',
+  consultar_vademecum: 'el vademécum de la clínica',
 }
 
 /**

@@ -2540,6 +2540,77 @@ export type Database = {
         }
         Relationships: []
       }
+      vademecum: {
+        Row: {
+          id: string
+          clinica_id: string
+          nombre: string
+          principio_activo: string
+          presentacion: string
+          concentracion_mg: number | null
+          unidad_dosificacion: string
+          especie: string
+          via: string
+          dosis_min_mg_kg: number | null
+          dosis_max_mg_kg: number | null
+          frecuencia: string
+          duracion_habitual: string
+          contraindicaciones: string | null
+          notas: string | null
+          activo: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinica_id?: string
+          nombre: string
+          principio_activo?: string
+          presentacion?: string
+          concentracion_mg?: number | null
+          unidad_dosificacion?: string
+          especie?: string
+          via?: string
+          dosis_min_mg_kg?: number | null
+          dosis_max_mg_kg?: number | null
+          frecuencia?: string
+          duracion_habitual?: string
+          contraindicaciones?: string | null
+          notas?: string | null
+          activo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinica_id?: string
+          nombre?: string
+          principio_activo?: string
+          presentacion?: string
+          concentracion_mg?: number | null
+          unidad_dosificacion?: string
+          especie?: string
+          via?: string
+          dosis_min_mg_kg?: number | null
+          dosis_max_mg_kg?: number | null
+          frecuencia?: string
+          duracion_habitual?: string
+          contraindicaciones?: string | null
+          notas?: string | null
+          activo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vademecum_clinica_id_fkey"
+            columns: ["clinica_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2547,6 +2618,7 @@ export type Database = {
     Functions: {
       auth_clinica_id: { Args: never; Returns: string }
       auth_es_admin: { Args: never; Returns: boolean }
+      auth_es_clinico: { Args: never; Returns: boolean }
       auth_es_personal: { Args: never; Returns: boolean }
       auth_es_plataforma: { Args: never; Returns: boolean }
       auth_sucursal_id: { Args: never; Returns: string }

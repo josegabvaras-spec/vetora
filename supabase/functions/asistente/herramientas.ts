@@ -166,6 +166,31 @@ export const ESQUEMAS_HERRAMIENTAS = [
       },
     },
   },
+  {
+    name: 'consultar_vademecum',
+    description:
+      'El vademécum PROPIO de esta clínica: los medicamentos que ella misma anotó, con su ' +
+      'concentración, su rango de dosis en mg/kg, su vía, su frecuencia y sus ' +
+      'contraindicaciones. Úsala SIEMPRE antes de comentar una dosis: lo que hay aquí es el ' +
+      'criterio de esta clínica y manda sobre lo que tú sepas de forma general. Si el fármaco ' +
+      'no está en el vademécum, dilo — no lo sustituyas en silencio por tu conocimiento. ' +
+      'Sin `texto` devuelve el catálogo entero.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        texto: {
+          type: 'string',
+          description: 'Parte del nombre o del principio activo. Omítelo para traer todo.',
+        },
+        especie: {
+          type: 'string',
+          enum: ['canino', 'felino'],
+          description: 'Acota a las fichas de esa especie y a las que valen para todas.',
+        },
+        limite: { type: 'integer', description: 'Cuántos devolver, hasta 50. Por defecto 25' },
+      },
+    },
+  },
 ]
 
 export const NOMBRES_DE_HERRAMIENTA = ESQUEMAS_HERRAMIENTAS.map((h) => h.name)
@@ -415,6 +440,88 @@ async function obtenerProductosBajoMinimo(sb: SupabaseClient, args: Argumentos) 
   }
 }
 
+/**
+ * El vademécum propio de la clínica (migración 0042).
+ *
+ * ⚠️ Es la ÚNICA herramienta que devuelve criterio clínico escrito por una
+ * persona, no un dato operativo. Existe justamente para eso: sin ella, cuando
+ * el copiloto dice «esa dosis parece alta» la fuente es su entrenamiento y no
+ * hay nada que el veterinario pueda abrir y contrastar, aunque la pantalla
+ * enseñe qué se consultó.
+ *
+ * Devuelve `concentracion_mg` con su unidad —no una dosis ya calculada— porque
+ * el cálculo depende del peso del paciente, que sale de `obtener_resumen_paciente`.
+ */
+async function consultarVademecum(sb: SupabaseClient, args: Argumentos) {
+  const limite = entero(args.limite, 'limite', 1, 50, 25)
+  const texto = typeof args.texto === 'string' ? args.texto.trim() : ''
+  const especie = typeof args.especie === 'string' ? args.especie.trim() : ''
+  if (especie && especie !== 'canino' && especie !== 'felino') {
+    throw new ParametroInvalido('especie tiene que ser "canino" o "felino"')
+  }
+
+  const COLUMNAS =
+    'nombre, principio_activo, presentacion, concentracion_mg, unidad_dosificacion, ' +
+    'especie, via, dosis_min_mg_kg, dosis_max_mg_kg, frecuencia, duracion_habitual, ' +
+    'contraindicaciones, notas'
+
+  // Solo las fichas en uso: una retirada sigue en la tabla para no perder lo
+  // escrito, pero presentarla como vigente sería justo lo contrario de por qué
+  // se retiró.
+  const base = () => sb.from('vademecum').select(COLUMNAS).eq('activo', true)
+
+  let fichas: any[]
+  if (texto.length >= 2) {
+    // ⚠️ Dos consultas y unión en memoria, NUNCA un `.or()` con el texto
+    // dentro: la coma y el paréntesis son sintaxis de filtro en PostgREST
+    // (hallazgo H-1 de SEGURIDAD.md). El término viaja como VALOR de un `ilike`.
+    const patron = `%${texto}%`
+    const [porNombre, porPrincipio] = await Promise.all([
+      base().ilike('nombre', patron).limit(limite),
+      base().ilike('principio_activo', patron).limit(limite),
+    ])
+    exigirSinError(porNombre.error, 'el vademécum')
+    exigirSinError(porPrincipio.error, 'el vademécum')
+
+    const unicas = new Map<string, any>()
+    for (const f of [...(porNombre.data ?? []), ...(porPrincipio.data ?? [])] as any[]) {
+      unicas.set(`${f.nombre}|${f.especie}`, f)
+    }
+    fichas = [...unicas.values()]
+  } else {
+    const { data, error } = await base().order('nombre').limit(TOPE_CARTERA)
+    exigirSinError(error, 'el vademécum')
+    fichas = (data ?? []) as any[]
+  }
+
+  // Una ficha marcada «todos» aplica a la especie pedida: acotar a la especie
+  // exacta escondería justo las de uso general, que son la mayoría.
+  if (especie) fichas = fichas.filter((f) => f.especie === especie || f.especie === 'todos')
+
+  return {
+    total: fichas.length,
+    devueltos: Math.min(fichas.length, limite),
+    // Que el modelo sepa distinguir «la clínica no lo tiene anotado» de «la
+    // clínica no tiene vademécum»: son dos respuestas distintas.
+    vademecum_vacio: fichas.length === 0 && !texto && !especie,
+    medicamentos: fichas.slice(0, limite).map((f) => ({
+      nombre: f.nombre,
+      principio_activo: f.principio_activo || null,
+      presentacion: f.presentacion || null,
+      concentracion_mg_por_unidad: f.concentracion_mg != null ? Number(f.concentracion_mg) : null,
+      unidad: f.unidad_dosificacion,
+      especie: f.especie,
+      via: f.via,
+      dosis_min_mg_kg: f.dosis_min_mg_kg != null ? Number(f.dosis_min_mg_kg) : null,
+      dosis_max_mg_kg: f.dosis_max_mg_kg != null ? Number(f.dosis_max_mg_kg) : null,
+      frecuencia: f.frecuencia || null,
+      duracion_habitual: f.duracion_habitual || null,
+      contraindicaciones: f.contraindicaciones || null,
+      notas: f.notas || null,
+    })),
+  }
+}
+
 const EJECUTORES: Record<string, (sb: SupabaseClient, args: Argumentos) => Promise<unknown>> = {
   obtener_agenda: obtenerAgenda,
   buscar_paciente: buscarPaciente,
@@ -422,6 +529,7 @@ const EJECUTORES: Record<string, (sb: SupabaseClient, args: Argumentos) => Promi
   obtener_clientes_inactivos: obtenerClientesInactivos,
   obtener_ventas: obtenerVentas,
   obtener_productos_bajo_minimo: obtenerProductosBajoMinimo,
+  consultar_vademecum: consultarVademecum,
 }
 
 /**
