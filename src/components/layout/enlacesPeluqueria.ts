@@ -1,5 +1,4 @@
 import {
-  LayoutDashboard,
   CalendarDays,
   Scissors,
   Users,
@@ -22,19 +21,19 @@ import type { EnlaceClinico } from './enlacesClinicos'
  *
  * ⚠️ **`roles` en todas, incluidas las que antes no lo llevaban.** El panel va
  * detrás de `RolRoute roles={['admin','recepcion','peluquero']}`, así que sin
- * ese suelo un `veterinario` de un plan mixto vería «Dashboard» o «Agenda» en
- * su menú y el enlace le rebotaría. El menú y la ruta tienen que decir lo
- * mismo — es el error que `enlacesClinicos` ya documenta para `/internacion`.
+ * ese suelo un `veterinario` de un plan mixto vería «Agenda» en su menú y el
+ * enlace le rebotaría. El menú y la ruta tienen que decir lo mismo — es el
+ * error que `enlacesClinicos` ya documenta para `/internacion`.
+ *
+ * ⚠️ **«Dashboard» no está aquí a propósito, y eso NO cierra la pantalla.**
+ * `PeluqueriaDashboardPage` sigue siendo la ruta `index` de `/peluqueria`
+ * (`App.tsx`) y `/peluqueria/dashboard` sigue montada — solo se quitó del
+ * menú, no del sistema. Se sigue llegando ahí al entrar al panel; lo que no
+ * hay es un enlace para volver una vez que se navegó a otra sección.
  */
 const TODO_EL_PERSONAL_DE_PELUQUERIA = ['admin', 'recepcion', 'peluquero'] as const
 
 export const ENLACES_PELUQUERIA: EnlaceClinico[] = [
-  {
-    to: '/peluqueria/dashboard',
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    roles: [...TODO_EL_PERSONAL_DE_PELUQUERIA],
-  },
   {
     to: '/peluqueria/agenda',
     label: 'Agenda',
