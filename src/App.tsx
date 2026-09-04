@@ -56,8 +56,7 @@ import { PeluqueriaAgendaPage } from './pages/peluqueria/PeluqueriaAgendaPage'
 import { PeluqueriaServiciosPage } from './pages/peluqueria/PeluqueriaServiciosPage'
 import { PeluqueriaPeluquerosPage } from './pages/peluqueria/PeluqueriaPeluquerosPage'
 import { PeluqueriaInsumosPage } from './pages/peluqueria/PeluqueriaInsumosPage'
-import { PeluqueriaComisionesPage } from './pages/peluqueria/PeluqueriaComisionesPage'
-import { PeluqueriaFidelizacionPage } from './pages/peluqueria/PeluqueriaFidelizacionPage'
+import { PeluqueriaClientesPage } from './pages/peluqueria/PeluqueriaClientesPage'
 import { PeluqueriaReportesPage } from './pages/peluqueria/PeluqueriaReportesPage'
 import { PeluqueriaConfiguracionPage } from './pages/peluqueria/PeluqueriaConfiguracionPage'
 
@@ -200,10 +199,17 @@ export default function App() {
                     <Route path="dashboard" element={<PeluqueriaDashboardPage />} />
                     <Route path="agenda" element={<PeluqueriaAgendaPage />} />
                     <Route path="servicios" element={<PeluqueriaServiciosPage />} />
+                    {/* Peluqueros ahora INCLUYE Comisiones como pestaña — ver
+                        PeluqueriaPeluquerosPage.tsx. Sin ruta propia: se
+                        llega solo desde ahí, para no tener dos caminos al
+                        mismo contenido. */}
                     <Route path="peluqueros" element={<PeluqueriaPeluquerosPage />} />
                     <Route path="insumos" element={<PeluqueriaInsumosPage />} />
-                    <Route path="comisiones" element={<PeluqueriaComisionesPage />} />
-                    <Route path="fidelizacion" element={<PeluqueriaFidelizacionPage />} />
+                    {/* Clientes ahora INCLUYE Fidelización (Clientes
+                        frecuentes) como pestaña — ver
+                        PeluqueriaClientesPage.tsx. Mismo motivo que arriba:
+                        sin ruta propia para /fidelizacion. */}
+                    <Route path="clientes" element={<PeluqueriaClientesPage />} />
                     {/* La MISMA caja, no otra.  era una
                         lista filtrada que no sabia abrir ni cerrar turno, asi
                         que habia dos sitios para cobrar y solo uno servia. La

@@ -157,23 +157,30 @@ export function enlacesVisibles(rol: Rol | undefined, modulos?: ModuloVetora[]):
  * - `/respaldo` — bajarse una copia de sus datos. No depende de ningún módulo:
  *   son suyos.
  * - `/catalogo` — la vitrina que ve el dueño de mascota en la Tienda.
- * - `/pacientes` y `/clientes` — **imprescindibles, y no «no son de su
- *   negocio»**: es donde se da de alta la mascota y su dueño. Faltaron aquí
- *   desde que existe esta lista (0034), y una peluquería se quedó sin ningún
- *   camino en el menú para registrar un paciente nuevo — su propia sección
- *   «Mascotas» (`ENLACES_PELUQUERIA`) solo LISTA pacientes existentes (ficha
- *   de grooming, agendar), no los crea. La ruta en sí nunca estuvo cerrada
- *   (`RolRoute` ya admite `peluquero` desde 0025); lo que faltaba era el
- *   enlace. Pasan por `enlacesVisibles` como el resto de supervivientes, así
- *   que respetan su propio `modulo: 'fichas'` — el plan PetShop no lo trae
- *   (vende productos, no lleva expediente de mascota), así que ahí se caen
- *   solos sin necesidad de excluirlos a mano.
+ * - `/pacientes` — **imprescindible, y no «no es de su negocio»**: es donde
+ *   se da de alta la mascota. Faltó aquí desde que existe esta lista (0034),
+ *   y una peluquería se quedó sin ningún camino en el menú para registrar un
+ *   paciente nuevo. La ruta en sí nunca estuvo cerrada (`RolRoute` ya admite
+ *   `peluquero` desde 0025); lo que faltaba era el enlace. Pasa por
+ *   `enlacesVisibles` como el resto de supervivientes, así que respeta su
+ *   propio `modulo: 'fichas'` — el plan PetShop no lo trae (vende productos,
+ *   no lleva expediente de mascota), así que ahí se cae solo sin necesidad de
+ *   excluirlo a mano. Se renombra a «Mascotas» en el panel de peluquería (ver
+ *   `RENOMBRES_POR_PANEL`) — mismo destino, mejor nombre para quien no piensa
+ *   en «pacientes».
+ *
+ * `/clientes` NO está en esta lista: la peluquería tiene su propia entrada
+ * «Clientes» en `ENLACES_PELUQUERIA`, que fusiona el CRUD general de dueños
+ * con la fidelización (`PeluqueriaClientesPage`) — dejar también el genérico
+ * aquí crearía dos enlaces «Clientes» a la vez. El petshop nunca lo necesitó:
+ * su plan no trae `fichas` (no lleva expediente de mascota) y ya tiene su
+ * propio `/petshop/clientes`.
  *
  * Todo lo demás del menú clínico se cae: o no es de su negocio (Internación)
  * o está duplicado dentro de su propio panel apuntando a la versión clínica
  * (Agenda, Servicios, Inventario, Métricas).
  */
-const SOBREVIVEN_FUERA_DE_LA_CLINICA = ['/caja', '/asistente', '/respaldo', '/catalogo', '/pacientes', '/clientes']
+const SOBREVIVEN_FUERA_DE_LA_CLINICA = ['/caja', '/asistente', '/respaldo', '/catalogo', '/pacientes']
 
 /**
  * Cómo se llaman los supervivientes fuera de una clínica.
@@ -190,10 +197,39 @@ const RENOMBRES_POR_PANEL: Record<
   // El petshop conserva su propia «Caja Pet Shop» —es otra vista: la
   // recaudación del POS dentro del turno—, así que hay que decir cuál es cuál.
   petshop: { '/caja': { label: 'Caja General', etiquetaCorta: 'General' } },
-  // La peluquería **no**: su caja y esta son la misma pantalla desde que se
-  // unificaron, así que «General» sobraba y solo sembraba la duda de si había
-  // dos sitios donde cobrar.
-  peluqueria: {},
+  // La peluquería **no** renombra su Caja: su caja y esta son la misma
+  // pantalla desde que se unificaron, así que «General» sobraba y solo
+  // sembraba la duda de si había dos sitios donde cobrar. Sí renombra
+  // «Pacientes» — mismo destino (`/pacientes`), pero quien atiende una
+  // peluquería piensa en «mascotas», no en «pacientes».
+  peluqueria: { '/pacientes': { label: 'Mascotas' } },
+}
+
+/**
+ * El orden exacto del menú para el negocio que lo pide explícito — hoy solo
+ * peluquería. Sin esto, `menuDelNegocio` pone primero TODAS las secciones
+ * propias del panel y recién después los supervivientes (Caja, Asistente,
+ * Pacientes, Catálogo, Respaldo), en el orden fijo de `ENLACES_CLINICOS` —
+ * un orden que nadie pidió y que intercalaba mal con lo que sí se pidió:
+ * Caja y Agenda primero, Pacientes junto a Catálogo, Reportes antes de
+ * Respaldo. Un panel sin entrada aquí conserva el orden natural
+ * propias-luego-supervivientes (petshop, por ahora).
+ */
+const ORDEN_PERSONALIZADO_POR_PANEL: Record<string, string[]> = {
+  peluqueria: [
+    '/caja',
+    '/peluqueria/agenda',
+    '/asistente',
+    '/pacientes',
+    '/catalogo',
+    '/peluqueria/peluqueros',
+    '/peluqueria/clientes',
+    '/peluqueria/insumos',
+    '/peluqueria/reportes',
+    '/respaldo',
+    '/peluqueria/servicios',
+    '/peluqueria/configuracion',
+  ],
 }
 
 /**
@@ -212,6 +248,13 @@ const RENOMBRES_POR_PANEL: Record<
  * Los supervivientes pasan por `enlacesVisibles` en vez de escribirse a mano
  * para que conserven su filtro de rol y de módulo: sin el plan de
  * `asistente_ia` no hay Asistente, y `/catalogo` sigue siendo solo de `admin`.
+ *
+ * El orden final lo decide `ORDEN_PERSONALIZADO_POR_PANEL` cuando el panel
+ * tiene uno propio; si no, se queda el orden natural (propias, luego
+ * supervivientes). Ordenar DESPUÉS de filtrar por rol y módulo es a
+ * propósito: un enlace que ese rol no ve no puede dejar un hueco ni
+ * desordenar a los que sí — el `indexOf` solo compara entre lo que ya
+ * sobrevivió el filtro.
  */
 export function menuDelNegocio(rol: Rol | undefined, modulos?: ModuloVetora[]): EnlaceClinico[] {
   const panel = panelDelNegocio(modulos)
@@ -225,5 +268,16 @@ export function menuDelNegocio(rol: Rol | undefined, modulos?: ModuloVetora[]): 
     .filter((l) => SOBREVIVEN_FUERA_DE_LA_CLINICA.includes(l.to))
     .map((l) => ({ ...l, ...(RENOMBRES_POR_PANEL[panel]?.[l.to] ?? {}) }))
 
-  return [...propias, ...supervivientes]
+  const combinado = [...propias, ...supervivientes]
+  const orden = ORDEN_PERSONALIZADO_POR_PANEL[panel]
+  if (!orden) return combinado
+
+  // Un enlace nuevo que se olvide de añadir aquí no puede saltar al principio
+  // del menú (indexOf devuelve -1, y -1 es "menor" que cualquier posición
+  // real): se manda al final en vez de encabezarlo en silencio.
+  const posicion = (to: string) => {
+    const i = orden.indexOf(to)
+    return i === -1 ? orden.length : i
+  }
+  return [...combinado].sort((a, b) => posicion(a.to) - posicion(b.to))
 }
