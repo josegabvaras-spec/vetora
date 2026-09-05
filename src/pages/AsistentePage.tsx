@@ -10,6 +10,7 @@ import { Seccion } from '../components/ui/Seccion'
 import { Textarea } from '../components/ui/Field'
 import { TablaResponsive, type Columna } from '../components/ui/Tabla'
 import { MensajeModal } from '../features/asistente/MensajeModal'
+import { RedactarMensajeModal } from '../features/asistente/RedactarMensajeModal'
 import { JornadaClinica } from '../features/asistente/JornadaClinica'
 import { useAuth } from '../context/useAuth'
 import { useSuscripcionTabla } from '../mocks/useDb'
@@ -70,6 +71,7 @@ export function AsistentePage() {
   const [resumen, setResumen] = useState<ResumenDelDia | null>(null)
   const [filtroCategoria, setFiltroCategoria] = useState<'todos' | 'citas' | 'prevencion' | 'otros'>('todos')
   const [seleccionado, setSeleccionado] = useState<{ aviso: Programado; destino: 'cliente' | 'equipo' } | null>(null)
+  const [mostrarRedactarMensaje, setMostrarRedactarMensaje] = useState(false)
 
   const [informe, setInforme] = useState<Redaccion | null>(null)
   const [textoInforme, setTextoInforme] = useState('')
@@ -229,15 +231,25 @@ export function AsistentePage() {
     <div className="space-y-6">
       <AvisoError mensaje={errorCarga} />
 
-      <div>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-          Asistente
-        </h1>
-        <p className="mt-1 text-sm font-medium text-slate-500">
-          {esPeluqueria
-            ? 'Lo que toca avisar hoy: citas, cumpleaños y clientes que hace tiempo que no vuelven. El texto se redacta solo; usted lo revisa y lo envía.'
-            : 'Lo que toca avisar hoy: citas, refuerzos de vacuna y desparasitaciones. El texto se redacta solo; usted lo revisa y lo envía.'}
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+            Asistente
+          </h1>
+          <p className="mt-1 text-sm font-medium text-slate-500">
+            {esPeluqueria
+              ? 'Lo que toca avisar hoy: citas, cumpleaños y clientes que hace tiempo que no vuelven. El texto se redacta solo; usted lo revisa y lo envía.'
+              : 'Lo que toca avisar hoy: citas, refuerzos de vacuna y desparasitaciones. El texto se redacta solo; usted lo revisa y lo envía.'}
+          </p>
+        </div>
+        {/* Para un pedido suelto que no tiene un aviso pendiente detrás
+            ("recuérdale a Juan que traiga la muestra mañana"). Va en Haiku,
+            no en el copiloto de "Pregúntale a Vetora": mismo texto, cupo
+            barato en vez del caro. */}
+        <Button variant="secondary" onClick={() => setMostrarRedactarMensaje(true)} className="shrink-0">
+          <MessageCircle size={16} />
+          Redactar mensaje
+        </Button>
       </div>
 
       {puedeUsarCopiloto(usuario) && <PreguntaleAVetora />}
@@ -460,6 +472,10 @@ export function AsistentePage() {
             await recargar()
           }}
         />
+      )}
+
+      {mostrarRedactarMensaje && (
+        <RedactarMensajeModal onClose={() => setMostrarRedactarMensaje(false)} />
       )}
     </div>
   )

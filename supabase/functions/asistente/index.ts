@@ -110,10 +110,28 @@ Reglas:
 - Cifras exactas, tal como vienen en los datos. No estimes ni redondees.
 - Sin emojis ni signos de exclamación. Si no hay nada urgente, dilo en una línea y termina.`
 
+// Pedido suelto de quien atiende ("escríbele a Juan que traiga la muestra
+// mañana"), sin un `Programado` detrás. Sigue siendo redactar, no decidir —
+// el `pedido` llega en `pregunta`, con el mismo tope de tamaño que el
+// copiloto (ver la comprobación de longitud más abajo), y por eso no
+// necesita su modelo ni su bucle de herramientas.
+const INSTRUCCIONES_MENSAJE_LIBRE = `Eres quien escribe los mensajes de WhatsApp de una clínica veterinaria de Bolivia, a partir de lo que el personal te pide.
+
+Escribe en español de Bolivia, tratando de "usted" al destinatario.
+
+Reglas:
+- Un solo mensaje, breve y natural. Nada de asuntos, encabezados ni firmas: la clínica ya se identifica sola.
+- El campo "pedido" dice qué hay que comunicar: cíñete a eso. No agregues precios, horarios ni indicaciones clínicas que no estén ahí.
+- Si "dueno" o "paciente" vienen con datos, úsalos para personalizar el saludo. Si no vienen, escribe un mensaje general sin inventar nombres.
+- Sin emojis, sin mayúsculas de énfasis, sin signos de exclamación repetidos.
+
+Devuelve solo el texto del mensaje, listo para enviar.`
+
 const INSTRUCCIONES_POR_TAREA: Record<Tarea, string> = {
   aviso: INSTRUCCIONES,
   aviso_interno: INSTRUCCIONES_INTERNAS,
   informe: INSTRUCCIONES_INFORME,
+  mensaje_libre: INSTRUCCIONES_MENSAJE_LIBRE,
   // El copiloto llega en la fase 3; hasta entonces su tarea se rechaza abajo.
   copiloto: '',
 }
@@ -333,12 +351,13 @@ Deno.serve(async (peticion) => {
     if (!esTarea(tarea)) return responder({ error: 'Tarea desconocida' }, 400)
     tareaConocida = tarea
 
-    // El copiloto es lo único que recibe texto libre de quien pregunta, así que
-    // es lo único que hay que acotar por tamaño: sin tope, el cuerpo de la
-    // petición es una vía directa a inflar la factura de tokens.
+    // El copiloto y el mensaje libre son las únicas tareas que reciben texto
+    // libre de quien pregunta, así que son las únicas que hay que acotar por
+    // tamaño: sin tope, el cuerpo de la petición es una vía directa a inflar
+    // la factura de tokens.
     const consulta = typeof pregunta === 'string' ? pregunta.trim() : ''
-    if (tarea === 'copiloto' && (consulta.length < 3 || consulta.length > 2000)) {
-      return responder({ error: 'La pregunta tiene que tener entre 3 y 2000 caracteres' }, 400)
+    if ((tarea === 'copiloto' || tarea === 'mensaje_libre') && (consulta.length < 3 || consulta.length > 2000)) {
+      return responder({ error: 'El pedido tiene que tener entre 3 y 2000 caracteres' }, 400)
     }
 
     const clinica = await datosDeLaClinica(jwt)
@@ -421,7 +440,18 @@ Deno.serve(async (peticion) => {
         },
       ],
       ...parametrosNoDeclaradosPorElSdk(modelo, ESFUERZO_POR_TAREA[tarea], true),
-      messages: [{ role: 'user', content: JSON.stringify(contexto) }],
+      // `mensaje_libre` es la única tarea de esta rama cuyo contenido no sale
+      // entero de datos ya en la base: el `pedido` (ya acotado a 2000
+      // caracteres arriba) se suma al contexto con nombre, para no
+      // confundirlo con las claves fijas de `contextoDeAviso()`.
+      messages: [{
+        role: 'user',
+        content: JSON.stringify(
+          tarea === 'mensaje_libre'
+            ? { ...(contexto && typeof contexto === 'object' ? contexto : {}), pedido: consulta }
+            : contexto,
+        ),
+      }],
     })
 
     // ⚠️ Las tres, no solo `input_tokens`: los tokens de caché viajan aparte y

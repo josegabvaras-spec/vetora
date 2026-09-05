@@ -187,6 +187,18 @@ export function plantillaInforme(resumen: ResumenDelDia, clinicaNombre: string):
   return lineas.join('\n')
 }
 
+/**
+ * Texto de respaldo para un mensaje libre, si la IA falla. A diferencia de
+ * `plantillaAviso`, aquí no hay una forma fija por `tipo` que rellenar — el
+ * único contenido cierto es lo que la persona ya escribió en el pedido, así
+ * que el respaldo es justamente eso, con un saludo delante si hay a quién
+ * saludar. Peor que la versión pulida por IA, pero nunca vacío.
+ */
+export function plantillaMensajeLibre(pedido: string, dueno?: string): string {
+  const saludo = dueno ? `Hola ${dueno}, ` : ''
+  return `${saludo}${pedido.trim()}`
+}
+
 /** Cómo se lee un aviso en la lista: "mañana 09:00", "venció hace 8 días". */
 export function cuandoLegible(aviso: Programado, ahora = new Date()): string {
   const dias = diasDeDiferencia(aviso.fecha, ahora)

@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { contextoDeAviso, plantillaAviso, plantillaAvisoInterno, plantillaInforme } from '../lib/asistente'
+import { contextoDeAviso, plantillaAviso, plantillaAvisoInterno, plantillaInforme, plantillaMensajeLibre } from '../lib/asistente'
 import { enviadosEsteMes } from './whatsapp'
 import { getPlan } from './planes'
 import type { Programado, RespuestaCopiloto, ResumenDelDia } from '../types/views'
@@ -10,7 +10,7 @@ export interface Redaccion {
   motivo?: string
 }
 
-type Tarea = 'aviso' | 'aviso_interno' | 'informe' | 'copiloto'
+type Tarea = 'aviso' | 'aviso_interno' | 'informe' | 'mensaje_libre' | 'copiloto'
 
 const SIN_IA = 'El asistente de IA no está configurado; texto generado con la plantilla del sistema.'
 
@@ -51,12 +51,12 @@ async function motivoDelError(error: unknown, generico = SIN_IA): Promise<string
  * que sobraba era la guarda: sin la función servida, `invoke` falla y se cae a
  * la plantilla igual, que es justo lo que tiene que pasar.
  */
-async function pedirALaIA(tarea: Tarea, contexto: unknown): Promise<Intento> {
+async function pedirALaIA(tarea: Tarea, contexto: unknown, pregunta?: string): Promise<Intento> {
   if (!supabase) return {}
 
   try {
     const { data, error } = await supabase.functions.invoke<{ texto?: string }>('asistente', {
-      body: { tarea, contexto },
+      body: { tarea, contexto, pregunta },
     })
     if (error) return { motivo: await motivoDelError(error) }
     if (!data?.texto?.trim()) return {}
@@ -141,6 +141,32 @@ export async function redactarInforme(resumen: ResumenDelDia): Promise<Redaccion
   const { texto, motivo } = await pedirALaIA('informe', { clinica, ...resumen })
   if (texto) return { texto, origen: 'ia' }
   return { texto: plantillaInforme(resumen, clinica), origen: 'plantilla', motivo: motivo ?? SIN_IA }
+}
+
+/**
+ * Un mensaje suelto, sin `Programado` detrás — "escríbele a Juan que traiga
+ * la muestra mañana". Sigue siendo redacción, no una pregunta al negocio: va
+ * en Haiku igual que un aviso, no en el copiloto, y gasta el mismo cupo
+ * (`ia_limite_redaccion`) que aviso/aviso_interno/informe, no el del
+ * copiloto — 20 veces más grande, pensado justo para este tipo de uso suelto.
+ */
+export async function redactarMensajeLibre(
+  pedido: string,
+  destinatario: { dueno?: string; paciente?: string } = {},
+): Promise<Redaccion> {
+  const pedidoLimpio = pedido.trim()
+  const clinica = await clinicaEnSesion()
+  const { texto, motivo } = await pedirALaIA(
+    'mensaje_libre',
+    { clinica, dueno: destinatario.dueno || undefined, paciente: destinatario.paciente || undefined },
+    pedidoLimpio,
+  )
+  if (texto) return { texto, origen: 'ia' }
+  return {
+    texto: plantillaMensajeLibre(pedidoLimpio, destinatario.dueno),
+    origen: 'plantilla',
+    motivo: motivo ?? SIN_IA,
+  }
 }
 
 /**
