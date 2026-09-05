@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, LayoutGrid, Tag, Info, MessageCircle, Menu, X, LogIn, LayoutDashboard, ChevronRight } from 'lucide-react'
+import { Home, LayoutGrid, Tag, Info, MessageCircle, Menu, X, LogIn, LayoutDashboard, ChevronRight, Users } from 'lucide-react'
 import { useAuth } from '../../context/useAuth'
 import { useBloqueoScroll } from '../../hooks/useBloqueoScroll'
 import { rutaDeInicio } from '../../lib/personal'
 import { FuncionalidadesModal } from './FuncionalidadesModal'
 import { PlanesModal } from './PlanesModal'
+import { ComunidadModal } from './ComunidadModal'
 import { AcercaDeModal } from './AcercaDeModal'
 import { ContactoModal } from './ContactoModal'
 import { clsx } from 'clsx'
 
-type ModalMenu = 'funcionalidades' | 'planes' | 'acerca' | 'contacto'
+type ModalMenu = 'funcionalidades' | 'planes' | 'comunidad' | 'acerca' | 'contacto'
 
 type NavItem =
   | { kind: 'link'; to: string; label: string; icon: typeof Home; activeOnlyExact?: boolean }
@@ -20,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   { kind: 'link', to: '/', label: 'Inicio', icon: Home, activeOnlyExact: true },
   { kind: 'modal', modal: 'funcionalidades', label: 'Funcionalidades', icon: LayoutGrid },
   { kind: 'modal', modal: 'planes', label: 'Planes', icon: Tag },
+  { kind: 'modal', modal: 'comunidad', label: 'Comunidad', icon: Users },
   { kind: 'modal', modal: 'acerca', label: 'Acerca de Nosotros', icon: Info },
   { kind: 'modal', modal: 'contacto', label: 'Contáctanos', icon: MessageCircle },
 ]
@@ -240,6 +242,7 @@ export function HomeHeader() {
         <FuncionalidadesModal onClose={() => setModalAbierto(null)} onVerPlanes={() => setModalAbierto('planes')} />
       )}
       {modalAbierto === 'planes' && <PlanesModal onClose={() => setModalAbierto(null)} />}
+      {modalAbierto === 'comunidad' && <ComunidadModal onClose={() => setModalAbierto(null)} />}
       {modalAbierto === 'acerca' && (
         <AcercaDeModal onClose={() => setModalAbierto(null)} onVerPlanes={() => setModalAbierto('planes')} />
       )}
