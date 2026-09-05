@@ -1,6 +1,10 @@
+import { useState } from 'react'
+import { MessageCircle } from 'lucide-react'
+import { Button } from '../components/ui/Button'
 import { useAuth } from '../context/useAuth'
 import { JornadaClinica } from '../features/asistente/JornadaClinica'
 import { PreguntaleAVetora } from '../features/asistente/PreguntaleAVetora'
+import { RedactarMensajeModal } from '../features/asistente/RedactarMensajeModal'
 import { peluqueroAcotado, puedeUsarCopiloto, veterinarioAcotado } from '../lib/personal'
 
 /**
@@ -14,17 +18,28 @@ import { peluqueroAcotado, puedeUsarCopiloto, veterinarioAcotado } from '../lib/
  */
 export function AsistenteJornadaPage() {
   const { usuario, sucursalActivaId } = useAuth()
+  const [mostrarRedactarMensaje, setMostrarRedactarMensaje] = useState(false)
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-          Asistente
-        </h1>
-        <p className="mt-1 text-sm font-medium text-slate-500">
-          Tu jornada: a quién atiendes hoy y qué te queda pendiente. Las consultas que abre recepción
-          aparecen aquí, sin que tengas que buscar al paciente.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+            Asistente
+          </h1>
+          <p className="mt-1 text-sm font-medium text-slate-500">
+            Tu jornada: a quién atiendes hoy y qué te queda pendiente. Las consultas que abre recepción
+            aparecen aquí, sin que tengas que buscar al paciente.
+          </p>
+        </div>
+        {/* Mismo criterio que el copiloto de abajo: solo quien puede usarlo
+            (el peluquero queda fuera) ve la vía barata para un mensaje suelto. */}
+        {puedeUsarCopiloto(usuario) && (
+          <Button variant="secondary" onClick={() => setMostrarRedactarMensaje(true)} className="shrink-0">
+            <MessageCircle size={16} />
+            Redactar mensaje
+          </Button>
+        )}
       </div>
 
       {/* El peluquero comparte esta pantalla y queda fuera del copiloto: sus
@@ -36,6 +51,10 @@ export function AsistenteJornadaPage() {
         veterinarioId={veterinarioAcotado(usuario) ?? peluqueroAcotado(usuario)}
         sucursalId={sucursalActivaId || undefined}
       />
+
+      {mostrarRedactarMensaje && (
+        <RedactarMensajeModal onClose={() => setMostrarRedactarMensaje(false)} />
+      )}
     </div>
   )
 }
