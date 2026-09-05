@@ -37,6 +37,16 @@ export async function getConfiguracion(): Promise<ConfiguracionPlataforma> {
   return { tipo_cambio_usd: Number(data.tipo_cambio_usd), actualizado_at: data.actualizado_at }
 }
 
+/** Devuelve el tipo de cambio actual para visitantes públicos con respaldo seguro. */
+export async function getTipoCambioPublico(): Promise<number> {
+  try {
+    const cfg = await getConfiguracion()
+    return cfg.tipo_cambio_usd
+  } catch {
+    return TIPO_CAMBIO_POR_DEFECTO
+  }
+}
+
 /** Solo el dueño de la plataforma: la policy de 0019 rechaza a cualquier otro. */
 export async function setTipoCambio(tipoCambio: number): Promise<ConfiguracionPlataforma> {
   if (!Number.isFinite(tipoCambio) || tipoCambio <= 0) {

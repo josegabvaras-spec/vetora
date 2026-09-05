@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Building2, Check, MessageCircle, Pencil, Plus, Sparkles, Users } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -86,6 +87,34 @@ export function PlataformaPlanesPage() {
 
   useEffect(() => {
     recargar()
+
+    const canal = supabase
+      .channel('plataforma_planes_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'planes' },
+        () => {
+          recargar()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'configuracion_plataforma' },
+        () => {
+          recargar()
+        }
+      )
+      .subscribe()
+
+    const onFocus = () => {
+      recargar()
+    }
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      supabase.removeChannel(canal)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [recargar])
 
   return (
