@@ -113,10 +113,23 @@ Deno.serve(async (peticion) => {
         if (!Array.isArray(filas) || filas.length === 0) continue
 
         // `clinica_id` se REESCRIBE con el destino, no se respeta el del
-        // archivo. Sin esto, restaurar el respaldo de la clínica A sobre la B
-        // insertaría filas que la B nunca podría leer —su RLS las filtraría— y
-        // que aparecerían en la A sin que nadie las hubiera pedido. El destino
-        // lo manda quien opera, no el contenido del ZIP.
+        // archivo: el destino lo manda quien opera, no el contenido del ZIP.
+        //
+        // ⚠️ **PERO ESTO NO AÍSLA NADA, Y EL COMENTARIO QUE HABÍA AQUÍ ANTES
+        // AFIRMABA LO CONTRARIO.** Decía que sin la reescritura se «insertarían
+        // filas que la B nunca podría leer»; la realidad es peor y va en la
+        // dirección opuesta. `upsert` resuelve el conflicto por **clave
+        // primaria**, y los `id` que vienen en el respaldo son los uuid VIVOS de
+        // la clínica de origen. Así que restaurar el respaldo de A sobre B no
+        // inserta filas nuevas: hace `update` sobre las filas de A poniéndoles
+        // `clinica_id = B`. **A pierde sus datos y B se los queda** — una
+        // migración silenciosa de expedientes clínicos entre inquilinos, con la
+        // RLS intacta porque `service_role` no la aplica.
+        //
+        // Solo el superadmin puede llegar aquí, y lo más probable es que sea por
+        // error (elegir la clínica equivocada en el desplegable). Sigue sin
+        // arreglarse: la corrección es regenerar los identificadores al importar,
+        // o rechazar la importación si algún `id` ya existe en otra clínica.
         const conDestino = filas.map((fila) => ({ ...fila, clinica_id: clinicaId }))
 
         const { error } = await admin.from(tabla).upsert(conDestino)

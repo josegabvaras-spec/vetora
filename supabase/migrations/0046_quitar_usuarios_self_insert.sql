@@ -1,0 +1,83 @@
+-- Elimina `usuarios_self_insert`, que permite auto-asignarse `superadmin`.
+--
+-- ⚠️ NO APLICADA TODAVÍA. Escrita para revisión; se aplica cuando se apruebe.
+--
+-- =========================================================
+-- Qué es y por qué es lo más grave que hay abierto
+-- =========================================================
+-- En producción existe esta policy sobre `usuarios`:
+--
+--     create policy usuarios_self_insert on usuarios for insert
+--       with check (id = auth.uid());
+--
+-- Comprueba QUIÉN eres. No comprueba QUÉ TE DECLARAS: `rol`, `clinica_id` y
+-- `activo` van libres. Y `auth_es_plataforma()` es literalmente
+-- `select rol = 'superadmin' from usuarios where id = auth.uid()`, es decir,
+-- lee la fila que acabas de escribir tú.
+--
+-- La secuencia completa: cualquiera que tenga una cuenta de Auth **sin fila en
+-- `usuarios`** inicia sesión, hace
+--
+--     insert into usuarios (id, rol, clinica_id, activo)
+--     values (auth.uid(), 'superadmin', null, true);
+--
+-- y a partir de ahí es plataforma. Se le abren las policies `*_plataforma`
+-- (`clinicas`, `usuarios` de TODAS las clínicas, `planes`,
+-- `pagos_suscripcion`, `invitaciones`, `ia_uso`) y también las Edge Functions
+-- `crear-cuenta`, `eliminar-clinica` y `respaldo-clinica`, porque las tres leen
+-- el rol de esta misma tabla.
+--
+-- =========================================================
+-- Por qué no está siendo explotado hoy, y qué lo cambiaría
+-- =========================================================
+-- Hace falta una cuenta de Auth sin perfil, y ahora mismo hay CERO
+-- (comprobado). El registro público tampoco sirve de atajo: con la
+-- confirmación de correo activa Supabase no entrega sesión hasta confirmar, y
+-- hoy el correo no se entrega.
+--
+-- Dos cosas previstas lo convierten en explotable:
+--
+--   1. Un borrado de usuario que falle a medias. `eliminar-usuario` borra
+--      `usuarios` primero y `auth.users` después; si lo segundo falla devuelve
+--      **`ok: true`** con un aviso menor. Eso deja exactamente la cuenta que el
+--      ataque necesita, con la contraseña que su dueño ya conoce.
+--      `eliminar-clinica` hace lo mismo en bucle y «continúa» ante cada fallo.
+--   2. Configurar un SMTP real, que es un paso planificado en CLAUDE.md. Ese
+--      día cualquiera se registra, confirma, y ejecuta el insert.
+--
+-- =========================================================
+-- Por qué eliminarla y no acotarla
+-- =========================================================
+-- No la necesita nadie. Comprobado en los tres únicos caminos que escriben
+-- `usuarios`:
+--
+--   · `crearClinicaConAdmin()` y `crearUsuario()` (services/plataforma.ts)
+--     insertan con `id` = uuid del usuario NUEVO, no `auth.uid()`. Fallarían
+--     este `with check`; los cubre `usuarios_plataforma` porque quien opera es
+--     el superadmin.
+--   · `registro-portal` usa `service_role`, que se salta la RLS entera.
+--
+-- Además, esta policy **no está en ninguna de las 44 migraciones del
+-- repositorio**. Junto con `usuarios_self_select` son las dos únicas con esa
+-- deriva: entraron en producción por fuera del control de versiones, así que
+-- ninguna revisión del código las habría visto. Una policy que nadie usa y de
+-- la que no sabemos el origen no debería quedarse acotada: debería irse.
+--
+-- Si aun así se prefiere conservarla, la alternativa mínima sería
+--
+--     with check (id = auth.uid() and rol = 'cliente'
+--                 and activo = true and clinica_id is not null)
+--
+-- pero eso deja viva una puerta que sigue sin tener quien la use.
+--
+-- =========================================================
+-- Lo que NO toca esta migración
+-- =========================================================
+-- `usuarios_self_select` (`using (id = auth.uid())`) se deja como está. Tiene
+-- la misma deriva, pero es de solo lectura sobre la propia fila y no permite
+-- declarar nada. `usuarios_select` ya cubre el caso normal
+-- (`clinica_id = auth_clinica_id()`), así que probablemente sea redundante —
+-- pero quitarla podría romper el login de algún caso límite (un usuario sin
+-- clínica que no sea superadmin) y no aporta seguridad. Se queda.
+
+drop policy if exists usuarios_self_insert on usuarios;
