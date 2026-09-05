@@ -10,7 +10,7 @@ ataques contra la base de producción** — ver «Lo que no se pudo probar».
 |---|---|---|
 | Crítico | 0 | — |
 | Alto | 3 | corregidos |
-| Medio | 3 | corregidos |
+| Medio | 4 | corregidos |
 | Bajo / Info | 3 | 2 corregidos, 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
@@ -256,6 +256,41 @@ que alguien se registrara con un `nombre` arbitrariamente largo, con forma de in
 Verificado contra producción tras desplegar las dos funciones: un `nombre` de 150 caracteres se
 rechaza con `"El nombre no puede tener más de 120 caracteres"`; un registro con nombre normal sigue
 llegando hasta la siguiente validación (la clínica) sin que el tope lo bloquee.
+
+---
+
+### H-10 · MEDIO · H-1 seguía vivo en tres búsquedas — CORREGIDO
+
+H-1 (inyección de filtro PostgREST) se corrigió en `listPacientes` y en las herramientas del
+copiloto, y se dio por cerrado. **No lo estaba**: quedaban tres búsquedas con el término del usuario
+interpolado dentro de un `.or()`, ninguna de las cuales aparecía en los informes anteriores. Se
+encontraron barriendo `grep -rn "\.or("` sobre todo el proyecto, que es lo que debió hacerse al
+cerrar H-1.
+
+| Dónde | Quién la llama | Estado previo |
+|---|---|---|
+| `buscarProductoPOS()` — [services/pos.ts](src/services/pos.ts) | Personal, en el POS | Interpolación cruda en dos `.or()` |
+| `listProductosPetshop()` — [services/petshop.ts](src/services/petshop.ts) | Personal, en Productos | Interpolación cruda en un `.or()` de cuatro campos |
+| `buscarProductosEnTiendas()` — [services/tienda.ts](src/services/tienda.ts) | **Un cliente del portal** | Mitigada a medias (ver abajo) |
+
+**La tercera es la que más importa**, y por dos razones: la llama el rol menos confiable del sistema
+—un cliente del portal— y recorre los catálogos de **todas** las clínicas, no los de la suya.
+Además, alguien había intentado protegerla quitando `,`, `(` y `)` del término. Esa mitigación es
+justo la que la doctrina de H-1 descarta: **una lista negra de caracteres superpuesta a la gramática
+de LIKE**, donde basta olvidar un separador para que el filtro deje de decir lo que aparenta. Y de
+paso no escapaba `%` ni `_`, así que buscar «50%» listaba de más.
+
+**Corregidas las tres con el patrón que el proyecto ya tenía escrito** (`listPacientes`): varias
+consultas en paralelo y unión en memoria por `id`, con el término viajando **siempre como valor** de
+un `ilike`/`eq` y nunca como sintaxis. El escape de comodines de LIKE (`%`, `_`) es el mismo de
+`listPacientes`, ahora también en las tres.
+
+En ninguna de las tres había fuga entre clínicas —la RLS nunca dejó de encerrar al inquilino—: lo que
+había era un filtro que dejaba de significar lo que aparentaba, en las tres pantallas donde se busca
+para cobrar.
+
+⚠️ **La lección para la próxima**: cerrar un hallazgo de este tipo en el sitio donde se encontró no
+lo cierra en el proyecto. `grep -rn "\.or("` sobre todo el código es parte del cierre, no un extra.
 
 ---
 

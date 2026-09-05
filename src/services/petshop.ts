@@ -35,26 +35,70 @@ export interface FiltrosProductosPetshop {
 export async function listProductosPetshop(
   filtros: FiltrosProductosPetshop = {},
 ): Promise<ProductoConLotes[]> {
-  let query = supabase
-    .from('productos')
-    .select(`
-      *,
-      proveedor:proveedores(*),
-      lotes:producto_lotes(*)
-    `)
-    .order('nombre', { ascending: true })
+  /**
+   * La consulta con los filtros que NO dependen de la búsqueda.
+   *
+   * Es una fábrica y no una variable porque un `PostgrestFilterBuilder` es
+   * "thenable" de un solo uso: reutilizar el mismo objeto entre las cuatro
+   * consultas de abajo no volvería a consultar.
+   */
+  const base = () => {
+    let q = supabase
+      .from('productos')
+      .select(`
+        *,
+        proveedor:proveedores(*),
+        lotes:producto_lotes(*)
+      `)
+      .order('nombre', { ascending: true })
 
-  if (filtros.sucursalId) query = query.eq('sucursal_id', filtros.sucursalId)
-  if (filtros.categoriaRetail) query = query.eq('categoria_retail', filtros.categoriaRetail)
-  if (filtros.soloActivos !== false) query = query.eq('activo', true)
-
-  if (filtros.busqueda?.trim()) {
-    const term = filtros.busqueda.trim()
-    query = query.or(`nombre.ilike.%${term}%,sku.ilike.%${term}%,codigo_barras.ilike.%${term}%,marca.ilike.%${term}%`)
+    if (filtros.sucursalId) q = q.eq('sucursal_id', filtros.sucursalId)
+    if (filtros.categoriaRetail) q = q.eq('categoria_retail', filtros.categoriaRetail)
+    if (filtros.soloActivos !== false) q = q.eq('activo', true)
+    return q
   }
 
-  const { data, error } = await query
-  if (error) throw new Error(`Error al listar productos de pet shop: ${error.message}`)
+  let data: any[] | null
+  const termino = filtros.busqueda?.trim()
+
+  if (!termino) {
+    const resultado = await base()
+    if (resultado.error) throw new Error(`Error al listar productos de pet shop: ${resultado.error.message}`)
+    data = resultado.data
+  } else {
+    // ⚠️ **CUATRO consultas y una unión en memoria, nunca un `.or()` con el
+    // término dentro.** Antes esto interpolaba la búsqueda en cuatro `ilike`
+    // dentro de un `.or()`, que es el hallazgo H-1 de SEGURIDAD.md: ahí el
+    // texto entra en la sintaxis de filtros de PostgREST, cuyos separadores
+    // son la coma, el punto y los paréntesis. Buscar un SKU con una coma
+    // partía la expresión en condiciones que nadie pidió.
+    //
+    // `%` y `_` son comodines de LIKE: sin escaparlos, buscar "50%" lista de
+    // más. Mismo escape que `listPacientes`.
+    const patron = `%${termino.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
+
+    const [porNombre, porSku, porCodigo, porMarca] = await Promise.all([
+      base().ilike('nombre', patron),
+      base().ilike('sku', patron),
+      base().ilike('codigo_barras', patron),
+      base().ilike('marca', patron),
+    ])
+
+    const errorBusqueda = porNombre.error ?? porSku.error ?? porCodigo.error ?? porMarca.error
+    if (errorBusqueda) throw new Error(`Error al listar productos de pet shop: ${errorBusqueda.message}`)
+
+    // Un producto puede casar por varios campos a la vez.
+    const unicos = new Map<string, any>()
+    for (const p of [
+      ...(porNombre.data ?? []),
+      ...(porSku.data ?? []),
+      ...(porCodigo.data ?? []),
+      ...(porMarca.data ?? []),
+    ]) {
+      unicos.set(p.id, p)
+    }
+    data = [...unicos.values()].sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)))
+  }
 
   const now = new Date()
 

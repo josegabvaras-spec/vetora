@@ -30,36 +30,72 @@ export interface ResultadoVentaPOS {
 
 /**
  * Búsqueda instantánea de productos optimizada para el POS (código de barras, SKU o nombre).
+ *
+ * ⚠️ **Ningún `.or()` con el texto de quien busca dentro.** Las dos consultas
+ * de aquí lo llevaban: una interpolaba el término en `codigo_barras.eq.…` y
+ * `sku.eq.…`, y la otra en tres `ilike`. Es exactamente el hallazgo H-1 de
+ * [SEGURIDAD.md](../../SEGURIDAD.md), que ya se corrigió en `listPacientes` y
+ * en las herramientas del copiloto pero se quedó sin corregir aquí: dentro de
+ * un `.or()` el término entra en la **sintaxis de filtros de PostgREST**,
+ * cuyos separadores son la coma, el punto y los paréntesis. Escanear un
+ * código de barras con una coma partía la expresión en condiciones que nadie
+ * pidió, y un paréntesis la reventaba con un error crudo de PostgREST.
+ *
+ * No se arregla escapando —serían dos gramáticas superpuestas, la de LIKE
+ * dentro de la de PostgREST— sino con varias consultas y una unión en
+ * memoria, que es como el término viaja SIEMPRE como valor de un parámetro.
+ *
+ * La RLS nunca dejó de encerrar al inquilino, así que esto no era una fuga
+ * entre clínicas: era un filtro que dejaba de decir lo que aparentaba, en la
+ * pantalla donde se cobra.
  */
 export async function buscarProductoPOS(sucursalId: string, busqueda: string): Promise<Producto[]> {
   const term = busqueda.trim()
   if (!term) return []
 
-  // Primero intenta búsqueda exacta por código de barras o SKU
-  const { data: exactos } = await supabase
-    .from('productos')
-    .select('*')
-    .eq('sucursal_id', sucursalId)
-    .eq('activo', true)
-    .or(`codigo_barras.eq.${term},sku.eq.${term}`)
-    .limit(5)
+  /** Lo que comparten las cuatro consultas: la sucursal y que esté activo. */
+  const deLaSucursal = () =>
+    supabase.from('productos').select('*').eq('sucursal_id', sucursalId).eq('activo', true)
 
-  if (exactos && exactos.length > 0) {
-    return exactos as unknown as Producto[]
+  // Primero, coincidencia EXACTA por código de barras o SKU — lo que ocurre al
+  // escanear. Dos consultas en paralelo en vez de un `.or()`.
+  const [porCodigo, porSku] = await Promise.all([
+    deLaSucursal().eq('codigo_barras', term).limit(5),
+    deLaSucursal().eq('sku', term).limit(5),
+  ])
+
+  const errorExacto = porCodigo.error ?? porSku.error
+  if (errorExacto) throw new Error(`Error en búsqueda POS: ${errorExacto.message}`)
+
+  // Un producto puede casar por los dos campos a la vez.
+  const exactos = new Map<string, any>()
+  for (const p of [...(porCodigo.data ?? []), ...(porSku.data ?? [])]) exactos.set(p.id, p)
+  if (exactos.size > 0) {
+    return [...exactos.values()].slice(0, 5) as unknown as Producto[]
   }
 
-  // Búsqueda flexible por texto
-  const { data: flexibles, error } = await supabase
-    .from('productos')
-    .select('*')
-    .eq('sucursal_id', sucursalId)
-    .eq('activo', true)
-    .or(`nombre.ilike.%${term}%,sku.ilike.%${term}%,marca.ilike.%${term}%`)
-    .order('nombre', { ascending: true })
-    .limit(20)
+  // Sin coincidencia exacta, búsqueda flexible por texto.
+  // `%` y `_` son comodines de LIKE: sin escaparlos, buscar "50%" listaría de
+  // más. Mismo escape que `listPacientes`.
+  const patron = `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
 
-  if (error) throw new Error(`Error en búsqueda POS: ${error.message}`)
-  return (flexibles || []) as unknown as Producto[]
+  const [porNombre, porSkuParcial, porMarca] = await Promise.all([
+    deLaSucursal().ilike('nombre', patron).order('nombre', { ascending: true }).limit(20),
+    deLaSucursal().ilike('sku', patron).order('nombre', { ascending: true }).limit(20),
+    deLaSucursal().ilike('marca', patron).order('nombre', { ascending: true }).limit(20),
+  ])
+
+  const errorFlexible = porNombre.error ?? porSkuParcial.error ?? porMarca.error
+  if (errorFlexible) throw new Error(`Error en búsqueda POS: ${errorFlexible.message}`)
+
+  const unicos = new Map<string, any>()
+  for (const p of [...(porNombre.data ?? []), ...(porSkuParcial.data ?? []), ...(porMarca.data ?? [])]) {
+    unicos.set(p.id, p)
+  }
+
+  return [...unicos.values()]
+    .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)))
+    .slice(0, 20) as unknown as Producto[]
 }
 
 /**

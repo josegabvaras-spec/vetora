@@ -61,20 +61,42 @@ export async function buscarProductosEnTiendas(texto: string): Promise<CatalogoP
   const termino = texto.trim()
   if (!termino) return []
 
-  // `,` y `)` cierran el filtro `or` de PostgREST; escapar es lo que impide que
-  // un nombre con una coma se convierta en otra condición.
-  const patron = `%${termino.replace(/[,)(]/g, ' ')}%`
+  // ⚠️ **TRES consultas y una unión en memoria, nunca un `.or()` con el
+  // término dentro.** Antes era un `.or()` con el patrón interpolado, y se
+  // intentaba salvar quitándole `,`, `(` y `)` — los separadores de la
+  // sintaxis de filtros de PostgREST. Esa mitigación es exactamente la que el
+  // hallazgo H-1 descarta: una lista negra de caracteres, encima superpuesta a
+  // la gramática de LIKE, en la que basta olvidar un separador para que el
+  // filtro deje de decir lo que aparenta. Y de paso no escapaba `%` ni `_`, así
+  // que buscar "50%" listaba de más.
+  //
+  // Aquí importa más que en el POS: a esta función la llama un **cliente del
+  // portal** —el rol menos confiable que existe en el sistema— y recorre los
+  // catálogos de TODAS las clínicas, no los de la suya. Con tres consultas el
+  // término viaja siempre como valor de un `ilike`, y `catalogo_productos_portal`
+  // sigue siendo quien decide qué filas se ven.
+  const patron = `%${termino.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
 
-  const { data, error } = await supabase
-    .from('catalogo_productos')
-    .select('*')
-    .eq('disponible', true)
-    .or(`nombre.ilike.${patron},descripcion.ilike.${patron},categoria.ilike.${patron}`)
-    .order('nombre')
-    .limit(60)
+  const disponibles = () => supabase.from('catalogo_productos').select('*').eq('disponible', true)
 
+  const [porNombre, porDescripcion, porCategoria] = await Promise.all([
+    disponibles().ilike('nombre', patron).order('nombre').limit(60),
+    disponibles().ilike('descripcion', patron).order('nombre').limit(60),
+    disponibles().ilike('categoria', patron).order('nombre').limit(60),
+  ])
+
+  const error = porNombre.error ?? porDescripcion.error ?? porCategoria.error
   if (error) throw new Error(`No se pudo buscar en las tiendas: ${error.message}`)
-  return (data ?? []) as CatalogoProducto[]
+
+  // Un producto puede casar por nombre y por descripción a la vez.
+  const unicos = new Map<string, CatalogoProducto>()
+  for (const p of [...(porNombre.data ?? []), ...(porDescripcion.data ?? []), ...(porCategoria.data ?? [])]) {
+    unicos.set((p as CatalogoProducto).id, p as CatalogoProducto)
+  }
+
+  return [...unicos.values()]
+    .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)))
+    .slice(0, 60)
 }
 
 export { urlFotoCatalogo } from './catalogo'
