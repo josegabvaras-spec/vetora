@@ -10,7 +10,7 @@ ataques contra la base de producción** — ver «Lo que no se pudo probar».
 |---|---|---|
 | Crítico | 0 | — |
 | Alto | 3 | corregidos |
-| Medio | 4 | corregidos |
+| Medio | 6 | 5 corregidos, 1 pendiente (registro público de Auth, requiere Dashboard) |
 | Bajo / Info | 3 | 2 corregidos, 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
@@ -291,6 +291,67 @@ para cobrar.
 
 ⚠️ **La lección para la próxima**: cerrar un hallazgo de este tipo en el sitio donde se encontró no
 lo cierra en el proyecto. `grep -rn "\.or("` sobre todo el código es parte del cierre, no un extra.
+
+---
+
+### H-11 · MEDIO · Un cliente del portal podía quedar vinculado a la ficha de otra clínica — CORREGIDO
+
+`clientes_personal_update` exige `clinica_id = auth_clinica_id() and auth_es_personal()` — sobre la
+fila de `clientes`, nunca sobre a quién apunta `usuario_id`. Un empleado que conociera el uuid de la
+cuenta de un cliente de **otra** clínica podía:
+
+```
+PATCH /rest/v1/clientes?id=eq.<ficha_de_su_propia_clinica>
+{ "usuario_id": "<uuid_de_un_cliente_de_otra_clinica>" }
+```
+
+y esa cuenta —sin que su dueño hiciera nada— pasaría a ver desde su portal el expediente de un
+paciente ajeno: mascotas, historial, recetas. Las dos rutas legítimas (`vincular_cuenta_portal()`,
+`desvincular_cuenta_portal()`, y el `update` de `registro-portal`) nunca abren esta puerta porque ya
+operan dentro de una sola clínica —la que su propia RLS deja ver—, pero un `UPDATE` crudo por
+PostgREST no pasa por ellas.
+
+**Corregido con un trigger** (`0051`), `before insert or update of usuario_id on clientes`, que exige
+que exista una fila en `usuarios` con ese id, `rol = 'cliente'` y el **mismo** `clinica_id` que la
+ficha. Deliberadamente **sin `security definer`**: corre con los privilegios de quien escribe, y para
+el personal eso basta — `usuarios_select` ya le oculta cualquier `usuarios` fuera de su propia
+clínica, así que el `exists` solo puede ser cierto cuando el `usuario_id` que intenta escribir es de
+ahí mismo. Añadir `security definer` habría repetido con más privilegio una comprobación que ya
+funciona sin él.
+
+Verificado antes de aplicar: 0 filas existentes violaban la invariante. Verificado en producción con
+dos pruebas envueltas en transacciones que nunca se confirman: vincular una ficha a un cliente de otra
+clínica se rechaza con `P0001` y no escribe nada (comprobado leyendo la fila después); reafirmar el
+vínculo correcto dentro de la misma clínica se permite sin error.
+
+---
+
+### H-12 · MEDIO · Registro público de Auth abierto — PENDIENTE (requiere el Dashboard)
+
+`GET /auth/v1/settings` en producción devuelve `"disable_signup": false`. Con la clave anónima —que
+es pública por diseño— cualquiera puede `POST /auth/v1/signup` y crear una cuenta en `auth.users`
+directamente, saltándose la puerta de `registro-portal` (la que comprueba que el WhatsApp corresponda
+a una ficha de cliente sin reclamar).
+
+El impacto está acotado: la cuenta resultante no tiene fila en `usuarios` ni en `clientes`, y todas
+las policies cuelgan de una u otra, así que no ve absolutamente nada. El riesgo real es acumulación de
+cuentas huérfanas en `auth.users` y consumo del límite de envío de correos del servicio de desarrollo
+de Supabase, que ya va limitado.
+
+**No se corrigió esta sesión, y el motivo es concreto, no falta de tiempo.** `supabase config push`
+—el único comando del CLI que toca la configuración de Auth remota— empuja el `[auth]` **entero** del
+`config.toml` **local**, que incluye `site_url = "http://127.0.0.1:3000"` y
+`additional_redirect_urls` de desarrollo. Correrlo sobre producción rompería los redirects reales de
+Auth (confirmación de correo, reseteo de contraseña) para arreglar un campo. La vía quirúrgica es la
+API de gestión de Supabase (`PATCH /v1/projects/{ref}/config/auth` con solo `{"disable_signup":
+true}`), pero eso exige un token de gestión que el CLI guarda en el almacén seguro del sistema — no en
+un fichero — y no se intentó extraerlo de ahí.
+
+**Se cierra con un solo cambio en el panel de Supabase**: Authentication → Settings → desactivar
+"Allow new users to sign up". Ningún flujo legítimo lo necesita — las tres altas de cuenta del
+proyecto (`crear-cuenta`, `acceso`, `registro-portal`) usan `service_role`/`admin.createUser`, nunca
+`supabase.auth.signUp()` desde el cliente (confirmado: cero coincidencias en todo `src/` y
+`supabase/functions/`).
 
 ---
 
