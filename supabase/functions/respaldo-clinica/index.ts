@@ -107,29 +107,66 @@ Deno.serve(async (peticion) => {
       const tablas = cuerpo.tablas as Record<string, Record<string, unknown>[]> | undefined
       if (!tablas) return responder({ error: 'No llegaron datos que importar' }, 400)
 
+      // `clinica_id` se REESCRIBE con el destino, no se respeta el del
+      // archivo: el destino lo manda quien opera, no el contenido del ZIP.
+      //
+      // ⚠️ **Y ESO POR SÍ SOLO NO AÍSLA NADA — `upsert` resuelve por CLAVE
+      // PRIMARIA, y los `id` del respaldo son los uuid VIVOS de la clínica de
+      // origen.** Restaurar el respaldo de A sobre B, sin más, no inserta
+      // filas nuevas para B: hace `update` sobre las filas de A poniéndoles
+      // `clinica_id = B`. A pierde sus datos y B se los queda — una migración
+      // silenciosa de expedientes clínicos entre inquilinos, con la RLS
+      // intacta porque `service_role` no la aplica.
+      //
+      // La corrección, en dos pasos:
+      //
+      //   1. ANTES de escribir nada: por cada tabla, se comprueba si algún
+      //      `id` del respaldo ya existe en la base con OTRO `clinica_id`. Si
+      //      lo hay, se rechaza el import ENTERO — nada se escribe — porque
+      //      eso es precisamente la clínica equivocada en el desplegable.
+      //   2. Solo si el paso 1 no encontró ningún conflicto en ninguna tabla,
+      //      se hace el upsert de todas. El caso legítimo — restaurar el
+      //      respaldo de A sobre la propia A — no encuentra ningún conflicto
+      //      (las filas ya son de A) y sigue funcionando exactamente igual
+      //      que antes: un `update` en el sitio, no una migración.
+      //
+      // No se regeneran los `id` al importar a propósito: eso convertiría un
+      // reintento del mismo respaldo en filas duplicadas cada vez, en vez de
+      // conciliarse con lo que ya existe.
+      for (const tabla of TABLAS) {
+        const filas = tablas[tabla]
+        if (!Array.isArray(filas) || filas.length === 0) continue
+
+        const ids = filas.map((f) => f.id).filter((id): id is string => typeof id === 'string')
+        if (ids.length === 0) continue
+
+        const { data: existentes, error: errorLectura } = await admin
+          .from(tabla)
+          .select('id, clinica_id')
+          .in('id', ids)
+
+        if (errorLectura) {
+          return responder({ error: `No se pudo comprobar ${tabla} antes de importar: ${errorLectura.message}` }, 500)
+        }
+
+        const ajenas = (existentes ?? []).filter((fila) => fila.clinica_id !== clinicaId)
+        if (ajenas.length > 0) {
+          return responder(
+            {
+              error:
+                `Este respaldo no se puede importar en "${clinica.nombre}": ${ajenas.length} fila(s) ` +
+                `de "${tabla}" ya pertenecen a otra clínica. Nada se importó.`,
+            },
+            409,
+          )
+        }
+      }
+
       const fallidas: string[] = []
       for (const tabla of TABLAS) {
         const filas = tablas[tabla]
         if (!Array.isArray(filas) || filas.length === 0) continue
 
-        // `clinica_id` se REESCRIBE con el destino, no se respeta el del
-        // archivo: el destino lo manda quien opera, no el contenido del ZIP.
-        //
-        // ⚠️ **PERO ESTO NO AÍSLA NADA, Y EL COMENTARIO QUE HABÍA AQUÍ ANTES
-        // AFIRMABA LO CONTRARIO.** Decía que sin la reescritura se «insertarían
-        // filas que la B nunca podría leer»; la realidad es peor y va en la
-        // dirección opuesta. `upsert` resuelve el conflicto por **clave
-        // primaria**, y los `id` que vienen en el respaldo son los uuid VIVOS de
-        // la clínica de origen. Así que restaurar el respaldo de A sobre B no
-        // inserta filas nuevas: hace `update` sobre las filas de A poniéndoles
-        // `clinica_id = B`. **A pierde sus datos y B se los queda** — una
-        // migración silenciosa de expedientes clínicos entre inquilinos, con la
-        // RLS intacta porque `service_role` no la aplica.
-        //
-        // Solo el superadmin puede llegar aquí, y lo más probable es que sea por
-        // error (elegir la clínica equivocada en el desplegable). Sigue sin
-        // arreglarse: la corrección es regenerar los identificadores al importar,
-        // o rechazar la importación si algún `id` ya existe en otra clínica.
         const conDestino = filas.map((fila) => ({ ...fila, clinica_id: clinicaId }))
 
         const { error } = await admin.from(tabla).upsert(conDestino)

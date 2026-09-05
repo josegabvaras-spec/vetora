@@ -510,6 +510,27 @@ De dónde carga cada página lo decide **`cargarFichaDeDocumento()`** ([services
 
 El `@media print` de [src/index.css](src/index.css) es genérico y no conoce ningún documento (márgenes `@page`, `print-color-adjust`, `thead` repetido, `break-inside` en filas e imágenes): lo que cada página esconde o aplana va en sus propias utilidades `print:`.
 
+## Cabeceras de seguridad y la CSP
+
+Las cabeceras las sirve Vercel desde [vercel.json](vercel.json), y **se aplican al host final, no al redirect**: `vetora.online` responde un 308 hacia `www.vetora.online` con el HSTS por defecto de Vercel, y es en `www` donde llegan las de aquí. Ya estaban `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Strict-Transport-Security` y `Permissions-Policy`.
+
+**La CSP va en `Content-Security-Policy-Report-Only`, y ese sufijo no es un descuido**: en ese modo el navegador **no bloquea nada**, solo anota la violación en su consola. Es deliberado — una CSP mal escrita deja la aplicación en blanco, y el único modo honesto de subirla a bloqueo es recorrer antes la aplicación **autenticada** (que es donde viven el realtime, las fotos de pacientes y las URL firmadas de Storage) comprobando que la consola no reporta nada. Mientras siga con `-Report-Only`, **no protege**: es un instrumento de medición.
+
+`vercel.json` es JSON y no admite comentarios, así que de dónde sale cada origen se anota aquí:
+
+| Directiva | Por qué |
+|---|---|
+| `script-src 'self'` | Sin `'unsafe-inline'` **a propósito y se puede**: el `index.html` construido no tiene ni un script en línea, solo el `<script type="module" src="/assets/…">` de Vite. Es la directiva que de verdad contiene un XSS. |
+| `style-src` + `'unsafe-inline'` | React escribe estilos en el atributo `style` (el foco del tour, anchos calculados…). En CSS el riesgo de `'unsafe-inline'` es menor que en JS, pero es la concesión real de esta política. |
+| `https://fonts.googleapis.com` / `fonts.gstatic.com` | El `@import` de Inter y Outfit en [src/index.css](src/index.css) trae el CSS de `googleapis`, y ese CSS pide los ficheros de fuente a `gstatic`. Hacen falta las dos. |
+| `img-src data:` | **No es decorativo**: las fotos de paciente se guardan como data URL en base64 (`FormularioPaciente` las lee con `readAsDataURL`). Sin `data:` no se ve ninguna foto. |
+| `img-src …supabase.co` | El bucket público `catalogo` y las URL firmadas de `estudios`/`comprobantes`. |
+| `connect-src` con `https:` **y** `wss:` | PostgREST y Auth van por HTTPS; `useTable` y las suscripciones de `planes` van por WebSocket. Si falta `wss:`, el realtime muere en silencio — el mismo fallo mudo que ya documenta la publicación `supabase_realtime`. |
+| `worker-src 'self' blob:` | El service worker de `vite-plugin-pwa`. |
+| `object-src 'none'`, `base-uri 'self'`, `frame-ancestors 'none'`, `form-action 'self'` | Endurecimiento estándar. `frame-ancestors` duplica a propósito lo que ya dice `X-Frame-Options`. |
+
+⚠️ **La URL de Supabase está escrita a mano en `vercel.json`.** No hay forma de interpolar una variable de entorno ahí, y es pública de todos modos (viaja en el bundle). Si el proyecto de Supabase cambia, esta cabecera hay que actualizarla a mano o el realtime y las imágenes dejarán de cargar el día que la CSP pase a bloquear.
+
 ## Estilos
 
 Tailwind v4 vía `@tailwindcss/vite` — **no hay `tailwind.config.js`**; el tema (`@theme`, paleta teal, fuentes Inter/Outfit) vive en [src/index.css](src/index.css), junto con las utilidades propias (`glass-panel`, `glass-panel-heavy`, `shadow-premium`, `bg-mesh`) y el bloque `@media print` (ver arriba).
