@@ -2682,6 +2682,18 @@ export type Database = {
         Returns: string
       }
       desvincular_cuenta_portal: { Args: { p_ficha: string }; Returns: string }
+      // Migración 0044. Añadida a mano, por lo mismo que las de 0028.
+      ia_uso_resumen_mensual: {
+        Args: never
+        Returns: {
+          clinica_id: string
+          clinica_nombre: string
+          consultas_copiloto: number
+          costo_copiloto_usd: number
+          consultas_redaccion: number
+          costo_redaccion_usd: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, KeyRound, MessageCircle, Receipt, Sparkles, UserCheck, UserX } from 'lucide-react'
+import { AlertTriangle, DollarSign, KeyRound, MessageCircle, Receipt, Sparkles, UserCheck, UserX } from 'lucide-react'
 import { AvisoError } from '../../components/ui/AvisoError'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -9,7 +9,7 @@ import { Seccion } from '../../components/ui/Seccion'
 import { Textarea } from '../../components/ui/Field'
 import { TablaResponsive, type Columna } from '../../components/ui/Tabla'
 import { useTable } from '../../mocks/useDb'
-import { alternarActivoUsuario, listPagosPendientes, type PagoConClinica } from '../../services/plataforma'
+import { alternarActivoUsuario, getResumenUsoIa, listPagosPendientes, type PagoConClinica } from '../../services/plataforma'
 import {
   listTareasPlataforma,
   listUsuariosSinAcceso,
@@ -20,14 +20,23 @@ import { ComprobanteModal } from '../../features/plataforma/ComprobanteModal'
 import { useAuth } from '../../context/useAuth'
 import { enlaceWhatsapp } from '../../lib/whatsapp'
 import { formatClinicDate } from '../../lib/datetime'
+import { formatUsd, formatUsdPreciso } from '../../lib/currency'
 import {
+  costosAnomalosDeIa,
   plantillaTarea,
   seAvisaPorWhatsapp,
   TAREA_LABEL,
+  UMBRAL_COSTO_ANOMALO,
+  type CostoIaClinica,
   type TareaPlataforma,
   type TipoTareaPlataforma,
 } from '../../lib/asistentePlataforma'
 import type { Usuario } from '../../types/database'
+
+const CATEGORIA_LABEL: Record<CostoIaClinica['categoria'], string> = {
+  copiloto: 'Copiloto',
+  redaccion: 'Redacción',
+}
 
 const TONO: Record<TipoTareaPlataforma, 'rose' | 'amber' | 'teal'> = {
   cobro_vencido: 'rose',
@@ -45,6 +54,7 @@ export function PlataformaAsistentePage() {
   const [pagos, setPagos] = useState<PagoConClinica[]>([])
   const [revisando, setRevisando] = useState<PagoConClinica | null>(null)
   const [usuarios, setUsuarios] = useState<UsuarioSinAcceso[]>([])
+  const [costosIa, setCostosIa] = useState<CostoIaClinica[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -60,14 +70,16 @@ export function PlataformaAsistentePage() {
   const recargar = useCallback(async () => {
     setError(null)
     try {
-      const [t, u, p] = await Promise.all([
+      const [t, u, p, resumenIa] = await Promise.all([
         listTareasPlataforma(),
         listUsuariosSinAcceso(),
         listPagosPendientes(),
+        getResumenUsoIa(),
       ])
       setTareas(t)
       setUsuarios(u)
       setPagos(p)
+      setCostosIa(costosAnomalosDeIa(resumenIa))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el asistente')
     } finally {
@@ -201,6 +213,51 @@ export function PlataformaAsistentePage() {
     },
   ]
 
+  const columnasCostosIa: Columna<CostoIaClinica>[] = [
+    {
+      clave: 'clinica',
+      cabecera: 'Clínica',
+      movil: 'titulo',
+      celda: (c) => <p className="font-bold text-slate-800">{c.clinica_nombre}</p>,
+    },
+    {
+      clave: 'categoria',
+      cabecera: 'Categoría',
+      movil: 'destacado',
+      celda: (c) => (
+        <Badge tone={c.categoria === 'copiloto' ? 'teal' : 'slate'} size="sm">
+          {CATEGORIA_LABEL[c.categoria]}
+        </Badge>
+      ),
+    },
+    {
+      clave: 'consultas',
+      cabecera: 'Consultas',
+      movil: 'detalle',
+      celda: (c) => <span className="text-slate-600">{c.consultas}</span>,
+    },
+    {
+      clave: 'costo',
+      cabecera: 'Costo del mes',
+      movil: 'destacado',
+      celda: (c) => <span className="font-semibold text-slate-800">{formatUsd(c.costo_usd)}</span>,
+    },
+    {
+      clave: 'promedio',
+      cabecera: 'Por consulta',
+      movil: 'acciones',
+      alineadaDerecha: true,
+      celda: (c) =>
+        c.anomalo ? (
+          <Badge tone="rose" size="sm">
+            {formatUsdPreciso(c.promedio_usd)} · {UMBRAL_COSTO_ANOMALO}×+ el promedio
+          </Badge>
+        ) : (
+          <span className="text-xs text-slate-500">{formatUsdPreciso(c.promedio_usd)}</span>
+        ),
+    },
+  ]
+
   return (
     <div className="space-y-6">
       <div>
@@ -245,6 +302,31 @@ export function PlataformaAsistentePage() {
                 filas={usuarios}
                 columnas={columnasUsuarios}
                 claveDe={(u) => u.usuario.id}
+              />
+            )}
+          </Seccion>
+
+          <Seccion
+            titulo="Costo de IA este mes"
+            icono={<DollarSign size={14} />}
+            tono={costosIa.some((c) => c.anomalo) ? 'destacado' : 'neutro'}
+          >
+            <p className="mb-3 text-xs text-slate-500">
+              El cupo por clínica limita cuántas veces pregunta, no cuánto cuesta cada vez. En rojo,
+              una clínica cuyo costo por consulta pasa {UMBRAL_COSTO_ANOMALO}× el promedio de la
+              plataforma este mes en su misma categoría — copiloto (Sonnet) y redacción (Haiku) se
+              comparan por separado porque cuestan ~19× distinto entre sí.
+            </p>
+            {costosIa.length === 0 ? (
+              <p className="flex items-center gap-2 py-4 text-sm text-slate-500">
+                <Sparkles size={16} className="text-emerald-500" />
+                Ninguna clínica usó IA todavía este mes.
+              </p>
+            ) : (
+              <TablaResponsive
+                filas={costosIa}
+                columnas={columnasCostosIa}
+                claveDe={(c) => `${c.clinica_id}-${c.categoria}`}
               />
             )}
           </Seccion>

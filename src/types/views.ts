@@ -97,6 +97,21 @@ export interface ResumenPlataforma {
   historial_mrr: { mes: string; mrr: number }[]
 }
 
+/**
+ * Lo que gastó una clínica en IA este mes, tal como lo devuelve
+ * `ia_uso_resumen_mensual()` (0044). `copiloto` (Sonnet) y `redaccion`
+ * (aviso/aviso_interno/informe/mensaje_libre, todas Haiku) van separados a
+ * propósito: cuestan ~19x distinto, y un solo promedio los mezclaría.
+ */
+export interface ResumenUsoIaClinica {
+  clinica_id: string
+  clinica_nombre: string
+  consultas_copiloto: number
+  costo_copiloto_usd: number
+  consultas_redaccion: number
+  costo_redaccion_usd: number
+}
+
 /** Estadía en curso de un paciente, para señalarla allá donde aparezca. */
 export interface InternacionResumen {
   id: string

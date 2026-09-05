@@ -1,5 +1,6 @@
 import { formatBs, formatUsd, usdABs } from './currency'
 import { formatClinicDate } from './datetime'
+import type { ResumenUsoIaClinica } from '../types/views'
 
 /**
  * Asistente del dueño de la plataforma: qué le toca atender hoy.
@@ -118,4 +119,64 @@ export function seAvisaPorWhatsapp(tarea: TareaPlataforma): boolean {
  */
 export function detalleDeCobro(precioUsd: number, tipoCambio: number): string {
   return `${formatUsd(precioUsd)} (${formatBs(usdABs(precioUsd, tipoCambio))}) de suscripción mensual`
+}
+
+/**
+ * A partir de cuántas veces el promedio de la plataforma se marca una
+ * clínica. `consumir_cuota_ia()` limita CUÁNTAS veces se pregunta, no cuánto
+ * cuesta cada vez: el copiloto tiene un techo de tokens por vuelta, no de
+ * dólares, así que el supuesto de que todas las consultas cuestan más o
+ * menos lo mismo puede dejar de sostenerse sin que ningún cupo lo frene. Esto
+ * es lo que lo detectaría.
+ */
+export const UMBRAL_COSTO_ANOMALO = 2
+
+export interface CostoIaClinica {
+  clinica_id: string
+  clinica_nombre: string
+  categoria: 'copiloto' | 'redaccion'
+  consultas: number
+  costo_usd: number
+  promedio_usd: number
+  anomalo: boolean
+}
+
+/**
+ * Costo por consulta de cada clínica frente al promedio de la plataforma
+ * este mes, separado por categoría — 'copiloto' (Sonnet) y 'redaccion'
+ * (aviso/aviso_interno/informe/mensaje_libre, todas Haiku) cuestan ~19x
+ * distinto, y compararlas juntas no diría nada.
+ *
+ * Solo entran las clínicas con al menos una consulta de esa categoría este
+ * mes: dividir por cero no es "promedio cero", es "no hay dato".
+ */
+export function costosAnomalosDeIa(filas: ResumenUsoIaClinica[]): CostoIaClinica[] {
+  function porCategoria(
+    categoria: 'copiloto' | 'redaccion',
+    consultasDe: (f: ResumenUsoIaClinica) => number,
+    costoDe: (f: ResumenUsoIaClinica) => number,
+  ): CostoIaClinica[] {
+    const activas = filas.filter((f) => consultasDe(f) > 0)
+    const totalConsultas = activas.reduce((acc, f) => acc + consultasDe(f), 0)
+    const totalCosto = activas.reduce((acc, f) => acc + costoDe(f), 0)
+    const promedioPlataforma = totalConsultas > 0 ? totalCosto / totalConsultas : 0
+
+    return activas.map((f) => {
+      const promedio = costoDe(f) / consultasDe(f)
+      return {
+        clinica_id: f.clinica_id,
+        clinica_nombre: f.clinica_nombre,
+        categoria,
+        consultas: consultasDe(f),
+        costo_usd: costoDe(f),
+        promedio_usd: promedio,
+        anomalo: promedioPlataforma > 0 && promedio > promedioPlataforma * UMBRAL_COSTO_ANOMALO,
+      }
+    })
+  }
+
+  return [
+    ...porCategoria('copiloto', (f) => f.consultas_copiloto, (f) => f.costo_copiloto_usd),
+    ...porCategoria('redaccion', (f) => f.consultas_redaccion, (f) => f.costo_redaccion_usd),
+  ].sort((a, b) => b.costo_usd - a.costo_usd)
 }

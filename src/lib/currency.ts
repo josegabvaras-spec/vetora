@@ -21,6 +21,16 @@ export function formatUsd(amount: number): string {
   return `USD ${amount.toFixed(2)}`
 }
 
+/**
+ * Igual que `formatUsd`, pero con cuatro decimales — para un costo por
+ * unidad, no un total. Un aviso en Haiku cuesta del orden de USD 0.0006: con
+ * dos decimales `formatUsd` lo mostraría como "USD 0.00" y parecería gratis
+ * cuando no lo es.
+ */
+export function formatUsdPreciso(amount: number): string {
+  return `USD ${amount.toFixed(4)}`
+}
+
 /** Convierte el precio de la suscripción a lo que se cobra en bolivianos. */
 export function usdABs(montoUsd: number, tipoCambio: number): number {
   return Number((montoUsd * tipoCambio).toFixed(2))

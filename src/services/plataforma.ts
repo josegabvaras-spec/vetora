@@ -1,7 +1,7 @@
 import { motivoDelFallo, supabase } from '../lib/supabase'
 import { clinicDayIso, clinicMonth, desdeFechaSola, sumarMeses } from '../lib/datetime'
 import type { Clinica, EstadoClinica, PagoSuscripcion, Rol, Sucursal, TipoNegocio, Usuario } from '../types/database'
-import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma } from '../types/views'
+import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma, ResumenUsoIaClinica } from '../types/views'
 import { getPlan } from './planes'
 import { exigirEmailLibre } from './cuentas'
 import { enviadosEsteMes } from './whatsapp'
@@ -1123,4 +1123,18 @@ export async function rechazarPago(pagoId: string, motivo: string, revisorId: st
 
   if (error) throw new Error(`No se pudo rechazar el comprobante: ${error.message}`)
   exigirFilaAfectada(data, 'rechazar el comprobante')
+}
+
+/**
+ * Gasto de IA de cada clínica este mes, por categoría.
+ *
+ * `ia_uso_resumen_mensual()` no necesita `security definer`: la policy
+ * `ia_uso_plataforma` (0038) ya deja vacía la tabla para cualquiera que no
+ * sea la plataforma, así que la función sale vacía sola para ese caller — no
+ * hace falta repetir la comprobación aquí.
+ */
+export async function getResumenUsoIa(): Promise<ResumenUsoIaClinica[]> {
+  const { data, error } = await supabase.rpc('ia_uso_resumen_mensual')
+  if (error) throw new Error(`No se pudo leer el uso de IA: ${error.message}`)
+  return (data ?? []) as unknown as ResumenUsoIaClinica[]
 }
