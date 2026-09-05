@@ -1,0 +1,23 @@
+# Vetora Security Gate
+
+- [ ] Auth auditado (Supabase Auth, recuperación de contraseña, token de invitación)
+- [ ] RBAC auditado (`RolRoute` + Sidebar + policy SQL coinciden, incluido `peluquero`)
+- [ ] Multi-tenancy auditado (las 5 funciones `SECURITY DEFINER`, ningún `or auth_es_plataforma()` en tabla clínica)
+- [ ] RLS auditado (policies completas por operación, no `for all` genérico donde ya se corrigió)
+- [ ] Sin regresión del patrón H-1 (`.or()`/`.filter()`/`.textSearch()` con texto de usuario interpolado)
+- [ ] PostgREST desde el cliente auditado (`src/services/*.ts`: sobre-exposición, mass assignment de `clinica_id`)
+- [ ] Edge Functions no-IA auditadas (`acceso`, `crear-cuenta`, `registro-portal`, `eliminar-clinica`, `eliminar-usuario`, `cuentas-portal`, `respaldo-clinica`)
+- [ ] Edge Function `asistente` auditada (los dos clientes de Supabase, la lista blanca de herramientas de solo lectura, lo que sale hacia el modelo)
+- [ ] Secretos escaneados (`.env` versionado, ningún secreto en `VITE_*`)
+- [ ] Dependencias auditadas (`npm audit --omit=dev`)
+- [ ] Frontend auditado (XSS, `localStorage`, rutas protegidas de verdad y no solo visualmente)
+- [ ] Vercel auditado (variables de entorno, Redirect URLs de Supabase Auth)
+- [ ] Supabase auditado (buckets de Storage públicos/privados, SMTP de Auth)
+- [ ] Lógica de negocio auditada (stock, historial inmutable, precio de peluquería, cuotas de WhatsApp/IA, precios congelados)
+- [ ] Privacidad revisada (qué dato de qué tabla se trata, sin afirmar cumplimiento legal sin evidencia)
+- [ ] Logs revisados (sin `functions logs` en esta CLI — vía panel de Supabase)
+- [ ] Backups revisados (`/respaldo` cliente y la Edge Function `respaldo-clinica`)
+- [ ] Hallazgos críticos corregidos
+- [ ] Hallazgos altos corregidos o riesgo aceptado explícitamente
+- [ ] Retest ejecutado sobre cada hallazgo corregido (`npm run build` + prueba manual en navegador)
+- [ ] Informe generado o `SEGURIDAD.md` actualizado, en su mismo formato
