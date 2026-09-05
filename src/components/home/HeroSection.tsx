@@ -48,8 +48,8 @@ export function HeroSection() {
           <div
             className="relative w-full max-w-xl lg:max-w-2xl consultorio-mask"
             style={{
-              WebkitMaskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 68%, rgba(0, 0, 0, 0.94) 78%, rgba(0, 0, 0, 0.65) 88%, rgba(0, 0, 0, 0.22) 95%, transparent 100%)',
-              maskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 68%, rgba(0, 0, 0, 0.94) 78%, rgba(0, 0, 0, 0.65) 88%, rgba(0, 0, 0, 0.22) 95%, transparent 100%)',
+              WebkitMaskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 84%, rgba(0, 0, 0, 0.95) 90%, rgba(0, 0, 0, 0.6) 96%, transparent 100%)',
+              maskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 84%, rgba(0, 0, 0, 0.95) 90%, rgba(0, 0, 0, 0.6) 96%, transparent 100%)',
               WebkitMaskRepeat: 'no-repeat',
               maskRepeat: 'no-repeat',
               WebkitMaskSize: '100% 100%',
@@ -62,8 +62,8 @@ export function HeroSection() {
               className="consultorio-mask w-full h-auto object-contain block mx-auto select-none pointer-events-none"
               loading="eager"
               style={{
-                WebkitMaskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 68%, rgba(0, 0, 0, 0.94) 78%, rgba(0, 0, 0, 0.65) 88%, rgba(0, 0, 0, 0.22) 95%, transparent 100%)',
-                maskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 68%, rgba(0, 0, 0, 0.94) 78%, rgba(0, 0, 0, 0.65) 88%, rgba(0, 0, 0, 0.22) 95%, transparent 100%)',
+                WebkitMaskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 84%, rgba(0, 0, 0, 0.95) 90%, rgba(0, 0, 0, 0.6) 96%, transparent 100%)',
+                maskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 84%, rgba(0, 0, 0, 0.95) 90%, rgba(0, 0, 0, 0.6) 96%, transparent 100%)',
                 WebkitMaskRepeat: 'no-repeat',
                 maskRepeat: 'no-repeat',
                 WebkitMaskSize: '100% 100%',
