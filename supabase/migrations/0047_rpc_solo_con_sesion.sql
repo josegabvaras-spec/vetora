@@ -17,15 +17,36 @@
 -- cuanto exista una peluquería con el módulo, sus servicios y precios también
 -- se sirven a internet.
 --
--- LA CAUSA, que conviene entender porque afecta a toda función futura:
--- Supabase concede `execute` a `anon`, `authenticated` y `service_role` **por
--- defecto** sobre cualquier función nueva del esquema `public`. El
--- `revoke all … from public` que llevan las migraciones quita el pseudo-rol
--- `PUBLIC`, pero NO ese grant explícito a `anon`. Son dos cosas distintas y
--- hace falta revocar las dos.
+-- LA CAUSA, que costó dos intentos identificar bien y conviene dejar escrita
+-- porque afecta a toda función futura:
+--
+-- Hay DOS vías por las que `anon` llega a una función, y hay que cortar las
+-- dos. La primera es el grant explícito (`anon=X` en el ACL). La segunda, la
+-- que de verdad estaba abierta aquí, es el **pseudo-rol `PUBLIC`**: una
+-- función recién creada concede `execute` a `PUBLIC` por defecto, y todo rol
+-- —`anon` incluido— es miembro de `PUBLIC`. En el ACL se ve como una entrada
+-- con el beneficiario vacío:
+--
+--     =X/postgres | postgres=X/postgres | authenticated=X/postgres | …
+--     ^^^^^^^^^^^ esto es PUBLIC
+--
+-- El primer intento de esta migración solo revocaba de `anon`, y no cambió
+-- nada: la llamada seguía devolviendo HTTP 200 porque el permiso le llegaba
+-- por `PUBLIC`. Revocar de `PUBLIC` es lo que cierra la puerta; revocar de
+-- `anon` además es cinturón y tirantes, por si alguna vez se le concede
+-- explícitamente.
+--
+-- ⚠️ Y ojo con `create or replace function`: **preserva** el ACL existente,
+-- pero un `drop` + `create` lo reinicia al valor por defecto, es decir, vuelve
+-- a conceder `execute` a `PUBLIC`. Cada vez que se recree una de estas tres
+-- hay que volver a revocar, o el agujero reaparece en silencio.
 --
 -- `clinicas_para_registro()` se deja intacta a propósito: esa SÍ tiene que ser
 -- pública, la llama `/registro-cliente` antes de que exista ninguna sesión.
+
+revoke execute on function clinicas_con_catalogo() from public;
+revoke execute on function clinicas_con_peluqueria() from public;
+revoke execute on function servicios_peluqueria_de(uuid) from public;
 
 revoke execute on function clinicas_con_catalogo() from anon;
 revoke execute on function clinicas_con_peluqueria() from anon;
