@@ -311,6 +311,8 @@ Hace `select('*')` sin filtro y delega el filtrado a la RLS. Es correcto en aisl
 
 Los modales reciben `onGuardado` y llaman a `recargar()` del padre.
 
+**Una suscripción `postgres_changes` fuera de `useTable`** —como la de `PlanesModal.tsx` (el modal público de precios) y `PlataformaPlanesPage.tsx`, que se suscriben directo a `planes` porque una vive sin sesión y la otra necesita reaccionar también a `configuracion_plataforma`— necesita algo que `useTable` no expone porque nunca hizo falta: **la tabla tiene que estar en la publicación `supabase_realtime`**, y eso es una migración aparte (`alter publication supabase_realtime add table …`), no una policy ni un grant. Sin ella, `.subscribe()` conecta sin lanzar ningún error y sencillamente no llega ningún evento — indistinguible de "no se actualiza" para quien lo prueba, porque no hay ni un mensaje en consola que lo delate. `0043_planes_realtime.sql` es esa migración para `planes` y `configuracion_plataforma`; si añades una suscripción de este tipo sobre una tabla nueva, replica el patrón (una migración `alter publication`, y el callback de `.subscribe((estado) => …)` avisando en consola si `CHANNEL_ERROR`/`TIMED_OUT`) y no des por hecho que "ya está en tiempo real" solo porque el código de la suscripción compila.
+
 ## Invariantes que no se negocian
 
 Cada una tiene su barrera en el SQL y su réplica en un servicio; si escribes código que las esquiva, está mal aunque compile.

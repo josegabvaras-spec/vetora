@@ -72,7 +72,19 @@ export function PlanesModal({ onClose }: { onClose: () => void }) {
           cargar()
         }
       )
-      .subscribe()
+      .subscribe((estado) => {
+        // Si `planes` no está en la publicación `supabase_realtime`, `.subscribe()`
+        // conecta sin lanzar ningún error y sin embargo no llega ni un evento —
+        // indistinguible de "no se actualiza" para quien lo prueba. Este aviso es
+        // la única pista que queda en ese caso; el refetch por foco sigue
+        // funcionando igual, así que no es un fallo visible para el usuario.
+        if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT') {
+          console.warn(
+            `[PlanesModal] La suscripción realtime a "planes" no conectó (${estado}). ` +
+              'Comprueba que la tabla esté en la publicación supabase_realtime (migración 0043).',
+          )
+        }
+      })
 
     // Al regresar a la pestaña o ventana se refresca para evitar datos desfasados
     const onFocus = () => {

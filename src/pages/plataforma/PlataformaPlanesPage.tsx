@@ -104,7 +104,18 @@ export function PlataformaPlanesPage() {
           recargar()
         }
       )
-      .subscribe()
+      .subscribe((estado) => {
+        // Mismo diagnóstico que PlanesModal.tsx: sin la tabla en la publicación
+        // supabase_realtime, la suscripción conecta sin error pero no llega
+        // ningún evento. El refetch por foco sigue cubriendo al superadmin
+        // porque `onGuardado` ya llama a `recargar()` tras cada cambio propio.
+        if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT') {
+          console.warn(
+            `[PlataformaPlanesPage] La suscripción realtime a "planes" no conectó (${estado}). ` +
+              'Comprueba que la tabla esté en la publicación supabase_realtime (migración 0043).',
+          )
+        }
+      })
 
     const onFocus = () => {
       recargar()
