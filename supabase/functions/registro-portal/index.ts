@@ -32,6 +32,23 @@ const cabeceras = {
 
 const MINIMO = 8
 
+/**
+ * Tope del nombre que llega del formulario público.
+ *
+ * Ningún nombre real en Bolivia se acerca a esto — es para acotar el otro
+ * caso: cuando no hay ficha que vincular (líneas más abajo), este `nombre`
+ * queda escrito tal cual en `clientes.nombre`, y de ahí lo leen tres
+ * herramientas del copiloto (`buscar_paciente`, `obtener_resumen_paciente`,
+ * la cartera) como el "dueño" del paciente. Sin tope, el campo es una vía para
+ * mandarle al modelo un texto tan largo como se quiera con forma de
+ * instrucción. El prompt del copiloto ya trata los resultados de las
+ * herramientas como datos, nunca como órdenes (ver `INSTRUCCIONES_COPILOTO`);
+ * esto es la segunda capa, del mismo modo que `pregunta` está acotada a 2000
+ * caracteres para el copiloto: reducir cuánto texto no confiable puede llegar
+ * a acumularse, no sustituir esa defensa.
+ */
+const MAX_NOMBRE = 120
+
 function responder(cuerpo: unknown, status = 200) {
   return new Response(JSON.stringify(cuerpo), { status, headers: cabeceras })
 }
@@ -92,6 +109,9 @@ Deno.serve(async (peticion) => {
 
     if (!email || !nombre || !clinicaId) {
       return responder({ error: 'Faltan datos obligatorios' }, 400)
+    }
+    if (nombre.length > MAX_NOMBRE) {
+      return responder({ error: `El nombre no puede tener más de ${MAX_NOMBRE} caracteres` }, 400)
     }
     if (password.length < MINIMO) {
       return responder({ error: `La contraseña debe tener al menos ${MINIMO} caracteres` }, 400)
