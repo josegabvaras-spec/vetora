@@ -40,12 +40,35 @@ export function HeroSection() {
 
         {/* Columna Derecha (En Mobile se muestra justo debajo del botón): Ilustración Consultorio */}
         <div className="lg:col-span-7 flex justify-center lg:justify-end relative mt-2 sm:mt-0">
-          <div className="relative w-full max-w-xl lg:max-w-2xl overflow-hidden consultorio-mask">
+          {/* Resplandor suave ambiental para fusionar la iluminación con el fondo */}
+          <div
+            className="absolute inset-0 max-w-xl lg:max-w-2xl bg-gradient-to-tr from-sky-300/40 via-teal-200/40 to-emerald-100/20 rounded-full blur-3xl pointer-events-none -z-10 transform scale-90"
+            aria-hidden="true"
+          />
+          <div
+            className="relative w-full max-w-xl lg:max-w-2xl consultorio-mask"
+            style={{
+              WebkitMaskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 35%, rgba(0, 0, 0, 0.85) 55%, rgba(0, 0, 0, 0.45) 75%, rgba(0, 0, 0, 0.1) 88%, transparent 96%)',
+              maskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 35%, rgba(0, 0, 0, 0.85) 55%, rgba(0, 0, 0, 0.45) 75%, rgba(0, 0, 0, 0.1) 88%, transparent 96%)',
+              WebkitMaskRepeat: 'no-repeat',
+              maskRepeat: 'no-repeat',
+              WebkitMaskSize: '100% 100%',
+              maskSize: '100% 100%'
+            }}
+          >
             <img
               src="/consultorio.jpg"
               alt="Consulta veterinaria familiar con perro, gato, veterinario y familia"
-              className="w-full h-auto object-cover object-center lg:object-right"
+              className="consultorio-mask w-full h-auto object-contain block mx-auto select-none pointer-events-none"
               loading="eager"
+              style={{
+                WebkitMaskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 35%, rgba(0, 0, 0, 0.85) 55%, rgba(0, 0, 0, 0.45) 75%, rgba(0, 0, 0, 0.1) 88%, transparent 96%)',
+                maskImage: 'radial-gradient(ellipse closest-side at 50% 50%, #000 35%, rgba(0, 0, 0, 0.85) 55%, rgba(0, 0, 0, 0.45) 75%, rgba(0, 0, 0, 0.1) 88%, transparent 96%)',
+                WebkitMaskRepeat: 'no-repeat',
+                maskRepeat: 'no-repeat',
+                WebkitMaskSize: '100% 100%',
+                maskSize: '100% 100%'
+              }}
             />
           </div>
         </div>

@@ -319,15 +319,28 @@ a, button, select, input, textarea {
     0 8px 20px rgba(0, 0, 0, 0.06);
 }
 
-/* Máscara de degradé suave perimetral (arriba, abajo, izquierda y derecha) */
-.consultorio-mask {
-  -webkit-mask-image: 
-    linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 4%, rgba(0, 0, 0, 0.85) 10%, black 18%, black 82%, rgba(0, 0, 0, 0.85) 90%, rgba(0, 0, 0, 0.3) 96%, transparent 100%),
-    linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.3) 3%, rgba(0, 0, 0, 0.85) 8%, black 16%, black 84%, rgba(0, 0, 0, 0.85) 92%, rgba(0, 0, 0, 0.3) 97%, transparent 100%);
-  -webkit-mask-composite: source-in;
-  mask-image: 
-    linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.3) 4%, rgba(0, 0, 0, 0.85) 10%, black 18%, black 82%, rgba(0, 0, 0, 0.85) 90%, rgba(0, 0, 0, 0.3) 96%, transparent 100%),
-    linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.3) 3%, rgba(0, 0, 0, 0.85) 8%, black 16%, black 84%, rgba(0, 0, 0, 0.85) 92%, rgba(0, 0, 0, 0.3) 97%, transparent 100%);
-  mask-composite: intersect;
+/* Máscara radial suave para fusión perfecta del consultorio con el fondo (sin cortes cuadrados) */
+.consultorio-mask,
+.consultorio-mask img {
+  -webkit-mask-image: radial-gradient(
+    ellipse closest-side at 50% 50%,
+    #000 35%,
+    rgba(0, 0, 0, 0.85) 55%,
+    rgba(0, 0, 0, 0.45) 75%,
+    rgba(0, 0, 0, 0.1) 88%,
+    transparent 96%
+  );
+  mask-image: radial-gradient(
+    ellipse closest-side at 50% 50%,
+    #000 35%,
+    rgba(0, 0, 0, 0.85) 55%,
+    rgba(0, 0, 0, 0.45) 75%,
+    rgba(0, 0, 0, 0.1) 88%,
+    transparent 96%
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
 }
 
