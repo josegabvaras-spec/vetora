@@ -5,9 +5,9 @@
 // anónima —que viaja dentro del bundle— forzaría el modelo más caro de la
 // plataforma. Lo mismo vale para las instrucciones del sistema.
 
-export type Tarea = 'aviso' | 'aviso_interno' | 'informe' | 'mensaje_libre' | 'copiloto'
+export type Tarea = 'aviso' | 'aviso_interno' | 'informe' | 'copiloto'
 
-export const TAREAS: Tarea[] = ['aviso', 'aviso_interno', 'informe', 'mensaje_libre', 'copiloto']
+export const TAREAS: Tarea[] = ['aviso', 'aviso_interno', 'informe', 'copiloto']
 
 export function esTarea(valor: unknown): valor is Tarea {
   return typeof valor === 'string' && (TAREAS as string[]).includes(valor)
@@ -16,20 +16,14 @@ export function esTarea(valor: unknown): valor is Tarea {
 /**
  * Modelo por tarea.
  *
- * **Aviso, aviso interno, informe y mensaje libre: `claude-haiku-4-5`.** Las
- * cuatro son redacción o reordenar cifras que ya vienen calculadas — nada que
- * decidir, solo escribirlo bien. Pedirle eso a un modelo de razonamiento es
- * pagar de más por lo mismo. `mensaje_libre` es el pedido suelto de quien
- * atiende ("escríbele a Juan que traiga la muestra mañana"): sigue siendo
- * redactar un texto a partir de una instrucción, no decidir nada — no
- * necesita el copiloto ni su modelo, aunque el texto de entrada sea libre.
+ * **Aviso, aviso interno e informe: `claude-haiku-4-5`.** Las tres son
+ * redacción o reordenar cifras que ya vienen calculadas — nada que decidir,
+ * solo escribirlo bien. Pedirle eso a un modelo de razonamiento es pagar de
+ * más por lo mismo.
  *
  * **Copiloto: `claude-sonnet-5`.** Es la única tarea que de verdad razona:
  * decide qué herramienta consultar, en qué orden, y sintetiza el resultado
- * para una pregunta que no tiene forma fija. No lo confundas con
- * `mensaje_libre` solo porque las dos reciben texto libre del usuario: la
- * diferencia es si hay que decidir algo (copiloto) o solo redactar (todo lo
- * demás).
+ * para una pregunta que no tiene forma fija.
  *
  * Existir como mapa es lo que permite este reparto sin tocar nada más — y
  * permite dejar una tarea en un modelo distinto si el elegido no rinde, que es
@@ -37,13 +31,12 @@ export function esTarea(valor: unknown): valor is Tarea {
  *
  * ⚠️ Haiku 4.5 **no admite `output_config.effort`** — lo rechaza con error, a
  * diferencia de Opus 5 y Sonnet 5. Ver `SOPORTA_EFFORT` más abajo: sin esa
- * comprobación, las cuatro tareas de aquí fallarían en cuanto se llamaran.
+ * comprobación, las tres tareas de aquí fallarían en cuanto se llamaran.
  */
 export const MODELO_POR_TAREA: Record<Tarea, string> = {
   aviso: 'claude-haiku-4-5',
   aviso_interno: 'claude-haiku-4-5',
   informe: 'claude-haiku-4-5',
-  mensaje_libre: 'claude-haiku-4-5',
   copiloto: 'claude-sonnet-5',
 }
 
@@ -94,7 +87,6 @@ export const ESFUERZO_POR_TAREA: Record<Tarea, 'low' | 'medium' | 'high'> = {
   aviso: 'low',
   aviso_interno: 'low',
   informe: 'medium',
-  mensaje_libre: 'low',
   copiloto: 'medium',
 }
 
@@ -112,7 +104,6 @@ export const MAX_TOKENS_POR_TAREA: Record<Tarea, number> = {
   aviso: 1024,
   aviso_interno: 1024,
   informe: 2048,
-  mensaje_libre: 1024,
   copiloto: 16000,
 }
 

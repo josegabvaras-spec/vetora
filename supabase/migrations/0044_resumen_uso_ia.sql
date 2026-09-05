@@ -38,7 +38,7 @@ as $$
       c.id as clinica_id,
       c.nombre as clinica_nombre,
       -- 'copiloto' es Sonnet, ~19x el costo del resto (aviso/aviso_interno/
-      -- informe/mensaje_libre, todas en Haiku): mezclarlas en un solo
+      -- informe, todas en Haiku): mezclarlas en un solo
       -- promedio compararía cosas que no son comparables.
       count(*) filter (where u.tarea = 'copiloto') as consultas_copiloto,
       coalesce(sum(u.costo_estimado_usd) filter (where u.tarea = 'copiloto'), 0) as costo_copiloto_usd,

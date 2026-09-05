@@ -144,7 +144,7 @@ export interface CostoIaClinica {
 /**
  * Costo por consulta de cada clínica frente al promedio de la plataforma
  * este mes, separado por categoría — 'copiloto' (Sonnet) y 'redaccion'
- * (aviso/aviso_interno/informe/mensaje_libre, todas Haiku) cuestan ~19x
+ * (aviso/aviso_interno/informe, todas Haiku) cuestan ~19x
  * distinto, y compararlas juntas no diría nada.
  *
  * Solo entran las clínicas con al menos una consulta de esa categoría este

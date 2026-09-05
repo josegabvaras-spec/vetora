@@ -100,7 +100,7 @@ export interface ResumenPlataforma {
 /**
  * Lo que gastó una clínica en IA este mes, tal como lo devuelve
  * `ia_uso_resumen_mensual()` (0044). `copiloto` (Sonnet) y `redaccion`
- * (aviso/aviso_interno/informe/mensaje_libre, todas Haiku) van separados a
+ * (aviso/aviso_interno/informe, todas Haiku) van separados a
  * propósito: cuestan ~19x distinto, y un solo promedio los mezclaría.
  */
 export interface ResumenUsoIaClinica {

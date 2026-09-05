@@ -4,12 +4,10 @@ import { AlertTriangle, CalendarClock, MessageCircle, PackageSearch, Truck } fro
 import { AvisoError } from '../components/ui/AvisoError'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
-import { Button } from '../components/ui/Button'
 import { Seccion } from '../components/ui/Seccion'
 import { TablaResponsive } from '../components/ui/Tabla'
 import { useAuth } from '../context/useAuth'
 import { PreguntaleAVetora } from '../features/asistente/PreguntaleAVetora'
-import { RedactarMensajeModal } from '../features/asistente/RedactarMensajeModal'
 import { puedeUsarCopiloto } from '../lib/personal'
 import { getSugerenciasReposicion, listLotes, type SugerenciaReposicion } from '../services/petshop'
 import { enlaceWhatsapp } from '../lib/whatsapp'
@@ -45,7 +43,6 @@ export function AsistentePetshopPage() {
   const [porVencer, setPorVencer] = useState<ProductoLoteConDetalle[]>([])
   const [cargando, setCargando] = useState(true)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
-  const [mostrarRedactarMensaje, setMostrarRedactarMensaje] = useState(false)
 
   const recargar = useCallback(async () => {
     setCargando(true)
@@ -208,26 +205,13 @@ export function AsistentePetshopPage() {
     <div className="space-y-6">
       <AvisoError mensaje={errorCarga} />
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-            Asistente
-          </h1>
-          <p className="mt-1 text-sm font-medium text-slate-500">
-            Lo que toca atender hoy en la mercadería: qué reponer y qué sacar antes de que venza.
-          </p>
-        </div>
-        {/* Un mensaje suelto a un cliente (no al proveedor: eso ya sale por
-            enlaceWhatsapp() sin tocar la IA). Mismo motivo que en AsistentePage:
-            sin esto, el único camino era el copiloto de abajo — Sonnet, y
-            gastando el cupo caro por escribir un texto que no necesitaba
-            razonar nada. */}
-        {puedeUsarCopiloto(usuario) && (
-          <Button variant="secondary" onClick={() => setMostrarRedactarMensaje(true)} className="shrink-0">
-            <MessageCircle size={16} />
-            Redactar mensaje
-          </Button>
-        )}
+      <div>
+        <h1 className="font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+          Asistente
+        </h1>
+        <p className="mt-1 text-sm font-medium text-slate-500">
+          Lo que toca atender hoy en la mercadería: qué reponer y qué sacar antes de que venza.
+        </p>
       </div>
 
       {puedeUsarCopiloto(usuario) && <PreguntaleAVetora />}
@@ -292,10 +276,6 @@ export function AsistentePetshopPage() {
           .
         </p>
       </Seccion>
-
-      {mostrarRedactarMensaje && (
-        <RedactarMensajeModal onClose={() => setMostrarRedactarMensaje(false)} />
-      )}
     </div>
   )
 }
