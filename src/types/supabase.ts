@@ -2672,6 +2672,31 @@ export type Database = {
        * `reenvio: true` significa que esa clave de idempotencia ya había
        * registrado esta venta y se devuelve la original.
        */
+      /**
+       * El cobro de una consulta, internación, orden de peluquería o venta de
+       * mostrador, entero y en una transacción (migración `0065`).
+       *
+       * `p_lineas` lleva el importe de cada línea —que en una consulta lo
+       * decide una persona, y eso es la funcionalidad—, pero **el total no**:
+       * lo suma el servidor. La autoría sale de `auth.uid()`, el turno lo busca
+       * él, y comprueba él si la atención ya estaba cobrada. `p_movimientos`
+       * son los egresos de inventario de una venta de mostrador, para que
+       * entren en la misma transacción que el cobro.
+       */
+      registrar_cobro: {
+        Args: {
+          p_sucursal_id: string
+          p_lineas: Json
+          p_metodo_pago: string
+          p_cita_id?: string | null
+          p_internacion_id?: string | null
+          p_orden_peluqueria_id?: string | null
+          p_cliente_nombre?: string | null
+          p_movimientos?: Json
+          p_idempotency_key?: string | null
+        }
+        Returns: Json
+      }
       registrar_venta_pos: {
         Args: {
           p_sucursal_id: string

@@ -4,7 +4,10 @@ import type { AtencionPorCobrar, CobroConDetalle, LineaCobro } from '../types/vi
 import { TIPO_LABEL } from '../lib/citas'
 import { diasDeEstadia, etiquetaDias } from '../lib/internacion'
 import { dosisDisponible, formatDosis } from '../lib/inventario'
-import { registrarMovimiento } from './inventario'
+// `registrarMovimiento` ya no se importa aquí: los egresos de la venta de
+// mostrador los inserta `registrar_cobro` dentro de su propia transacción
+// (migración `0065`). Era justo lo que faltaba para que no pudiera quedar una
+// venta cobrada sin descontar el stock, ni stock descontado sin venta.
 
 async function lineasDeConsumo(columnaFk: 'cita_id' | 'internacion_id', id: string): Promise<LineaCobro[]> {
   const { data: movimientos } = await supabase
@@ -363,16 +366,42 @@ export type ReferenciaAtencion =
   | { tipo: 'internacion'; id: string }
   | { tipo: 'peluqueria'; id: string }
 
+/**
+ * Cobra una atención — consulta, internación u orden de peluquería.
+ *
+ * ⚠️ **La escritura entera es una sola transacción en el servidor**
+ * (`registrar_cobro`, migración `0065`). Antes eran tres o cuatro viajes desde
+ * el navegador sin transacción: un fallo entre el `insert` del cobro y el de
+ * sus líneas dejaba un cobro cobrado, con su `monto_bs`, y **sin una sola línea
+ * que lo justificara**.
+ *
+ * Lo que este código dejó de decidir: el **total** (lo suma el servidor con las
+ * líneas que recibe; antes llegaba calculado desde el navegador y nada obligaba
+ * a que fuera su suma), la **autoría** (`auth.uid()`, no un campo del cuerpo),
+ * el **turno**, y si la atención **ya estaba cobrada**.
+ *
+ * Lo que sigue decidiendo aquí, porque es la funcionalidad: **el importe de
+ * cada línea**. `aplicarAjustes()` deja que quien cobra fije el precio de una
+ * línea de consumo a propósito, así que el servidor no puede recalcularlo — lo
+ * que sí hace es guardar el precio de catálogo al lado y marcar la línea como
+ * `ajuste_manual`, para que la desviación salga en «Cobros por fuera del precio
+ * de catálogo» de `/metricas`.
+ */
 export async function registrarCobro(
   atencion: ReferenciaAtencion,
   metodoPago: MetodoPago,
   usuarioId: string,
   servicios: ServicioSeleccionado[] = [],
   ajustes: AjustesDePrecio = {},
+  idempotencyKey?: string,
 ): Promise<Cobro> {
+  void usuarioId // La autoría la pone el servidor con `auth.uid()`.
   let sucursalId: string
   let lineasFijas: LineaCobro[]
 
+  // Las comprobaciones de aquí son avisos tempranos para dar un mensaje
+  // decente; la barrera son las del servidor, que se aplican también a quien
+  // llame a la RPC sin pasar por esta pantalla.
   if (atencion.tipo === 'cita') {
     const { data: cita } = await supabase.from('citas').select('*').eq('id', atencion.id).single()
     if (!cita) throw new Error('Cita no encontrada')
@@ -402,47 +431,36 @@ export async function registrarCobro(
     lineasFijas = await lineasDePeluqueria(orden)
   }
 
-  const turno = await getTurnoAbierto(sucursalId)
-  if (!turno) throw new Error('Abre la caja antes de registrar cobros')
-
   const lineasServ = await lineasDeServicios(servicios)
   const lineas = [...lineasServ, ...aplicarAjustes(lineasFijas, ajustes)]
-  const monto = totalDe(lineas)
-  if (monto <= 0) throw new Error('Agrega al menos un servicio o producto para cobrar')
+  if (totalDe(lineas) <= 0) throw new Error('Agrega al menos un servicio o producto para cobrar')
 
-  const { data: cobro, error } = await supabase
-    .from('cobros')
-    .insert({
-      sucursal_id: sucursalId,
-      turno_id: turno.id,
-      cita_id: atencion.tipo === 'cita' ? atencion.id : null,
-      internacion_id: atencion.tipo === 'internacion' ? atencion.id : null,
-      usuario_id: usuarioId,
-      monto_bs: monto,
-      metodo_pago: metodoPago,
-    })
-    .select()
-    .single()
+  // Una sola llamada, una sola transacción. Lo que este código ya NO manda:
+  // el total (lo suma el servidor a partir de las líneas), la autoría
+  // (`auth.uid()`), el turno (lo busca el servidor) ni si la atención ya estaba
+  // cobrada (lo comprueba allí). `usuarioId` se conserva en la firma porque las
+  // pantallas lo pasan, pero **ya no decide nada**.
+  const { data, error } = await supabase.rpc('registrar_cobro', {
+    p_sucursal_id: sucursalId,
+    p_lineas: lineas.map((l) => ({
+      concepto: l.concepto,
+      cantidad: l.cantidad,
+      precio_unitario_bs: l.precio_unitario_bs,
+      subtotal_bs: l.subtotal_bs,
+      servicio_id: l.servicio_id ?? null,
+      producto_id: l.producto_id ?? null,
+    })),
+    p_metodo_pago: metodoPago,
+    p_cita_id: atencion.tipo === 'cita' ? atencion.id : null,
+    p_internacion_id: atencion.tipo === 'internacion' ? atencion.id : null,
+    p_orden_peluqueria_id: atencion.tipo === 'peluqueria' ? atencion.id : null,
+    p_idempotency_key: idempotencyKey ?? null,
+  })
 
-  if (error || !cobro) throw new Error(`Error al cobrar: ${error?.message || 'desconocido'}`)
+  if (error) throw new Error(error.message || 'No se pudo registrar el cobro')
 
-  if (atencion.tipo === 'peluqueria') {
-    await supabase.from('peluqueria_ordenes').update({ cobro_id: cobro.id }).eq('id', atencion.id)
-  }
-
-  const persistidas = lineas.map((l) => ({
-    cobro_id: cobro.id,
-    concepto: l.concepto,
-    cantidad: l.cantidad,
-    precio_unitario_bs: l.precio_unitario_bs,
-    subtotal_bs: l.subtotal_bs,
-    servicio_id: l.servicio_id ?? null,
-    producto_id: l.producto_id ?? null,
-  }))
-
-  const { error: errLineas } = await supabase.from('cobro_lineas').insert(persistidas as any)
-  if (errLineas) throw new Error(`Error al guardar líneas: ${errLineas.message}`)
-
+  const res = data as unknown as { cobro_id: string }
+  const { data: cobro } = await supabase.from('cobros').select('*').eq('id', res.cobro_id).single()
   return cobro as Cobro
 }
 
@@ -455,7 +473,10 @@ export interface ItemVentaDirecta {
 
 export interface DatosVentaDirecta {
   sucursalId: string
+  /** Se conserva porque las pantallas lo pasan; la autoria la pone auth.uid(). */
   usuarioId: string
+  /** Un reenvio con la misma clave no vende dos veces (migracion 0061). */
+  idempotencyKey?: string
   clienteNombre?: string
   items: ItemVentaDirecta[]
   metodoPago: MetodoPago
@@ -493,56 +514,48 @@ export async function registrarVentaDirecta(datos: DatosVentaDirecta): Promise<C
     lineas.push(conImporteAjustado(calculada, item.monto_bs))
   }
 
-  const monto = totalDe(lineas)
-  if (monto <= 0) throw new Error('El importe de la venta debe ser mayor a 0')
+  if (totalDe(lineas) <= 0) throw new Error('El importe de la venta debe ser mayor a 0')
 
   const clienteEtiqueta = datos.clienteNombre?.trim() || 'Venta directa'
 
-  const { data: cobro, error } = await supabase
-    .from('cobros')
-    .insert({
-      sucursal_id: datos.sucursalId,
-      turno_id: turno.id,
-      cliente_nombre: clienteEtiqueta,
-      usuario_id: datos.usuarioId,
-      monto_bs: monto,
-      metodo_pago: datos.metodoPago,
-    })
-    .select()
-    .single()
-
-  if (error || !cobro) throw new Error(`Error al cobrar: ${error?.message || 'desconocido'}`)
-
-  const persistidas = lineas.map((l) => ({
-    cobro_id: cobro.id,
-    concepto: l.concepto,
-    cantidad: l.cantidad,
-    precio_unitario_bs: l.precio_unitario_bs,
-    subtotal_bs: l.subtotal_bs,
-    producto_id: l.producto_id ?? null,
-  }))
-
-  const { error: errLineas } = await supabase.from('cobro_lineas').insert(persistidas as any)
-  if (errLineas) throw new Error(`Error al guardar líneas: ${errLineas.message}`)
-
-  // El stock se descuenta AL FINAL, no antes del cobro.
+  // ⚠️ El cobro, sus líneas y los egresos de inventario, **en una sola
+  // transacción**.
   //
-  // Al revés, si el insert del cobro fallaba (turno cerrado desde otra pestaña,
-  // RLS, red) la mercadería ya había salido del inventario sin ninguna venta
-  // que la respaldase: desaparecía sin rastro. Con este orden, el caso malo
-  // deja un cobro registrado y visible, que es recuperable a mano.
-  //
-  // El stock de todos los ítems se validó arriba, así que aquí solo puede
-  // fallar por una venta simultánea del mismo producto; la barrera dura sigue
-  // siendo `check (stock_actual >= 0)`. No es atomicidad real: para eso haría
-  // falta una función `security definer` que hiciera cobro y egresos en una
-  // sola transacción.
-  for (const item of datos.items) {
-    await registrarMovimiento(item.productoId, 'egreso', item.cantidad, `Venta en caja (${clienteEtiqueta})`, {
-      usuarioId: datos.usuarioId,
-    })
-  }
+  // Antes el stock se descontaba al final, en llamadas sueltas, y el comentario
+  // que había aquí explicaba el porqué del orden: hacerlo antes dejaba la
+  // mercadería fuera del inventario sin venta que la respaldase, y hacerlo
+  // después dejaba «un cobro registrado y visible, que es recuperable a mano».
+  // Terminaba admitiendo lo que faltaba: *«No es atomicidad real: para eso
+  // haría falta una función security definer que hiciera cobro y egresos en una
+  // sola transacción.»* Es exactamente `registrar_cobro` (migración `0065`).
+  // Ya no hay nada que recuperar a mano: si un egreso falla, el cobro no
+  // existe.
+  const { data, error } = await supabase.rpc('registrar_cobro', {
+    p_sucursal_id: datos.sucursalId,
+    p_lineas: lineas.map((l) => ({
+      concepto: l.concepto,
+      cantidad: l.cantidad,
+      precio_unitario_bs: l.precio_unitario_bs,
+      subtotal_bs: l.subtotal_bs,
+      servicio_id: null,
+      producto_id: l.producto_id ?? null,
+    })),
+    p_metodo_pago: datos.metodoPago,
+    p_cliente_nombre: clienteEtiqueta,
+    // La cantidad va en unidad de medida (ml, g), igual que la recibía
+    // `registrarMovimiento`; el trigger de 0013 la convierte a envases.
+    p_movimientos: datos.items.map((item) => ({
+      producto_id: item.productoId,
+      cantidad: item.cantidad,
+      motivo: `Venta en caja (${clienteEtiqueta})`,
+    })),
+    p_idempotency_key: datos.idempotencyKey ?? null,
+  })
 
+  if (error) throw new Error(error.message || 'No se pudo registrar la venta')
+
+  const res = data as unknown as { cobro_id: string }
+  const { data: cobro } = await supabase.from('cobros').select('*').eq('id', res.cobro_id).single()
   return cobro as Cobro
 }
 
