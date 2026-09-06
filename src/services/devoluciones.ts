@@ -48,6 +48,11 @@ export interface DatosDevolucionInput {
   montoDevueltoBs: number
   usuarioId?: string
   autorizadoPor?: string
+  /**
+   * Identifica el intento de devolución. Un reenvío con la misma clave no
+   * reintegra el stock dos veces: lo impide el índice único de `0061`.
+   */
+  idempotencyKey?: string
 }
 
 /** Lo que queda por devolver de un producto dentro de una venta concreta. */
@@ -152,11 +157,24 @@ export async function procesarDevolucion(datos: DatosDevolucionInput): Promise<P
       monto_devuelto_bs: datos.montoDevueltoBs,
       usuario_id: datos.usuarioId || null,
       autorizado_por: datos.autorizadoPor || null,
+      idempotency_key: datos.idempotencyKey ?? null,
     })
     .select()
     .single()
 
-  if (error || !dev) throw new Error(`Error al registrar devolución: ${error?.message || 'desconocido'}`)
+  if (error || !dev) {
+    // Reenvío de una devolución ya registrada: se devuelve la original en vez
+    // de reintegrar el stock una segunda vez.
+    if ((error as { code?: string } | null)?.code === '23505' && datos.idempotencyKey) {
+      const { data: original } = await supabase
+        .from('petshop_devoluciones')
+        .select('*')
+        .eq('idempotency_key', datos.idempotencyKey)
+        .maybeSingle()
+      if (original) return original as unknown as PetshopDevolucion
+    }
+    throw new Error(`Error al registrar devolución: ${error?.message || 'desconocido'}`)
+  }
 
   // 2. Si el producto es reintegrable, retornar stock al inventario
   if (datos.estadoProducto === 'reintegrable') {

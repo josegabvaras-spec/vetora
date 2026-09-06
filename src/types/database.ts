@@ -701,6 +701,20 @@ export interface Cobro {
    * `auth_es_admin()`, o sea contra el JWT, no contra un campo del cuerpo.
    */
   descuento_bs: number
+  /**
+   * Promoción que justifica el descuento (migración `0060`). La base la valida:
+   * misma clínica, activa, en fecha, dentro de su `limite_uso`, y el importe no
+   * puede superar lo que esa promoción da. Antes el código de cupón se aceptaba
+   * en el servicio y se descartaba: se sabía cuánto, nunca por qué.
+   */
+  promocion_id?: string | null
+  /** Motivo escrito, obligatorio cuando hay descuento y no hay promoción. */
+  descuento_motivo?: string | null
+  /**
+   * Identifica el intento de venta (migración `0061`). Un reenvío con la misma
+   * clave no crea un segundo cobro: lo impide `cobros_idempotency_key_unica`.
+   */
+  idempotency_key?: string | null
   metodo_pago: MetodoPago
   created_at: string
 }
@@ -981,6 +995,8 @@ export interface PetshopDevolucion {
   monto_devuelto_bs: number
   usuario_id?: string | null
   autorizado_por?: string | null
+  /** Evita que un reenvio reintegre el stock dos veces (migracion 0061). */
+  idempotency_key?: string | null
   created_at: string
 }
 
@@ -990,6 +1006,8 @@ export interface PetshopConfiguracion {
   dias_alerta_vencimiento: number
   permitir_venta_sin_stock: boolean
   exigir_autorizacion_devolucion: boolean
+  /** Descuento maximo, en %, que aplica quien no es admin sin promocion (0060). */
+  descuento_max_pct?: number
   impresion_ticket_automatica: boolean
   mensaje_ticket_pie: string
   created_at: string

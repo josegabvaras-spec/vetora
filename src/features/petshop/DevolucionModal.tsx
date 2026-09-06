@@ -66,6 +66,8 @@ export function DevolucionModal({
   const [limite, setLimite] = useState<DisponibleParaDevolver | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Un reenvío del mismo formulario no reintegra el stock dos veces (`0061`). */
+  const [claveDevolucion] = useState<string>(() => crypto.randomUUID())
 
   // Lo que queda por devolver de ese producto en esa venta, contando
   // devoluciones anteriores. Se relee al cambiar de producto.
@@ -123,6 +125,7 @@ export function DevolucionModal({
         estadoProducto,
         montoDevueltoBs,
         usuarioId: usuario?.id,
+        idempotencyKey: claveDevolucion,
       })
 
       onProcessed()

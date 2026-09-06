@@ -18,7 +18,7 @@ tienen entrada aquí**: se documentan allí.
 |---|---|---|
 | Crítico | 0 | — |
 | Alto | 6 | corregidos (H-19 y H-20 incluidos) |
-| Medio | 9 | 8 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, y H-18), 1 mitigado (precio del POS, auditable) |
+| Medio | 10 | 9 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18 y H-21), 1 mitigado (precio del POS, auditable) |
 | Bajo / Info | 5 | 3 corregidos, 1 verificado seguro (Vercel), 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
@@ -656,7 +656,68 @@ el precio del POS todavía no se bloquea (falta el discriminador `origen`), no h
 (dos peticiones idénticas siguen creando dos ventas), la venta no es transaccional, el descuento
 está topado pero no justificado contra una promoción real, y un cobro puede apuntar al turno de otra
 clínica. Y `productos_all` sigue siendo `FOR ALL`, así que el stock se puede mover por fuera del
-kardex con un `UPDATE productos` directo.
+kardex con un `UPDATE productos` directo. *(De esa lista, la coherencia de inquilino, la
+justificación del descuento y la idempotencia se cerraron después en H-21.)*
+
+### H-21 · MEDIO · Coherencia de inquilino, descuento justificado e idempotencia — CORREGIDO
+
+Fase 2 del plan del Bloque 1. Tres migraciones —`0059`, `0060` y `0061`— que cierran tres cosas
+distintas que compartían el mismo patrón: **una regla que el navegador calculaba y el servidor
+aceptaba sin verificar**.
+
+**`0059` · Un cobro podía apuntar al turno de otra clínica.** Verificado con tres clínicas reales:
+un cobro con `clinica_id = A` y `turno_id` de B **se creaba**, y una línea con `producto_id` de B
+también. Las policies validan el `clinica_id` **de la fila que se inserta**, nunca el de las filas a
+las que apunta, y PostgreSQL comprueba el FK **como dueño de la tabla, saltándose la RLS**.
+
+⚠️ **Y el daño no es fuga de datos, que es lo que lo hacía difícil de ver.** El cobro inyectado tiene
+`clinica_id = A`, así que B no lo ve (su RLS lo filtra) y su arqueo no lo cuenta; y A tampoco lo ve
+en su caja, porque el turno es de B. **Es dinero registrado que no aparece en el arqueo de nadie.**
+Tres triggers (`cobros`, `cobro_lineas`, `petshop_devoluciones`) validan ahora que cada referencia
+sea de la misma clínica —y en el caso del turno, además de la misma **sucursal**—.
+`movimientos_inventario` no necesitó trigger: su policy de `0002` ya lo resuelve con un `exists`
+bajo la RLS del que llama, que es el patrón correcto y estaba en una sola tabla.
+
+**`0060` · El descuento estaba topado pero no justificado.** `codigoCupon` se aceptaba en
+`DatosVentaPOS`, `PetshopPosPage` lo mandaba… y `procesarVentaPOS` **nunca lo escribía**: no existía
+columna donde ponerlo. Y `calcularDescuentoPromocion()` es una función **pura del navegador**: el
+servidor recibía el importe ya cocinado y jamás comprobaba que hubiera una promoción que lo
+respaldara. Un `POST` con el 14 % del subtotal pasaba el tope sin ningún cupón.
+
+⚠️ **Esto obligó a una decisión de negocio que no se podía esquivar.** Si una promoción válida
+justifica saltarse el tope, y **cualquier personal puede crear promociones** —`/petshop/promociones`
+estaba abierta a admin, recepción y veterinario—, el tope no vale nada: recepción se crea un cupón
+del 99 % y lo aplica. Así que van juntas: **crear promociones pasa a ser solo del admin** (misma
+forma que `0045` aplicó a las comisiones de peluquería) y, a cambio, una promoción activa, en fecha
+y de esta clínica **sí** justifica el descuento. Sin promoción, sigue el tope —ahora configurable
+por clínica en `petshop_configuracion.descuento_max_pct`— y además **se exige un motivo escrito**.
+De paso, `limite_uso`/`usos_actuales` existían desde `0030` y **no los miraba nadie**: un cupón de un
+solo uso se podía aplicar mil veces. Ahora se consumen.
+
+⚠️ **Límite honesto de esa validación:** un trigger `before insert` sobre `cobros` ve el total y el
+descuento, pero **no ve las líneas** —se insertan después—. Así que `porcentaje`, `monto_fijo` y
+`cupon` se verifican de verdad contra su `valor_descuento`; `dos_por_uno` y `combo` solo se
+comprueban como referencia válida. Verificarlos exige el carrito, que solo tendrá la RPC
+transaccional de la fase 3.
+
+**`0061` · Sin idempotencia, un doble clic eran dos ventas.** Verificado: dos INSERT idénticos →
+dos cobros. Los dos únicos índices únicos de `cobros` son parciales sobre `cita_id` e
+`internacion_id`, y una venta de POS o de mostrador tiene las dos en null, así que ninguno la
+alcanzaba. Ahora hay `idempotency_key` con índice único parcial por clínica en `cobros` y
+`petshop_devoluciones`; la pantalla del POS genera la clave **al abrir el carrito, no al pulsar
+cobrar**, y el servicio captura el `23505` y **devuelve la venta original** en vez del error.
+
+⚠️ **Esto no es atomicidad.** Si el intento original murió a medias —cobro creado, líneas o
+inventario no—, el reenvío devuelve ese estado parcial. La atomicidad real es la RPC transaccional
+de la fase 3.
+
+**Verificado en producción con 18 pruebas en transacciones revertidas:** cobro con turno ajeno,
+línea con producto ajeno, línea con servicio ajeno, doble clic con la misma clave, descuento sin
+motivo, descuento del 40 % como recepción, descuento del 40 % con una promoción del 10 %, promoción
+inactiva, promoción de otra clínica y tercer uso de un cupón con límite 2 → **todos rechazados**.
+Y siguen funcionando: cobro normal, línea con producto propio, segunda venta con clave nueva,
+descuento del 10 % con motivo como recepción, descuento del 40 % con promoción del 40 % (que suma su
+uso), y descuento del 40 % manual como admin. Cero residuo al terminar.
 
 ---
 

@@ -59,6 +59,13 @@ export function PetshopPosPage() {
   const [codigoCupon, setCodigoCupon] = useState<string>('')
   const [descuentoCuponBs, setDescuentoCuponBs] = useState<number>(0)
   const [promocionAplicada, setPromocionAplicada] = useState<PetshopPromocion | null>(null)
+  /**
+   * Identifica este intento de venta. Se genera al montar la pantalla y se
+   * renueva al vaciar el carrito, no al pulsar «cobrar»: así un doble clic o un
+   * reintento de red mandan la MISMA clave y la base rechaza el duplicado
+   * (`0061`), en vez de registrar dos ventas idénticas.
+   */
+  const [claveVenta, setClaveVenta] = useState<string>(() => crypto.randomUUID())
   const [promocionesDisponibles, setPromocionesDisponibles] = useState<PetshopPromocion[]>([])
 
   // Modal de Ticket y Estado
@@ -165,6 +172,10 @@ export function PetshopPosPage() {
     setPromocionAplicada(null)
     setDescuentoCuponBs(0)
     setCodigoCupon('')
+    // Carrito nuevo, intento nuevo: la clave anterior ya identificó una venta
+    // registrada y reutilizarla haría que la siguiente se tomara por un
+    // reenvío de aquella.
+    setClaveVenta(crypto.randomUUID())
   }
 
   // Clientes únicos derivados de la lista de pacientes
@@ -222,7 +233,12 @@ export function PetshopPosPage() {
         metodoPago,
         montoRecibidoBs: montoRecibidoNum,
         descuentoGlobalBs: descuentoCuponBs,
-        codigoCupon: promocionAplicada?.codigo_cupon || undefined,
+        // La promoción viaja por su id, no por su código: el servidor la
+        // vuelve a leer y valida que esté activa, en fecha y que el importe
+        // no supere lo que puede dar. Antes se mandaba `codigoCupon` y el
+        // servicio lo descartaba.
+        promocionId: promocionAplicada?.id ?? null,
+        idempotencyKey: claveVenta,
         usuarioId: usuario?.id,
       })
 

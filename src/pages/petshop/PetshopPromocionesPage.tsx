@@ -18,8 +18,16 @@ import {
 } from '../../services/promociones'
 import type { PetshopPromocion } from '../../types/database'
 import { NuevaPromocionModal } from '../../features/petshop/NuevaPromocionModal'
+import { useAuth } from '../../context/useAuth'
 
 export function PetshopPromocionesPage() {
+  // Desde la migracion 0060 la escritura de promociones es solo del admin: una
+  // promocion fija politica comercial y puede justificar un descuento por
+  // encima del tope. Se ocultan los botones en vez de dejar que el guardado
+  // devuelva un 403, misma convencion que PanelVademecum.
+  const { usuario } = useAuth()
+  const esAdmin = usuario?.rol === 'admin'
+
   const [promociones, setPromociones] = useState<PetshopPromocion[]>([])
   const [cargando, setCargando] = useState(true)
 
@@ -63,10 +71,12 @@ export function PetshopPromocionesPage() {
           <Button type="button" variant="outline" size="sm" onClick={() => recargar()}>
             <RefreshCw size={14} className={cargando ? 'animate-spin' : ''} />
           </Button>
-          <Button type="button" variant="primary" size="sm" onClick={() => setModalNueva(true)}>
-            <Plus size={15} className="mr-1.5" />
-            <span>Nueva Promoción</span>
-          </Button>
+          {esAdmin && (
+            <Button type="button" variant="primary" size="sm" onClick={() => setModalNueva(true)}>
+              <Plus size={15} className="mr-1.5" />
+              <span>Nueva Promoción</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -128,30 +138,32 @@ export function PetshopPromocionesPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleActivo(p)}
-                  className={p.activo ? 'text-amber-700' : 'text-emerald-700'}
-                >
-                  {p.activo ? 'Desactivar' : 'Activar'}
-                </Button>
+              {esAdmin && (
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleActivo(p)}
+                    className={p.activo ? 'text-amber-700' : 'text-emerald-700'}
+                  >
+                    {p.activo ? 'Desactivar' : 'Activar'}
+                  </Button>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setPromocionAEditar(p)
-                    setModalNueva(true)
-                  }}
-                >
-                  <Edit2 size={12} className="mr-1" />
-                  <span>Editar</span>
-                </Button>
-              </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setPromocionAEditar(p)
+                      setModalNueva(true)
+                    }}
+                  >
+                    <Edit2 size={12} className="mr-1" />
+                    <span>Editar</span>
+                  </Button>
+                </div>
+              )}
             </Card>
           ))}
         </div>

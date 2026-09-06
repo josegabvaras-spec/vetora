@@ -408,10 +408,13 @@ export type Database = {
           clinica_id: string
           created_at: string
           descuento_bs: number
+          descuento_motivo: string | null
           id: string
+          idempotency_key: string | null
           internacion_id: string | null
           metodo_pago: string
           monto_bs: number
+          promocion_id: string | null
           sucursal_id: string
           turno_id: string
           usuario_id: string
@@ -422,10 +425,13 @@ export type Database = {
           clinica_id?: string
           created_at?: string
           descuento_bs?: number
+          descuento_motivo?: string | null
           id?: string
+          idempotency_key?: string | null
           internacion_id?: string | null
           metodo_pago: string
           monto_bs: number
+          promocion_id?: string | null
           sucursal_id: string
           turno_id: string
           usuario_id: string
@@ -436,10 +442,13 @@ export type Database = {
           clinica_id?: string
           created_at?: string
           descuento_bs?: number
+          descuento_motivo?: string | null
           id?: string
+          idempotency_key?: string | null
           internacion_id?: string | null
           metodo_pago?: string
           monto_bs?: number
+          promocion_id?: string | null
           sucursal_id?: string
           turno_id?: string
           usuario_id?: string
@@ -2449,6 +2458,7 @@ export type Database = {
           monto_devuelto_bs: number
           usuario_id: string | null
           autorizado_por: string | null
+          idempotency_key: string | null
           created_at: string
         }
         Insert: {
@@ -2463,6 +2473,7 @@ export type Database = {
           monto_devuelto_bs?: number
           usuario_id?: string | null
           autorizado_por?: string | null
+          idempotency_key?: string | null
           created_at?: string
         }
         Update: {
@@ -2477,6 +2488,7 @@ export type Database = {
           monto_devuelto_bs?: number
           usuario_id?: string | null
           autorizado_por?: string | null
+          idempotency_key?: string | null
           created_at?: string
         }
         Relationships: [
@@ -2517,6 +2529,7 @@ export type Database = {
           dias_alerta_vencimiento: number
           permitir_venta_sin_stock: boolean
           exigir_autorizacion_devolucion: boolean
+          descuento_max_pct: number
           impresion_ticket_automatica: boolean
           mensaje_ticket_pie: string
           created_at: string
@@ -2527,6 +2540,7 @@ export type Database = {
           dias_alerta_vencimiento?: number
           permitir_venta_sin_stock?: boolean
           exigir_autorizacion_devolucion?: boolean
+          descuento_max_pct?: number
           impresion_ticket_automatica?: boolean
           mensaje_ticket_pie?: string
           created_at?: string
@@ -2537,6 +2551,7 @@ export type Database = {
           dias_alerta_vencimiento?: number
           permitir_venta_sin_stock?: boolean
           exigir_autorizacion_devolucion?: boolean
+          descuento_max_pct?: number
           impresion_ticket_automatica?: boolean
           mensaje_ticket_pie?: string
           created_at?: string

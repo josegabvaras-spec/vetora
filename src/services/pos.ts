@@ -13,9 +13,26 @@ export interface DatosVentaPOS {
   metodoPago: MetodoPago
   montoRecibidoBs?: number
   descuentoGlobalBs?: number
-  codigoCupon?: string
+  /**
+   * Promoción que justifica el descuento. Antes viajaba aquí `codigoCupon`,
+   * que el servicio **aceptaba y descartaba**: no había columna donde ponerlo,
+   * así que se sabía cuánto se descontó pero no por qué. Desde `0060` la base
+   * valida esta promoción (misma clínica, activa, en fecha, dentro de su
+   * `limite_uso`) y comprueba que el importe no supere lo que puede dar.
+   */
+  promocionId?: string | null
+  /** Obligatorio cuando hay descuento y NO hay promoción que lo respalde. */
+  descuentoMotivo?: string
   notas?: string
   usuarioId?: string
+  /**
+   * Identifica el INTENTO de venta, no la venta. La genera la pantalla al
+   * abrir el carrito —no al pulsar «cobrar»—, así que un doble clic o un
+   * reintento de red traen la misma clave y la base rechaza el duplicado
+   * (`cobros_idempotency_key_unica`, migración `0061`). Sin clave, el
+   * comportamiento es el de siempre.
+   */
+  idempotencyKey?: string
 }
 
 export interface ResultadoVentaPOS {
@@ -199,12 +216,41 @@ export async function procesarVentaPOS(datos: DatosVentaPOS): Promise<ResultadoV
       metodo_pago: datos.metodoPago,
       monto_bs: totalFinal,
       descuento_bs: descuentoGlobal,
+      promocion_id: datos.promocionId ?? null,
+      descuento_motivo: datos.descuentoMotivo?.trim() || null,
+      idempotency_key: datos.idempotencyKey ?? null,
       usuario_id: datos.usuarioId || turno.usuario_id,
     })
     .select()
     .single()
 
   if (errorCobro || !cobro) {
+    // 23505 sobre la clave de idempotencia: esta venta YA se registró y esto es
+    // un reenvío (doble clic, reintento de red). No es un error que deba ver
+    // quien vende: se devuelve la venta original en vez de crear una segunda.
+    //
+    // ⚠️ Esto no es atomicidad. Si el intento original murió a medias —cobro
+    // creado, líneas o inventario no—, aquí se devuelve ese estado parcial. La
+    // atomicidad real es la RPC transaccional de la fase 3.
+    if ((errorCobro as { code?: string } | null)?.code === '23505' && datos.idempotencyKey) {
+      const { data: original } = await supabase
+        .from('cobros')
+        .select('*')
+        .eq('idempotency_key', datos.idempotencyKey)
+        .maybeSingle()
+
+      if (original) {
+        return {
+          cobroId: original.id,
+          numeroRecibo: 1,
+          totalBs: original.monto_bs,
+          itemsVendidos: datos.items.reduce((acc, i) => acc + i.cantidad, 0),
+          fecha: original.created_at,
+          clienteNombre,
+          pacienteNombre,
+        }
+      }
+    }
     throw new Error(`Error al registrar cobro en caja: ${errorCobro?.message || 'desconocido'}`)
   }
 
