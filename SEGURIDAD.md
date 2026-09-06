@@ -17,7 +17,7 @@ tienen entrada aquí**: se documentan allí.
 | Severidad | Hallazgos | Estado |
 |---|---|---|
 | Crítico | 0 | — |
-| Alto | 5 | corregidos (H-19 incluido) |
+| Alto | 6 | corregidos (H-19 y H-20 incluidos) |
 | Medio | 9 | 8 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, y H-18), 1 mitigado (precio del POS, auditable) |
 | Bajo / Info | 5 | 3 corregidos, 1 verificado seguro (Vercel), 1 heredado pendiente (rotar la contraseña) |
 
@@ -594,6 +594,69 @@ residuo: 0 cobros, 0 devoluciones, los dos turnos en `abierto` y el admin con su
 (`aplicarAjustes()` en `caja.ts`) sigue siendo una funcionalidad deliberada y sigue sin poder
 distinguirse en el esquema de un precio inventado — es H-13, que sigue *mitigado y auditable*, no
 bloqueado.
+
+### H-20 · ALTO · H-19 se podía esquivar con UPDATE y DELETE — CORREGIDO
+
+**Autoincidente, y de la misma clase que H-15: lo encontró la re-auditoría de una corrección propia,
+no el trabajo original.** Una hora después de aplicar `0056`, se volvió a atacar en vez de darla por
+buena, y **dos de sus cuatro reglas se caían con una sentencia**.
+
+**La causa raíz es una sola y merece nombre:** los cuatro triggers de `0056` son `before insert` o
+`before update`, pero **las policies de esas tablas son `FOR ALL`** — incluyen DELETE, y en
+`petshop_devoluciones` también UPDATE. Un trigger que valida el INSERT no dice nada de lo que le
+pase a esa fila después. Se puso el candado en la puerta y se dejó la ventana abierta.
+
+Ataques verificados contra producción, en transacción revertida, **antes** de corregir:
+
+| Ataque | Resultado |
+|---|---|
+| Insertar una devolución válida de 1 unidad y acto seguido `UPDATE … cantidad = 500, monto = 5000` | **Pasó.** La fila quedó en 500 |
+| `DELETE` de una devolución registrada | **Pasó** |
+| `DELETE` de un turno **cerrado** con `diferencia_bs = -300` | **Pasó** |
+| `DELETE` de un movimiento de inventario | **Pasó**, y el stock descontado **no vuelve** |
+
+El último no es de `0056`: es un hueco propio de `movimientos_all` (`FOR ALL`) combinado con
+`trg_aplicar_movimiento_inventario`, que es `after insert` y por tanto **no revierte nada al borrar
+o modificar**. El kardex y el stock se separaban en silencio, para siempre.
+
+Lo único que ya acotaba el borrado de turnos era el FK `cobros.turno_id → turnos_caja` con
+`NO ACTION`: un turno *con* cobros no se puede borrar. O sea que el ataque funcionaba justo sobre el
+turno que alguien querría hacer desaparecer — el que se abrió, no facturó y cerró descuadrado.
+
+**Corregido en `0057` (turnos y devoluciones) y `0058` (kardex)**, con tres triggers de
+inmutabilidad. Dos decisiones de diseño que no son obvias:
+
+- **Se bloquean TODOS los borrados de turno, no solo los cerrados.** Un turno abierto por error
+  también es un registro: se cierra con saldo cero, que es la corrección contable correcta y la que
+  el dueño del producto ya eligió para toda la caja. Y no cuesta nada, porque ninguna pantalla borra
+  turnos.
+- ⚠️ **El UPDATE no se bloquea en bloque, sino columna por columna, y es obligatorio que sea así.**
+  Varias FK de estas tablas son `on delete set null` (`usuario_id`, `autorizado_por`, `cobro_id`,
+  `cita_id`, `internacion_id`, `lote_id`). Cuando `eliminar-usuario` borra a alguien que registró una
+  devolución o movió stock, PostgreSQL emite un UPDATE poniendo esa columna a null — y un trigger
+  que rechazara cualquier UPDATE **haría imposible borrar a ese usuario**, con un error que no
+  explicaría nada. Se permite el paso a **null** (limpieza de FK) y se prohíbe el paso a **otro
+  valor** (falsificar autoría). Es la diferencia entre limpiar una referencia rota y reescribir la
+  historia.
+
+**Riesgo de regresión, medido antes de escribir nada:** `grep` sobre `src/` y `supabase/functions/`
+devolvió **cero** `.delete()` sobre las tres tablas y **cero** `.update()` sobre devoluciones y
+movimientos. Ninguna pantalla hace hoy lo que estos triggers bloquean. `eliminarProducto()` es
+**baja lógica** (`update activo = false`), no un DELETE — el proyecto ya había aprendido esa lección
+por su cuenta.
+
+**Verificado tras aplicar, con 12 pruebas en transacción revertida:** los cuatro ataques de arriba
+pasan a rechazarse (`P0001`), más el borrado de un turno abierto y la reasignación de autoría de un
+movimiento; y siguen funcionando el INSERT de una devolución válida, el INSERT de un movimiento,
+cerrar un turno abierto, y el `set null` de `usuario_id` en devoluciones y movimientos —que es
+exactamente lo que hace `eliminar-usuario`—. Cero residuo al terminar.
+
+**Lo que sigue abierto de este bloque**, documentado en el plan del Bloque 1 y no cerrado aquí:
+el precio del POS todavía no se bloquea (falta el discriminador `origen`), no hay idempotencia
+(dos peticiones idénticas siguen creando dos ventas), la venta no es transaccional, el descuento
+está topado pero no justificado contra una promoción real, y un cobro puede apuntar al turno de otra
+clínica. Y `productos_all` sigue siendo `FOR ALL`, así que el stock se puede mover por fuera del
+kardex con un `UPDATE productos` directo.
 
 ---
 
