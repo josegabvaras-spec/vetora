@@ -17,8 +17,8 @@ tienen entrada aquí**: se documentan allí.
 | Severidad | Hallazgos | Estado |
 |---|---|---|
 | Crítico | 0 | — |
-| Alto | 7 | corregidos (H-19, H-20 y H-22 incluidos) |
-| Medio | 12 | 11 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18, H-21, H-23 y H-24), 1 mitigado (precio del POS fuera del camino verificado) |
+| Alto | 8 | corregidos (H-19, H-20, H-22 y H-25 incluidos) |
+| Medio | 12 | 11 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18, H-21, H-23 y H-24), 1 mitigado → **cerrado en H-25**: ya no hay INSERT directo de cobros |
 | Bajo / Info | 5 | 3 corregidos, 1 verificado seguro (Vercel), 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
@@ -895,6 +895,60 @@ o una devolución → **0 filas**, sin policy que lo permita. `UPDATE` directo d
 rechazado; subirlo por el kardex → +25 correctamente. Y las seis del cliente con sucursal, arriba.
 
 **Estado final: ni un `FOR ALL` en las cinco tablas de dinero e inventario.**
+
+### H-25 · ALTO · Un cobro solo puede nacer dentro de una función del servidor — CORREGIDO
+
+Lo último que quedaba abierto del Bloque 1, y la frase que hasta hoy había que matizar en cada
+informe: *«un INSERT crudo en `cobro_lineas` con un precio inventado sigue siendo posible»*. **Ya no
+lo es.**
+
+`0062` movió la venta del POS a una función. `registrarCobro` y `registrarVentaDirecta` —el cobro de
+consultas, internaciones, órdenes de peluquería y la venta de mostrador— se quedaron fuera, con los
+mismos defectos que el POS tenía antes: sin transacción, la autoría elegida por el cliente
+(`usuario_id` del cuerpo), y `monto_bs` calculado en el navegador sin que nada obligara a que fuera
+la suma de sus líneas. Y mientras existieran, `cobros`/`cobro_lineas` **tenían** que seguir
+aceptando INSERT directo.
+
+⚠️ **Dónde está la frontera, y por qué NO es la misma que en el POS.** En el POS el servidor relee el
+precio del catálogo y no acepta ninguno del cliente: vender a otro precio no es una función que
+exista. En una consulta **sí existe y es la funcionalidad** — `aplicarAjustes()` deja que quien cobra
+fije el importe de una línea de consumo, y su propio comentario lo dice. El precio por unidad de
+medida es una **referencia**, no la verdad: aplicar 2 ml de un frasco a Bs. 2/ml daría un recibo de
+«2 ml × Bs. 2» que no es lo que la clínica cobra.
+
+Así que `registrar_cobro()` (`0065`) se queda con **todo lo que puede ser suyo** —la autoría
+(`auth.uid()`), el total (sumado de las líneas, ya no llega calculado), el turno abierto, la clínica,
+la comprobación de «ya se cobró», el descuento de stock de la venta de mostrador **dentro de la misma
+transacción**, la idempotencia y la atomicidad— y lo único que aporta el cliente es **el importe que
+decide una persona**, que igual queda registrado: `trg_precio_catalogo` guarda el precio de catálogo
+al lado y marca la línea como `ajuste_manual`, así que la desviación sale en `/metricas`.
+**Fingir que el servidor puede recalcular el precio de una consulta sería mentir sobre lo que el
+negocio hace.**
+
+De paso desapareció un comentario que llevaba tiempo admitiendo el problema. `registrarVentaDirecta`
+descontaba el stock **después** del cobro y explicaba por qué: hacerlo antes dejaba mercadería fuera
+del inventario sin venta, y hacerlo después dejaba «un cobro registrado y visible, que es recuperable
+a mano». Terminaba diciendo lo que faltaba: *«No es atomicidad real: para eso haría falta una función
+`security definer` que hiciera cobro y egresos en una sola transacción.»* Es exactamente `0065`.
+
+**Y `0066` cierra la puerta.** Con los cuatro caminos dentro de funciones, se eliminan
+`cobros_insert` y `cobro_lineas_insert` **sin recrearlas**: para un cliente de PostgREST las dos
+tablas quedan en **solo lectura**. Las funciones son `security definer` y siguen escribiendo;
+`respaldo-clinica` usa `service_role` y no pasa por la RLS.
+
+⚠️ **El orden no era negociable, y por eso son dos migraciones.** Quitar las policies antes de que el
+frontend nuevo estuviera desplegado habría dejado a **todas las clínicas sin poder cobrar en el mismo
+instante**. La secuencia real fue: aplicar `0065` → desplegar el frontend → **comprobar en el bundle
+servido por `www.vetora.online` que ya llama a las dos funciones** → y solo entonces `0066`.
+
+**Verificado en producción, 18 pruebas en transacciones revertidas.** De `0065`: venta de mostrador
+con cobro, línea y stock juntos; autoría igual a `auth.uid()`; total sumado por el servidor
+(20+30=50); atomicidad con stock insuficiente (cero cobros huérfanos); reenvío idempotente; cobrar
+una cita; no poder cobrarla dos veces; la línea marcada `ajuste_manual` con su precio de catálogo;
+cobro sin nombre ni atención rechazado; caja cerrada rechazada. De `0066`, con
+`set local role authenticated`: **INSERT directo en `cobros` → `42501`**, **INSERT directo de una
+línea → `42501`**, modificar el importe de un cobro → 0 filas, borrarlo → 0 filas; y siguen
+funcionando cobrar por la función, la venta del POS, y leer cobros y líneas.
 
 ---
 
