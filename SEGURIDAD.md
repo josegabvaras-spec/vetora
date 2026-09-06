@@ -11,7 +11,7 @@ ataques contra la base de producción** — ver «Lo que no se pudo probar».
 | Crítico | 0 | — |
 | Alto | 4 | corregidos |
 | Medio | 8 | 7 corregidos (incluido el registro público de Auth, cerrado por el usuario en el Dashboard), 1 mitigado (precio del POS, auditable) |
-| Bajo / Info | 3 | 2 corregidos, 1 heredado pendiente (rotar la contraseña) |
+| Bajo / Info | 4 | 3 corregidos, 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
 H-8. Cada uno se verificó a mano antes de corregirlo, y **uno de los reportados resultó falso** —
@@ -449,6 +449,42 @@ Verificado en producción, con el bundle nuevo ya servido:
 - `anon` contra la RPC tras el `drop`+`create` → `401` (no se reabrió `PUBLIC`).
 - Login real en el navegador, de principio a fin → entra, aterriza en el Dashboard, cero errores de
   consola achacables a la aplicación.
+
+---
+
+### H-16 · BAJO · CORS abierto (`*`) en las 8 Edge Functions — CORREGIDO
+
+Las ocho funciones (`acceso`, `asistente`, `crear-cuenta`, `cuentas-portal`, `eliminar-clinica`,
+`eliminar-usuario`, `registro-portal`, `respaldo-clinica`) respondían `Access-Control-Allow-Origin: *`
+de forma uniforme — cualquier página de internet podía llamarlas desde el navegador de quien la
+visitara.
+
+**Severidad baja, y no cambia con la corrección:** la autenticación de estas funciones es por token
+**Bearer** en la cabecera `Authorization`, no por cookie. Un origen ajeno no puede adjuntar
+automáticamente la sesión de otra pestaña —que es el vector clásico que CORS abierto habilita con
+cookies—; para explotarlo, un atacante ya necesitaría el token de quien llama, momento en el que el
+origen deja de importar. Aun así, restringirlo es una capa de endurecimiento sin coste funcional:
+estas funciones no están pensadas para llamarse desde ningún otro dominio.
+
+**Corrección:** cada función valida el `Origin` de la petición contra una lista (`vetora.online`,
+`www.vetora.online`, y los dos `localhost` de Vite para `supabase functions serve` en desarrollo —
+sin ellos, probar estas funciones en local con `npm run dev` habría fallado por CORS antes de llegar
+a la lógica) y solo refleja el origen si está en ella; si no, cae al primero de la lista, que el
+navegador del origen ajeno rechazará por no coincidir consigo mismo.
+
+Las ocho compartían el mismo patrón —`cabeceras` fijo a nivel de módulo, usado por `responder()`—,
+así que hizo falta mover ambos dentro de `Deno.serve()`: el origen solo se conoce por petición, y
+`cabeceras` tiene que depender de ella.
+
+Verificado en producción tras desplegar las ocho:
+
+```
+Origin: https://www.vetora.online       → Access-Control-Allow-Origin: https://www.vetora.online
+Origin: https://sitio-cualquiera.com    → Access-Control-Allow-Origin: https://vetora.online (no coincide, el navegador lo bloquea)
+```
+
+Y que ninguna se rompió: `registro-portal` sigue respondiendo con normalidad (401 sobre un cuerpo
+vacío, el comportamiento esperado) con el origen legítimo.
 
 ---
 

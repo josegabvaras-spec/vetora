@@ -33,17 +33,36 @@ const admin = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } },
 )
 
-const cabeceras = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Content-Type': 'application/json',
+/**
+ * `vetora.online` redirige a `www.vetora.online` a nivel de Vercel — el
+ * navegador manda el segundo como `Origin` tras seguir el redirect, pero se
+ * acepta el primero también por si algo lo llama directo. Los dos de
+ * `localhost` son para `supabase functions serve` en desarrollo (ver la
+ * cabecera del fichero): sin ellos, probar esta función en local con
+ * `npm run dev` fallaría por CORS antes de llegar a la lógica.
+ *
+ * El origen se valida contra esta lista y nunca se acepta tal cual: antes
+ * era `'*'`, que deja llamar a la función desde cualquier página de
+ * internet. El riesgo real es bajo —la autenticación es por token Bearer,
+ * no por cookie, así que un origen ajeno no puede adjuntar la sesión de
+ * quien la visita— pero no cuesta nada acotarlo.
+ */
+const ORIGENES_PERMITIDOS = [
+  'https://vetora.online',
+  'https://www.vetora.online',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+]
+
+function cabecerasCors(origen: string | null) {
+  return {
+    'Access-Control-Allow-Origin': origen && ORIGENES_PERMITIDOS.includes(origen) ? origen : ORIGENES_PERMITIDOS[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Content-Type': 'application/json',
+  }
 }
 
 const MINIMO = 8
-
-function responder(cuerpo: unknown, status = 200) {
-  return new Response(JSON.stringify(cuerpo), { status, headers: cabeceras })
-}
 
 /**
  * Invitación utilizable, con su usuario y su clínica.
@@ -92,7 +111,12 @@ function resuelto(usuario: { id: string; nombre: string; email: string }, clinic
 }
 
 Deno.serve(async (peticion) => {
+  const cabeceras = cabecerasCors(peticion.headers.get('origin'))
   if (peticion.method === 'OPTIONS') return new Response('ok', { headers: cabeceras })
+
+  function responder(cuerpo: unknown, status = 200) {
+    return new Response(JSON.stringify(cuerpo), { status, headers: cabeceras })
+  }
 
   try {
     const cuerpo = await peticion.json()
