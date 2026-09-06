@@ -11,7 +11,7 @@ ataques contra la base de producción** — ver «Lo que no se pudo probar».
 | Crítico | 0 | — |
 | Alto | 4 | corregidos |
 | Medio | 8 | 7 corregidos (incluido el registro público de Auth, cerrado por el usuario en el Dashboard), 1 mitigado (precio del POS, auditable) |
-| Bajo / Info | 4 | 3 corregidos, 1 heredado pendiente (rotar la contraseña) |
+| Bajo / Info | 5 | 3 corregidos, 1 verificado seguro (Vercel), 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
 H-8. Cada uno se verificó a mano antes de corregirlo, y **uno de los reportados resultó falso** —
@@ -485,6 +485,30 @@ Origin: https://sitio-cualquiera.com    → Access-Control-Allow-Origin: https:/
 
 Y que ninguna se rompió: `registro-portal` sigue respondiendo con normalidad (401 sobre un cuerpo
 vacío, el comportamiento esperado) con el origen legítimo.
+
+---
+
+### H-17 · INFO · Vercel: previews, variables de entorno y dominios — VERIFICADO SEGURO
+
+Auditorías anteriores dejaron esto marcado explícitamente como «no se pudo verificar»: sin la CLI de
+Vercel autenticada en esta máquina, no había forma de ver la configuración real del panel. Se cerró
+pidiéndole al usuario tres capturas puntuales en vez de credenciales — ninguna de las tres pantallas
+expone nada sensible por sí sola.
+
+- **Deployment Protection**: «Vercel Authentication» activo en «Standard Protection». Las previews
+  —que se generan automáticamente para cualquier rama que no sea `main`— exigen estar identificado en
+  Vercel y ser miembro del equipo para verse. **No son públicas**, que era el riesgo concreto que
+  quedaba sin descartar.
+- **Environment Variables**: exactamente dos, `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`, las dos
+  marcadas para Production y Preview. Cero variables inesperadas — nada con `SERVICE_ROLE`, `SECRET`,
+  `ANTHROPIC_API_KEY` ni ningún otro nombre que sugiera un secreto real. Compartir estas dos entre
+  Production y Preview no es un riesgo: la clave anónima es pública por diseño (viaja en el bundle de
+  todos modos) y su única protección es la RLS, no el secreto.
+- **Domains**: tres, todos explicables — `vetora.online` (redirige 308 a `www`), `www.vetora.online`
+  (el sitio real) y `vetora-bice.vercel.app` (el subdominio automático que Vercel asigna a todo
+  proyecto). Nada de terceros, nada añadido que no se reconozca.
+
+Con esto se cierra el último punto que quedaba abierto de todas las auditorías de esta sesión.
 
 ---
 
