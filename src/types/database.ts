@@ -690,6 +690,17 @@ export interface Cobro {
   cliente_nombre?: string | null
   usuario_id: string
   monto_bs: number
+  /**
+   * Descuento aplicado sobre el subtotal (migración 0056): `monto_bs` es lo que
+   * el cliente pagó, y el subtotal original es `monto_bs + descuento_bs`.
+   *
+   * Antes el descuento se restaba en el navegador y **desaparecía**: una venta
+   * con 90 % de descuento era indistinguible de una venta barata, y no quedaba
+   * nada que auditar. Un descuento por encima del 15 % solo lo puede aplicar
+   * una sesión con rol `admin` — lo comprueba `trg_validar_descuento_cobro` con
+   * `auth_es_admin()`, o sea contra el JWT, no contra un campo del cuerpo.
+   */
+  descuento_bs: number
   metodo_pago: MetodoPago
   created_at: string
 }

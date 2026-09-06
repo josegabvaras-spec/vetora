@@ -6,11 +6,19 @@ ataques contra la base de producción** — ver «Lo que no se pudo probar».
 
 ## Resumen
 
+⚠️ **La tabla de abajo es el recuento histórico de este registro (H-1 a H-19) y NO es el inventario
+completo.** El inventario autoritativo es el **informe final de auditoría del 2026-09-06**, que
+consolida las siete fases de diagnóstico, las auditorías de dependencias y cloud, la segunda opinión
+independiente y el retest en un registro único de **46 hallazgos (VUL-01 a VUL-46)** con su estado.
+Varios hallazgos abiertos de ese informe —entre ellos la suspensión de clínica que la RLS no aplica,
+`productos_all`/`turnos_caja_all` sin rol, y la falsificación de autoría en `historial_clinico`— **no
+tienen entrada aquí**: se documentan allí.
+
 | Severidad | Hallazgos | Estado |
 |---|---|---|
 | Crítico | 0 | — |
-| Alto | 4 | corregidos |
-| Medio | 8 | 7 corregidos (incluido el registro público de Auth, cerrado por el usuario en el Dashboard), 1 mitigado (precio del POS, auditable) |
+| Alto | 5 | corregidos (H-19 incluido) |
+| Medio | 9 | 8 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, y H-18), 1 mitigado (precio del POS, auditable) |
 | Bajo / Info | 5 | 3 corregidos, 1 verificado seguro (Vercel), 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
@@ -509,6 +517,83 @@ expone nada sensible por sí sola.
   proyecto). Nada de terceros, nada añadido que no se reconozca.
 
 Con esto se cierra el último punto que quedaba abierto de todas las auditorías de esta sesión.
+
+---
+
+### H-18 · MEDIO · El peluquero leía, escribía y CERRABA el expediente clínico — CORREGIDO
+
+**Entrada escrita a posteriori.** La corrección se aplicó y se verificó el 2026-09-05 (migración
+`0053`, commit `1886da8`), pero solo se anotó en `CLAUDE.md`: este registro se la saltó. Lo detectó
+el informe final de auditoría al cruzar migraciones contra entradas, y se documenta aquí porque un
+hallazgo cerrado sin rastro escrito es un hallazgo que alguien puede reabrir sin saberlo.
+
+`auth_es_personal()` incluye a `peluquero` desde `0025`, y de esa función colgaban las policies de
+las nueve tablas del expediente. La interfaz ya se lo ocultaba todo —`puedeVerHistorialClinico()`
+no lo incluye, el `RolRoute` de las rutas de impresión lo deja fuera— pero **la RLS era más laxa que
+la interfaz**: por PostgREST podía leer un historial, escribirlo, **cerrarlo** (el `with check` de
+`historial_update` no exige `editable`, así que el UPDATE que lo cierra pasaba) y recetar.
+
+`0053` introduce **`auth_ve_expediente()`** —admin, veterinario y recepción, con `activo`— y mueve
+allí **27 policies** más las 3 del bucket `estudios`. No sirve `auth_es_clinico()` (0042) porque
+excluiría a recepción, que abre la consulta desde la cita y registra el esquema sanitario. Lo que
+**no** se toca: `pacientes`, `clientes`, `citas` y las `peluqueria_*` siguen en `auth_es_personal()`
+— es el trabajo legítimo del peluquero.
+
+Verificado con los seis roles, cambiando el rol de un usuario real dentro de una transacción
+revertida: admin/veterinario/recepción → `true`; peluquero/cliente/admin-desactivado → `false`.
+
+### H-19 · ALTO · Integridad de caja y POS: turno cerrado, devoluciones y descuentos — CORREGIDO
+
+Cuatro huecos que la Fase 6 de la auditoría encontró y que **nunca entraron en la tanda de
+remediación aprobada** —llegaron después de que se cerrara el plan—, así que sobrevivieron intactos
+hasta ahora. Los cuatro compartían la misma causa raíz que el resto de esta auditoría: la barrera
+vivía en el navegador y no en la base.
+
+| Antes | Ahora (migración `0056`) |
+|---|---|
+| Un `POST /rest/v1/cobros` podía meter una venta en un turno **ya cerrado y arqueado**: el cuadre del martes dejaba de cuadrar el miércoles, sin más rastro que `created_at` | `trg_cobro_exige_turno_abierto` lo rechaza |
+| `turnos_caja` era la **única tabla financiera reescribible**: se podía borrar la evidencia de un faltante (`diferencia_bs = 0`) o reabrir el turno | `trg_turno_cerrado_inmutable`, mismo patrón que `trg_historial_inmutable` |
+| Una devolución no se validaba contra nada: sin venta asociada, sin tope contra lo vendido, repetible indefinidamente, y con un `monto_devuelto_bs` sin relación con lo cobrado | `trg_validar_devolucion` comprueba las cuatro cosas |
+| El descuento del POS llegaba del navegador sin tope y **desaparecía** del registro: una venta con 90 % de descuento era indistinguible de una venta barata | Columna `cobros.descuento_bs` + `trg_validar_descuento_cobro` (>15 % exige `auth_es_admin()`) |
+
+**Las dos decisiones de negocio las tomó el dueño del producto, no el auditor:** un turno o una
+venta cerrados no se reabren (un error se corrige con un asiento nuevo, igual que el historial
+clínico), y el tope de descuento sin autorización es el 15 %.
+
+⚠️ **El tope del 15 % se comprueba contra `auth_es_admin()`, o sea contra el JWT de la sesión, no
+contra `usuario_id`** —que lo manda el cliente y por tanto es falsificable (es el mismo defecto que
+`SEGURIDAD.md` ya documenta para la autoría del cobro). Un POST directo a PostgREST tampoco lo
+esquiva.
+
+⚠️ **Los tres triggers de `cobros`/`turnos_caja` llevan una salida `auth.uid() is null`, y no es
+opcional.** `respaldo-clinica` restaura ambas tablas con `service_role`: cobros históricos que
+apuntan a turnos cerrados hace meses. Sin esa salida, **restaurar un respaldo fallaría siempre**, y
+el fallo se leería como «el respaldo está corrupto». No abre nada: `anon` también tiene `auth.uid()`
+null, pero `cobros_insert` ya le niega el INSERT por `auth_es_personal()`. Es la misma clase de
+escape que `trg_paciente_sin_caja` lleva para `eliminar-clinica`. `petshop_devoluciones` **no**
+lleva la salida a propósito: no está en la lista de tablas que restaura esa función, así que un
+escape ahí solo debilitaría la comprobación sin que nada lo usara.
+
+De paso se corrigió el modal de devolución, que era **incorrecto aunque nadie lo hubiera notado**:
+ofrecía el catálogo entero de la sucursal y prellenaba el monto con el precio de **hoy**. Si el
+producto había subido de precio desde la venta, proponía devolver más dinero del que el cliente
+pagó. Ahora lista solo lo que esa venta cobró, con el precio de esa venta, y enseña
+«Vendido / Ya devuelto / Disponible».
+
+**Verificado en producción con 14 pruebas dentro de una transacción revertida**, con identidad real
+inyectada (`request.jwt.claims`) porque los triggers llevan la salida de `service_role` y sin
+identidad no se ejercitaban: cobrar en turno cerrado → rechaza; cobrar en turno abierto → permite;
+reescribir o reabrir un arqueo cerrado → rechaza; cerrar un turno abierto → permite; descuento del
+40 % como admin → permite, como recepción → rechaza; descuento del 10 % como recepción → permite;
+devolver 2 de 5 → permite, 4 más → rechaza; devolver Bs. 500 por una unidad de Bs. 10 → rechaza;
+devolución sin venta ni autorización → rechaza, autorizada por admin → permite; y la restauración
+de un cobro histórico en un turno cerrado → permite. Comprobado después que el `ROLLBACK` no dejó
+residuo: 0 cobros, 0 devoluciones, los dos turnos en `abierto` y el admin con su rol intacto.
+
+**Lo que esto NO cierra, y conviene no confundirlo:** el ajuste manual de precio por línea
+(`aplicarAjustes()` en `caja.ts`) sigue siendo una funcionalidad deliberada y sigue sin poder
+distinguirse en el esquema de un precio inventado — es H-13, que sigue *mitigado y auditable*, no
+bloqueado.
 
 ---
 

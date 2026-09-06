@@ -50,12 +50,94 @@ export interface DatosDevolucionInput {
   autorizadoPor?: string
 }
 
+/** Lo que queda por devolver de un producto dentro de una venta concreta. */
+export interface DisponibleParaDevolver {
+  /** Unidades que esa venta cobró de ese producto. */
+  vendido: number
+  /** Unidades ya devueltas contra esa misma venta. */
+  yaDevuelto: number
+  /** `vendido - yaDevuelto`, nunca negativo. */
+  disponible: number
+  /** Precio unitario **de esa venta**, no el del catálogo de hoy. */
+  precioUnitarioBs: number
+}
+
+/**
+ * Cuánto se puede devolver todavía de un producto en una venta.
+ *
+ * Es el espejo en el cliente de `trg_validar_devolucion` (migración 0056): la
+ * barrera real vive en la base, y esto existe para que el modal enseñe el
+ * límite mientras se escribe en vez de fallar al pulsar «Confirmar».
+ *
+ * ⚠️ El precio sale de `cobro_lineas`, no de `productos`: si el catálogo subió
+ * de precio desde la venta, devolver al precio de hoy sería devolver de más —
+ * y la base lo rechazaría.
+ */
+export async function getDisponibleParaDevolver(
+  cobroId: string,
+  productoId: string,
+): Promise<DisponibleParaDevolver> {
+  const [{ data: lineas, error: errorLineas }, { data: devoluciones, error: errorDev }] = await Promise.all([
+    supabase
+      .from('cobro_lineas')
+      .select('cantidad, precio_unitario_bs')
+      .eq('cobro_id', cobroId)
+      .eq('producto_id', productoId),
+    supabase
+      .from('petshop_devoluciones')
+      .select('cantidad')
+      .eq('cobro_id', cobroId)
+      .eq('producto_id', productoId),
+  ])
+
+  if (errorLineas) throw new Error(`No se pudo leer la venta original: ${errorLineas.message}`)
+  if (errorDev) throw new Error(`No se pudieron leer las devoluciones previas: ${errorDev.message}`)
+
+  const vendido = (lineas ?? []).reduce((n, l) => n + Number(l.cantidad), 0)
+  const yaDevuelto = (devoluciones ?? []).reduce((n, d) => n + Number(d.cantidad), 0)
+  const precioUnitarioBs = (lineas ?? []).reduce((max, l) => Math.max(max, Number(l.precio_unitario_bs)), 0)
+
+  return {
+    vendido,
+    yaDevuelto,
+    disponible: Math.max(0, Number((vendido - yaDevuelto).toFixed(2))),
+    precioUnitarioBs,
+  }
+}
+
 /**
  * Procesa una devolución de Pet Shop de forma controlada y auditable.
+ *
+ * Las comprobaciones de aquí son **avisos tempranos**, no la barrera: la
+ * barrera es `trg_validar_devolucion` en la base (migración 0056), que se
+ * aplica igual a quien llame a PostgREST directamente sin pasar por aquí.
+ * Mismo criterio que `registrarMovimiento` con «Stock insuficiente».
  */
 export async function procesarDevolucion(datos: DatosDevolucionInput): Promise<PetshopDevolucion> {
   if (datos.cantidad <= 0) throw new Error('La cantidad a devolver debe ser mayor a 0')
   if (!datos.motivo.trim()) throw new Error('El motivo de la devolución es obligatorio')
+
+  if (datos.cobroId) {
+    const { vendido, yaDevuelto, disponible, precioUnitarioBs } = await getDisponibleParaDevolver(
+      datos.cobroId,
+      datos.productoId,
+    )
+
+    if (vendido === 0) {
+      throw new Error('Ese producto no aparece en la venta seleccionada')
+    }
+    if (datos.cantidad > disponible) {
+      throw new Error(
+        `Solo quedan ${disponible} por devolver de esa venta (se vendieron ${vendido} y ya se devolvieron ${yaDevuelto})`,
+      )
+    }
+    const topeMonto = Number((precioUnitarioBs * datos.cantidad).toFixed(2))
+    if (datos.montoDevueltoBs > topeMonto + 0.01) {
+      throw new Error(
+        `El monto a devolver no puede superar lo cobrado por esa cantidad (Bs. ${topeMonto.toFixed(2)})`,
+      )
+    }
+  }
 
   // 1. Registrar devolución
   const { data: dev, error } = await supabase

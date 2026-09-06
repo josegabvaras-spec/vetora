@@ -156,8 +156,13 @@ export async function procesarVentaPOS(datos: DatosVentaPOS): Promise<ResultadoV
 
   // 2. Calcular totales — sobre el precio verificado, no el del carrito.
   const subtotalProductos = lineasVerificadas.reduce((acc, l) => acc + l.subtotal_bs, 0)
-  const descuentoGlobal = datos.descuentoGlobalBs || 0
-  const totalFinal = Math.max(0, Number((subtotalProductos - descuentoGlobal).toFixed(2)))
+  const descuentoPedido = datos.descuentoGlobalBs || 0
+  const totalFinal = Math.max(0, Number((subtotalProductos - descuentoPedido).toFixed(2)))
+  // El descuento que se guarda es el que de verdad se aplicó, no el que se
+  // pidió: con un descuento mayor que el subtotal, el `max(0, …)` de arriba
+  // recorta el total, y guardar el pedido rompería la invariante
+  // `monto_bs + descuento_bs = subtotal` de la que depende el tope del 15 %.
+  const descuentoGlobal = Number((subtotalProductos - totalFinal).toFixed(2))
 
   // Obtener nombres para el comprobante
   let clienteNombre = 'Cliente Ocasional'
@@ -174,6 +179,17 @@ export async function procesarVentaPOS(datos: DatosVentaPOS): Promise<ResultadoV
   }
 
   // 3. Crear el cobro en caja
+  //
+  // ⚠️ `descuento_bs` se persiste (migración 0056). Antes el descuento se
+  // restaba aquí mismo y **desaparecía**: `monto_bs` guardaba el total ya
+  // rebajado y no quedaba ninguna columna que dijera cuánto se descontó, así
+  // que una venta con 90 % de descuento era indistinguible de una venta barata
+  // y no había nada que auditar después.
+  //
+  // El tope lo aplica la base, no esta línea: `trg_validar_descuento_cobro`
+  // rechaza un descuento mayor al 15 % si `auth_es_admin()` es falso. Se
+  // comprueba contra el JWT de la sesión, no contra `usuario_id` —que lo manda
+  // el cliente— así que un POST directo a PostgREST tampoco lo esquiva.
   const { data: cobro, error: errorCobro } = await supabase
     .from('cobros')
     .insert({
@@ -182,6 +198,7 @@ export async function procesarVentaPOS(datos: DatosVentaPOS): Promise<ResultadoV
       cliente_nombre: clienteNombre,
       metodo_pago: datos.metodoPago,
       monto_bs: totalFinal,
+      descuento_bs: descuentoGlobal,
       usuario_id: datos.usuarioId || turno.usuario_id,
     })
     .select()

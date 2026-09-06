@@ -1,59 +1,103 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Modal } from '../../components/ui/Modal'
 import { Button } from '../../components/ui/Button'
 import { FieldGroup, Input, Select, Textarea } from '../../components/ui/Field'
 import {
   ESTADO_DEVOLUCION_LABEL,
+  getDisponibleParaDevolver,
   procesarDevolucion,
+  type DisponibleParaDevolver,
 } from '../../services/devoluciones'
 import type { EstadoProductoDevolucion, Producto } from '../../types/database'
 import { formatBs } from '../../lib/currency'
 import { useAuth } from '../../context/useAuth'
 
+/** Una línea de la venta que se está devolviendo. */
+export interface LineaVendida {
+  producto_id: string | null
+  concepto: string
+  cantidad: number
+  precio_unitario_bs: number
+}
+
 interface DevolucionModalProps {
   sucursalId: string
   productos: Producto[]
-  cobroId?: string
+  /** La venta contra la que se devuelve, con sus líneas ya cargadas. */
+  venta: { id: string; lineas?: LineaVendida[] }
   productoPreseleccionado?: Producto
   onClose: () => void
   onProcessed: () => void
 }
 
+/**
+ * Devolver un producto de una venta concreta.
+ *
+ * ⚠️ El desplegable lista **lo que esa venta cobró**, no el catálogo entero.
+ * Antes ofrecía los ~cientos de productos de la sucursal y prellenaba el monto
+ * con el precio de HOY: si el catálogo había subido desde la venta, el monto
+ * propuesto era mayor que lo que el cliente pagó. Desde la migración 0056 la
+ * base rechaza justamente eso (`trg_validar_devolucion`), así que el modal
+ * tiene que trabajar con los números de la venta original.
+ */
 export function DevolucionModal({
   sucursalId,
   productos,
-  cobroId,
+  venta,
   productoPreseleccionado,
   onClose,
   onProcessed,
 }: DevolucionModalProps) {
   const { usuario } = useAuth()
-  const [productoId, setProductoId] = useState(productoPreseleccionado?.id || '')
+
+  // Solo las líneas de producto: un servicio cobrado no se "devuelve" al stock.
+  const lineasDeProducto = (venta.lineas ?? []).filter(
+    (l): l is LineaVendida & { producto_id: string } => Boolean(l.producto_id),
+  )
+
+  const [productoId, setProductoId] = useState(
+    productoPreseleccionado?.id || (lineasDeProducto.length === 1 ? lineasDeProducto[0].producto_id : ''),
+  )
   const [cantidad, setCantidad] = useState<number>(1)
   const [motivo, setMotivo] = useState('')
   const [estadoProducto, setEstadoProducto] = useState<EstadoProductoDevolucion>('reintegrable')
-  const [montoDevueltoBs, setMontoDevueltoBs] = useState<number>(
-    productoPreseleccionado?.precio_bs || 0,
-  )
+  const [montoDevueltoBs, setMontoDevueltoBs] = useState<number>(0)
 
+  const [limite, setLimite] = useState<DisponibleParaDevolver | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  function handleSeleccionarProducto(pId: string) {
-    setProductoId(pId)
-    const prod = productos.find((p) => p.id === pId)
-    if (prod) {
-      setMontoDevueltoBs(prod.precio_bs * cantidad)
+  // Lo que queda por devolver de ese producto en esa venta, contando
+  // devoluciones anteriores. Se relee al cambiar de producto.
+  useEffect(() => {
+    if (!productoId) {
+      setLimite(null)
+      return
     }
-  }
+    let vigente = true
+    getDisponibleParaDevolver(venta.id, productoId)
+      .then((d) => {
+        if (!vigente) return
+        setLimite(d)
+        const cantidadInicial = d.disponible > 0 ? Math.min(1, d.disponible) : 0
+        setCantidad(cantidadInicial)
+        setMontoDevueltoBs(Number((d.precioUnitarioBs * cantidadInicial).toFixed(2)))
+      })
+      .catch((e) => vigente && setError(e.message))
+    return () => {
+      vigente = false
+    }
+  }, [venta.id, productoId])
 
   function handleCantidadChange(cant: number) {
     setCantidad(cant)
-    const prod = productos.find((p) => p.id === productoId)
-    if (prod) {
-      setMontoDevueltoBs(prod.precio_bs * cant)
-    }
+    if (limite) setMontoDevueltoBs(Number((limite.precioUnitarioBs * cant).toFixed(2)))
   }
+
+  const nombreDe = (id: string) =>
+    productos.find((p) => p.id === id)?.nombre ??
+    lineasDeProducto.find((l) => l.producto_id === id)?.concepto ??
+    'Producto'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -72,7 +116,7 @@ export function DevolucionModal({
     try {
       await procesarDevolucion({
         sucursalId,
-        cobroId,
+        cobroId: venta.id,
         productoId,
         cantidad,
         motivo,
@@ -98,21 +142,35 @@ export function DevolucionModal({
           </div>
         )}
 
-        <FieldGroup label="Producto">
+        {lineasDeProducto.length === 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+            Esta venta no tiene productos que devolver (solo servicios).
+          </div>
+        )}
+
+        <FieldGroup label="Producto vendido">
           <Select
             value={productoId}
-            onChange={(e) => handleSeleccionarProducto(e.target.value)}
-            disabled={Boolean(productoPreseleccionado)}
+            onChange={(e) => setProductoId(e.target.value)}
+            disabled={Boolean(productoPreseleccionado) || lineasDeProducto.length === 0}
             required
           >
-            <option value="">Selecciona un producto...</option>
-            {productos.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre} ({formatBs(p.precio_bs)})
+            <option value="">Selecciona un producto de esta venta...</option>
+            {lineasDeProducto.map((l) => (
+              <option key={l.producto_id} value={l.producto_id}>
+                {nombreDe(l.producto_id)} — {l.cantidad} × {formatBs(l.precio_unitario_bs)}
               </option>
             ))}
           </Select>
         </FieldGroup>
+
+        {limite && (
+          <p className="text-[11px] font-semibold text-slate-500">
+            Vendido: {limite.vendido} · Ya devuelto: {limite.yaDevuelto} ·{' '}
+            <span className="text-teal-700">Disponible: {limite.disponible}</span> · Precio de esa venta:{' '}
+            {formatBs(limite.precioUnitarioBs)}
+          </p>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <FieldGroup label="Cantidad a Devolver">
@@ -120,8 +178,9 @@ export function DevolucionModal({
               type="number"
               step="0.01"
               min="0.01"
+              max={limite?.disponible ?? undefined}
               value={cantidad}
-              onChange={(e) => handleCantidadChange(parseFloat(e.target.value) || 1)}
+              onChange={(e) => handleCantidadChange(parseFloat(e.target.value) || 0)}
               required
             />
           </FieldGroup>
@@ -131,6 +190,7 @@ export function DevolucionModal({
               type="number"
               step="0.5"
               min="0"
+              max={limite ? Number((limite.precioUnitarioBs * cantidad).toFixed(2)) : undefined}
               value={montoDevueltoBs}
               onChange={(e) => setMontoDevueltoBs(parseFloat(e.target.value) || 0)}
               required
@@ -166,7 +226,11 @@ export function DevolucionModal({
           <Button type="button" variant="outline" onClick={onClose} disabled={guardando}>
             Cancelar
           </Button>
-          <Button type="submit" variant="primary" disabled={guardando}>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={guardando || !productoId || (limite?.disponible ?? 0) <= 0}
+          >
             {guardando ? 'Procesando...' : 'Confirmar Devolución'}
           </Button>
         </div>

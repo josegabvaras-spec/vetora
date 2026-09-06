@@ -145,6 +145,30 @@ export function ReciboPage() {
                 </td>
               </tr>
             ))}
+            {/* El descuento se imprime solo cuando lo hubo. Antes de la
+                migración 0056 no se guardaba en ninguna columna: el recibo
+                enseñaba el total ya rebajado y el cliente no podía ver qué se
+                le descontó, ni la clínica auditarlo después. */}
+            {cobro.descuento_bs > 0 && (
+              <>
+                <tr>
+                  <td className="border border-slate-400 px-2 py-1 text-right font-semibold text-slate-600">
+                    Subtotal
+                  </td>
+                  <td className="border border-slate-400 px-2 py-1 text-right text-slate-800">
+                    {formatBs(cobro.monto_bs + cobro.descuento_bs)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border border-slate-400 px-2 py-1 text-right font-semibold text-slate-600">
+                    Descuento aplicado
+                  </td>
+                  <td className="border border-slate-400 px-2 py-1 text-right text-slate-800">
+                    − {formatBs(cobro.descuento_bs)}
+                  </td>
+                </tr>
+              </>
+            )}
             <tr>
               <td className="border border-slate-400 bg-slate-100 px-2 py-1 text-right font-bold text-slate-700">
                 Total pagado ({METODO_LABEL[cobro.metodo_pago]})

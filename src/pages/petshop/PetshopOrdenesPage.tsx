@@ -29,7 +29,9 @@ export function PetshopOrdenesPage() {
   const [cargando, setCargando] = useState(true)
 
   const [ticketCobroId, setTicketCobroId] = useState<string | null>(null)
-  const [modalDevolucionCobroId, setModalDevolucionCobroId] = useState<string | null>(null)
+  // La venta entera, no solo su id: el modal necesita sus `lineas` para saber
+  // qué se vendió, cuánto y a qué precio (migración 0056).
+  const [ventaDevolucion, setVentaDevolucion] = useState<any | null>(null)
 
   const recargar = useCallback(async () => {
     setCargando(true)
@@ -189,7 +191,7 @@ export function PetshopOrdenesPage() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => setModalDevolucionCobroId(v.id)}
+                          onClick={() => setVentaDevolucion(v)}
                           className="text-amber-700 hover:text-amber-900"
                         >
                           <RotateCcw size={12} className="mr-1" />
@@ -213,12 +215,12 @@ export function PetshopOrdenesPage() {
         />
       )}
 
-      {modalDevolucionCobroId && (
+      {ventaDevolucion && (
         <DevolucionModal
           sucursalId={sucursalActivaId || ''}
           productos={productos}
-          cobroId={modalDevolucionCobroId}
-          onClose={() => setModalDevolucionCobroId(null)}
+          venta={ventaDevolucion}
+          onClose={() => setVentaDevolucion(null)}
           onProcessed={() => recargar()}
         />
       )}

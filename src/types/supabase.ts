@@ -407,6 +407,7 @@ export type Database = {
           cliente_nombre: string | null
           clinica_id: string
           created_at: string
+          descuento_bs: number
           id: string
           internacion_id: string | null
           metodo_pago: string
@@ -420,6 +421,7 @@ export type Database = {
           cliente_nombre?: string | null
           clinica_id?: string
           created_at?: string
+          descuento_bs?: number
           id?: string
           internacion_id?: string | null
           metodo_pago: string
@@ -433,6 +435,7 @@ export type Database = {
           cliente_nombre?: string | null
           clinica_id?: string
           created_at?: string
+          descuento_bs?: number
           id?: string
           internacion_id?: string | null
           metodo_pago?: string
