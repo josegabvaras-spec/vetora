@@ -1,7 +1,9 @@
+// El turno abierto, el stock y los lotes ya no se tocan desde aquí: los
+// resuelve `registrar_venta_pos()` dentro de su transacción (migración `0062`),
+// que es también quien conoce la conversión de envases a unidad de medida de
+// `0013`. Por eso ya no hacen falta `getTurnoAbierto`, `registrarMovimiento`
+// ni `dosisDesdeEnvases`.
 import { supabase } from '../lib/supabase'
-import { dosisDesdeEnvases } from '../lib/inventario'
-import { registrarMovimiento } from './inventario'
-import { getTurnoAbierto } from './caja'
 import type { MetodoPago, Producto } from '../types/database'
 import type { ItemCarritoPOS } from '../types/views'
 
@@ -116,72 +118,36 @@ export async function buscarProductoPOS(sucursalId: string, busqueda: string): P
 }
 
 /**
- * Procesa la venta completa de forma transaccional:
- * 1. Valida el turno de caja abierto.
- * 2. Valida la disponibilidad de stock.
- * 3. Crea el cobro y sus líneas.
- * 4. Descuenta el inventario y lotes asociados.
+ * Registra la venta del POS **en una sola transacción, en el servidor**.
  *
- * ⚠️ El precio de cada línea se relee de `productos.precio_bs` justo antes de
- * cobrar — nunca se usa `item.precio_unitario_bs` ni `item.subtotal_bs` tal
- * como llegan del carrito. El carrito vive en el navegador desde que se
- * agrega el producto hasta que se pulsa "cobrar", y en ese tiempo el precio
- * pudo cambiar; peor, nada impedía que la venta se mandara con cualquier
- * precio inventado. `cantidad` sí se acepta del cliente —elegir cuántas
- * unidades vender es la funcionalidad—, pero el precio no se negocia en el
- * POS: a diferencia de `aplicarAjustes()` en `caja.ts` (donde SÍ hay un
- * operador fijando el precio de una línea de consulta, a propósito), aquí no
- * existe ningún mecanismo pensado para vender a un precio distinto del que
- * tiene el producto en el catálogo.
+ * ⚠️ Esto era antes 3 + 3×N viajes desde el navegador, sin transacción: se
+ * insertaba el cobro, y luego por cada ítem una línea, un movimiento de
+ * inventario y un descuento de lote. El `insert` de `cobro_lineas`
+ * **descartaba su error**, así que un fallo a mitad dejaba un cobro cobrado
+ * sin ninguna línea que lo justificara; y si el egreso reventaba en el tercer
+ * ítem, los dos primeros ya habían salido del inventario. Estados parciales
+ * silenciosos, imposibles de detectar después.
+ *
+ * Ahora todo eso es `registrar_venta_pos()` (migración `0062`): o se escribe
+ * la venta entera, o no se escribe nada.
+ *
+ * **Lo que este código ya NO decide**, porque lo resuelve el servidor:
+ * el precio unitario, el subtotal, el total, el importe del descuento de una
+ * promoción, la autoría del cobro y la clínica. De aquí solo sale **qué**
+ * productos, **cuántas** unidades, qué promoción y el método de pago — que es
+ * la funcionalidad, no la barrera.
+ *
+ * Mandar `precio_unitario_bs` en un ítem ya no sirve de nada: la función no lo
+ * lee. Verificado contra producción — una venta con un precio falseado de
+ * Bs. 1 se cobró al precio real del catálogo.
  */
 export async function procesarVentaPOS(datos: DatosVentaPOS): Promise<ResultadoVentaPOS> {
   if (datos.items.length === 0) {
     throw new Error('El carrito de venta está vacío')
   }
 
-  // 1. Verificar turno de caja abierto
-  const turno = await getTurnoAbierto(datos.sucursalId)
-  if (!turno) {
-    throw new Error('No hay un turno de caja abierto en esta sucursal. Abre la caja antes de registrar ventas.')
-  }
-
-  // Precio real de cada producto del carrito, todos de una vez: nunca el que
-  // trae el `item` desde el navegador.
-  const idsProductos = [...new Set(datos.items.map((item) => item.producto.id))]
-  const { data: productosReales, error: errorProductos } = await supabase
-    .from('productos')
-    .select('id, precio_bs')
-    .in('id', idsProductos)
-
-  if (errorProductos || !productosReales) {
-    throw new Error(`No se pudo verificar el precio de los productos: ${errorProductos?.message || 'desconocido'}`)
-  }
-
-  const precioReal = new Map(productosReales.map((p) => [p.id, Number(p.precio_bs) || 0]))
-
-  const lineasVerificadas = datos.items.map((item) => {
-    const precio = precioReal.get(item.producto.id)
-    if (precio === undefined) {
-      throw new Error(`El producto "${item.producto.nombre}" ya no existe en el catálogo`)
-    }
-    return {
-      item,
-      precio_unitario_bs: precio,
-      subtotal_bs: Number((precio * item.cantidad).toFixed(2)),
-    }
-  })
-
-  // 2. Calcular totales — sobre el precio verificado, no el del carrito.
-  const subtotalProductos = lineasVerificadas.reduce((acc, l) => acc + l.subtotal_bs, 0)
-  const descuentoPedido = datos.descuentoGlobalBs || 0
-  const totalFinal = Math.max(0, Number((subtotalProductos - descuentoPedido).toFixed(2)))
-  // El descuento que se guarda es el que de verdad se aplicó, no el que se
-  // pidió: con un descuento mayor que el subtotal, el `max(0, …)` de arriba
-  // recorta el total, y guardar el pedido rompería la invariante
-  // `monto_bs + descuento_bs = subtotal` de la que depende el tope del 15 %.
-  const descuentoGlobal = Number((subtotalProductos - totalFinal).toFixed(2))
-
-  // Obtener nombres para el comprobante
+  // Nombres para el comprobante. Es lo unico que se sigue resolviendo aqui:
+  // son etiquetas del recibo, no importes ni permisos.
   let clienteNombre = 'Cliente Ocasional'
   let pacienteNombre: string | undefined
 
@@ -189,117 +155,51 @@ export async function procesarVentaPOS(datos: DatosVentaPOS): Promise<ResultadoV
     const { data: c } = await supabase.from('clientes').select('nombre').eq('id', datos.clienteId).single()
     if (c) clienteNombre = c.nombre
   }
-
   if (datos.pacienteId) {
     const { data: p } = await supabase.from('pacientes').select('nombre').eq('id', datos.pacienteId).single()
     if (p) pacienteNombre = p.nombre
   }
 
-  // 3. Crear el cobro en caja
-  //
-  // ⚠️ `descuento_bs` se persiste (migración 0056). Antes el descuento se
-  // restaba aquí mismo y **desaparecía**: `monto_bs` guardaba el total ya
-  // rebajado y no quedaba ninguna columna que dijera cuánto se descontó, así
-  // que una venta con 90 % de descuento era indistinguible de una venta barata
-  // y no había nada que auditar después.
-  //
-  // El tope lo aplica la base, no esta línea: `trg_validar_descuento_cobro`
-  // rechaza un descuento mayor al 15 % si `auth_es_admin()` es falso. Se
-  // comprueba contra el JWT de la sesión, no contra `usuario_id` —que lo manda
-  // el cliente— así que un POST directo a PostgREST tampoco lo esquiva.
-  const { data: cobro, error: errorCobro } = await supabase
-    .from('cobros')
-    .insert({
-      sucursal_id: datos.sucursalId,
-      turno_id: turno.id,
-      cliente_nombre: clienteNombre,
-      metodo_pago: datos.metodoPago,
-      monto_bs: totalFinal,
-      descuento_bs: descuentoGlobal,
-      promocion_id: datos.promocionId ?? null,
-      descuento_motivo: datos.descuentoMotivo?.trim() || null,
-      idempotency_key: datos.idempotencyKey ?? null,
-      usuario_id: datos.usuarioId || turno.usuario_id,
-    })
-    .select()
-    .single()
+  // Del carrito solo viajan producto, cantidad y lote. Si alguien añade
+  // `precio_unitario_bs` o `subtotal_bs` al objeto, la función no los lee.
+  const { data, error } = await supabase.rpc('registrar_venta_pos', {
+    p_sucursal_id: datos.sucursalId,
+    p_items: datos.items.map((item) => ({
+      producto_id: item.producto.id,
+      cantidad: item.cantidad,
+      lote_id: item.lote_id ?? null,
+    })),
+    p_metodo_pago: datos.metodoPago,
+    p_cliente_nombre: clienteNombre,
+    p_promocion_id: datos.promocionId ?? null,
+    p_descuento_bs: datos.descuentoGlobalBs ?? 0,
+    p_descuento_motivo: datos.descuentoMotivo?.trim() || null,
+    p_idempotency_key: datos.idempotencyKey ?? null,
+  })
 
-  if (errorCobro || !cobro) {
-    // 23505 sobre la clave de idempotencia: esta venta YA se registró y esto es
-    // un reenvío (doble clic, reintento de red). No es un error que deba ver
-    // quien vende: se devuelve la venta original en vez de crear una segunda.
-    //
-    // ⚠️ Esto no es atomicidad. Si el intento original murió a medias —cobro
-    // creado, líneas o inventario no—, aquí se devuelve ese estado parcial. La
-    // atomicidad real es la RPC transaccional de la fase 3.
-    if ((errorCobro as { code?: string } | null)?.code === '23505' && datos.idempotencyKey) {
-      const { data: original } = await supabase
-        .from('cobros')
-        .select('*')
-        .eq('idempotency_key', datos.idempotencyKey)
-        .maybeSingle()
-
-      if (original) {
-        return {
-          cobroId: original.id,
-          numeroRecibo: 1,
-          totalBs: original.monto_bs,
-          itemsVendidos: datos.items.reduce((acc, i) => acc + i.cantidad, 0),
-          fecha: original.created_at,
-          clienteNombre,
-          pacienteNombre,
-        }
-      }
-    }
-    throw new Error(`Error al registrar cobro en caja: ${errorCobro?.message || 'desconocido'}`)
+  if (error) {
+    // Los mensajes de la funcion ya estan escritos para leerse en pantalla
+    // ("Stock insuficiente de X", "No hay un turno de caja abierto..."), asi
+    // que se propagan tal cual en vez de envolverlos en otro texto.
+    throw new Error(error.message || 'No se pudo registrar la venta')
   }
 
-  // 4. Crear líneas de cobro y descontar inventario
-  for (const { item, precio_unitario_bs, subtotal_bs } of lineasVerificadas) {
-    // Línea de cobro — precio verificado arriba, nunca el del carrito.
-    await supabase.from('cobro_lineas').insert({
-      cobro_id: cobro.id,
-      producto_id: item.producto.id,
-      concepto: item.producto.nombre,
-      cantidad: item.cantidad,
-      precio_unitario_bs,
-      subtotal_bs,
-    })
-
-    // Descontar inventario fraccionado o unitario
-    const dosisDescontar = dosisDesdeEnvases(item.cantidad, item.producto.contenido_presentacion || 1)
-    await registrarMovimiento(
-      item.producto.id,
-      'egreso',
-      dosisDescontar,
-      `Venta Pet Shop`,
-      { usuarioId: datos.usuarioId },
-    )
-
-    // Si tiene lote asignado, descontar del lote
-    if (item.lote_id) {
-      const { data: lote } = await supabase
-        .from('producto_lotes')
-        .select('cantidad_actual')
-        .eq('id', item.lote_id)
-        .single()
-
-      if (lote) {
-        const nuevoStockLote = Math.max(0, Number(lote.cantidad_actual) - item.cantidad)
-        await supabase
-          .from('producto_lotes')
-          .update({ cantidad_actual: nuevoStockLote })
-          .eq('id', item.lote_id)
-      }
-    }
+  const res = data as unknown as {
+    cobro_id: string
+    total_bs: number
+    descuento_bs: number
+    created_at: string
+    reenvio: boolean
   }
 
   return {
-    cobroId: cobro.id,
+    cobroId: res.cobro_id,
     numeroRecibo: 1,
-    totalBs: totalFinal,
+    // El total que se ensena es el que calculo el SERVIDOR, no el de la
+    // pantalla: si difieren, manda el que quedo registrado.
+    totalBs: Number(res.total_bs),
     itemsVendidos: datos.items.reduce((acc, i) => acc + i.cantidad, 0),
-    fecha: cobro.created_at,
+    fecha: res.created_at,
     clienteNombre,
     pacienteNombre,
   }

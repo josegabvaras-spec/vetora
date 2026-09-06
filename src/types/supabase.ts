@@ -2634,6 +2634,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      /**
+       * La venta del POS, entera y en una transacción (migración `0062`).
+       *
+       * `p_items` es `[{producto_id, cantidad, lote_id}]` y **nada más**: el
+       * precio, el subtotal, el total, el importe del descuento de una
+       * promoción y la autoría los decide el servidor. Devuelve
+       * `{cobro_id, total_bs, subtotal_bs, descuento_bs, created_at, reenvio}`;
+       * `reenvio: true` significa que esa clave de idempotencia ya había
+       * registrado esta venta y se devuelve la original.
+       */
+      registrar_venta_pos: {
+        Args: {
+          p_sucursal_id: string
+          p_items: Json
+          p_metodo_pago: string
+          p_cliente_nombre?: string | null
+          p_promocion_id?: string | null
+          p_descuento_bs?: number
+          p_descuento_motivo?: string | null
+          p_idempotency_key?: string | null
+        }
+        Returns: Json
+      }
       auth_clinica_id: { Args: never; Returns: string }
       auth_es_admin: { Args: never; Returns: boolean }
       auth_es_clinico: { Args: never; Returns: boolean }

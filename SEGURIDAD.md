@@ -17,7 +17,7 @@ tienen entrada aquí**: se documentan allí.
 | Severidad | Hallazgos | Estado |
 |---|---|---|
 | Crítico | 0 | — |
-| Alto | 6 | corregidos (H-19 y H-20 incluidos) |
+| Alto | 7 | corregidos (H-19, H-20 y H-22 incluidos) |
 | Medio | 10 | 9 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18 y H-21), 1 mitigado (precio del POS, auditable) |
 | Bajo / Info | 5 | 3 corregidos, 1 verificado seguro (Vercel), 1 heredado pendiente (rotar la contraseña) |
 
@@ -718,6 +718,66 @@ inactiva, promoción de otra clínica y tercer uso de un cupón con límite 2 �
 Y siguen funcionando: cobro normal, línea con producto propio, segunda venta con clave nueva,
 descuento del 10 % con motivo como recepción, descuento del 40 % con promoción del 40 % (que suma su
 uso), y descuento del 40 % manual como admin. Cero residuo al terminar.
+
+### H-22 · ALTO · La venta del POS no era una transacción, y el precio seguía sin bloquearse — CORREGIDO
+
+Fase 3 del plan del Bloque 1, y el cambio de mayor riesgo de todo el bloque: reescribe el camino por
+el que la clínica factura.
+
+**Lo que había.** `procesarVentaPOS` hacía **3 + 3×N viajes** desde el navegador, sin ninguna
+transacción: insertaba el cobro y luego, por cada ítem, una línea, un movimiento de inventario y un
+descuento de lote. Estados parciales posibles, todos silenciosos:
+
+- **Cobro sin líneas.** El `insert` de `cobro_lineas` **descartaba su `error`** — un fallo dejaba un
+  cobro cobrado, con su `monto_bs`, y sin una sola línea que lo justificara. Misma clase que H-6.
+- **Cobro completo con el stock a medias**, si el egreso reventaba en el tercer ítem: los dos
+  primeros ya habían salido del inventario.
+- **Lote descontado dos veces o ninguna**: el `update producto_lotes` era un read-modify-write desde
+  el navegador (`Math.max(0, actual - cantidad)`) sin bloqueo.
+
+`registrarVentaDirecta` ya lo sabía y lo dejó escrito en un comentario: *«No es atomicidad real:
+para eso haría falta una función `security definer` que hiciera cobro y egresos en una sola
+transacción.»* `0062` es esa función.
+
+**Lo que el navegador deja de decidir:** el precio unitario, el subtotal, el total, el importe del
+descuento de una promoción, la autoría del cobro y la clínica. Del cliente solo sale **qué**
+productos, **cuántas** unidades, qué promoción y el método de pago — que es la funcionalidad, no la
+barrera.
+
+⚠️ **Esto cierra por fin VUL-04 en el camino del POS.** Desde `0054` el precio solo era *auditable*;
+ahora la función **no lee ningún precio del carrito**. Verificado: una venta con
+`precio_unitario_bs: 1` inyectado en el ítem se cobró al precio real del catálogo, Bs. 10. *(El
+ajuste manual por línea de `caja.ts` sigue siendo otra cosa y sigue abierto — ver más abajo.)*
+
+⚠️ **Y cierra el hueco que `0060` no podía cerrar.** Un trigger `before insert` sobre `cobros` ve el
+total pero **no las líneas**, así que las promociones `dos_por_uno` no se podían verificar. Esta
+función sí ve el carrito: verificado que un 2x1 sobre 4 unidades descuenta exactamente 2 —**con el
+cliente pidiendo Bs. 999.999 de descuento en la misma llamada**, que se ignoró—.
+
+⚠️ **Una trampa que casi me lleva por delante, y que vale la pena dejar escrita.** Leí el trigger de
+stock en `0002` —que resta `cantidad` directamente de `stock_actual`— y **está superado por `0013`**,
+donde el vigente divide por `contenido_presentacion`. El reparto real es: el **movimiento** va en
+unidad de medida (ml), el **stock** en envases, y convierte el trigger. Construir la función sobre la
+versión vieja habría descontado 50 envases al vender un frasco de 50 ml. Es exactamente lo que
+`CLAUDE.md` advierte sobre leer solo la primera migración. Verificado con un producto de prueba de
+50 ml: vender 2 envases registra un movimiento de **100 ml** y baja el stock en **2**.
+
+**Verificado en producción con 13 pruebas en transacción revertida:** venta normal (cobro + línea +
+movimiento + stock correctos), precio falseado ignorado, reenvío con la misma clave que devuelve la
+original sin duplicar, **atomicidad** (un carrito con un producto inexistente no deja ni un cobro
+huérfano), stock insuficiente, producto de otra clínica, sucursal de otra clínica, descuento manual
+sin motivo, 2x1 calculado en servidor, porcentaje calculado en servidor, venta con la caja cerrada, y
+la conversión de unidades. Cero residuo.
+
+**Cómo se desplegó, y por qué así:** la migración se aplicó **primero sin que nadie llamara a la
+función**, se probó entera contra producción, y solo entonces se migró `services/pos.ts`. La
+reversión está escrita y ordenada: revertir el frontend primero, la función después — al revés deja
+a la clínica sin poder vender.
+
+**Lo que sigue abierto:** `registrarCobro` y `registrarVentaDirecta` (`caja.ts`) **no** se migraron,
+así que la consulta y la venta de mostrador siguen sin transacción; el ajuste manual de precio por
+línea sigue sin discriminador `origen` (H-13); y `productos_all` sigue siendo `FOR ALL`, así que el
+stock se puede mover con un `UPDATE productos` directo, por fuera del kardex.
 
 ---
 
