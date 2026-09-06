@@ -2686,9 +2686,12 @@ export type Database = {
       // portal ya no lee `usuarios` ni `clinicas` en crudo.
       clinica_del_portal: {
         Args: never
+        // `estado` lo añadió 0055: `motivoDeBloqueo()` lo necesita para
+        // bloquear a los clientes de una clínica suspendida.
         Returns: {
           nombre: string
           logo_url: string | null
+          estado: string
         }[]
       }
       nombres_de_usuarios: {
