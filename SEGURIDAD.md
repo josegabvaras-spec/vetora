@@ -18,7 +18,7 @@ tienen entrada aquí**: se documentan allí.
 |---|---|---|
 | Crítico | 0 | — |
 | Alto | 7 | corregidos (H-19, H-20 y H-22 incluidos) |
-| Medio | 11 | 10 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18, H-21 y H-23), 1 mitigado (precio del POS fuera del camino verificado) |
+| Medio | 12 | 11 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18, H-21, H-23 y H-24), 1 mitigado (precio del POS fuera del camino verificado) |
 | Bajo / Info | 5 | 3 corregidos, 1 verificado seguro (Vercel), 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
@@ -843,6 +843,58 @@ precio inventado **sigue siendo posible** — cae como `ajuste_manual`, que por 
 bloquea. Lo que cambia es que deja de ser invisible y queda separado de lo que el servidor sí
 verificó. Cerrarlo del todo exige migrar `registrarCobro` y `registrarVentaDirecta` a funciones de
 servidor, como ya está el POS desde `0062`.
+
+### H-24 · MEDIO · Se acaban los `FOR ALL`, y el stock deja de moverse por fuera del kardex — CORREGIDO
+
+Fase 5 y última del plan del Bloque 1. **La de mayor riesgo de regresión de las cinco**, aunque no
+la más complicada: quitar un `FOR ALL` y sustituirlo por policies por operación es exactamente donde
+se olvida una y algo deja de funcionar **sin dar un error claro** — PostgREST devuelve una lista
+vacía o un 403 escueto, y nadie lo relaciona con una policy.
+
+Por eso el inventario de operaciones se hizo **antes** de escribir una línea, contando las llamadas
+reales sobre `src/` y `supabase/functions/`:
+
+| Tabla | select | insert | update | delete | Policies ahora |
+|---|---|---|---|---|---|
+| `turnos_caja` | 5 | 1 | 1 | **0** | SELECT / INSERT / UPDATE |
+| `movimientos_inventario` | 7 | 1 | **0** | **0** | SELECT / INSERT |
+| `petshop_devoluciones` | 3 | 1 | **0** | **0** | SELECT / INSERT |
+| `productos` | 19 | 2 | 4 | **0** | SELECT / INSERT / UPDATE |
+
+`FOR ALL` concedía las cuatro operaciones en las cuatro tablas. De ahí salieron dos de los agujeros
+de H-20 —borrar un turno cerrado, modificar o borrar una devolución—: los triggers de `0057`/`0058`
+ya los cerraban, y esto quita además **el permiso**, que es la capa que debía haber estado desde el
+principio.
+
+**Y el rol, que `productos_all` y `turnos_caja_all` nunca comprobaron.** Un `cliente` del portal
+quedaba fuera **por accidente**: `registro-portal` no le asigna `sucursal_id`, así que
+`sucursal_id = auth_sucursal_id()` comparaba null con null y denegaba. No era un control. Es el
+hallazgo A-5/VUL-23, y se cierra aquí junto con el mismo defecto en `cobros_insert`.
+
+⚠️ **La prueba que de verdad mide esta migración no es "un cliente ve 0 productos"** —eso ya pasaba
+antes, por el accidente—, **sino un cliente CON sucursal asignada**, que es la condición exacta que
+el informe advertía. Verificado, asignándosela dentro de una transacción revertida: lee **0**
+productos, **0** turnos y **0** movimientos, y sus intentos de registrar un cobro, crear un producto
+o mover stock se rechazan con `42501`.
+
+**El stock deja de moverse a mano.** Último agujero abierto del bloque: aunque el kardex sea
+inmutable desde `0058`, `UPDATE productos SET stock_actual = 999` seguía siendo posible y **no
+dejaba ningún movimiento que lo explicara** — el inventario se cuadraba a mano y la merma
+desaparecía. Verificado antes de tocarlo que **ningún camino del código escribe `stock_actual`**: el
+alta de producto lo deja en 0 a propósito (su propio comentario dice que ponerlo ahí «lo contaba dos
+veces») y la recepción de una compra sube el stock por `registrarMovimiento`, tocando solo
+`costo_bs` directamente. `trg_stock_solo_por_kardex` lo bloquea con la misma técnica de `0063`: una
+marca de transacción que solo pone `aplicar_movimiento_inventario()`, con la salida de siempre para
+`respaldo-clinica`.
+
+**Verificado en producción con 21 pruebas en transacciones revertidas**, todas con
+`set local role authenticated` —porque la conexión normal es `postgres` con `BYPASSRLS` y habría
+dado todo por permitido—: leer, crear, editar y dar de baja productos, leer y cerrar turnos, leer e
+insertar en el kardex, cobrar y devolver → **permitido**. Borrar un producto, un turno, un movimiento
+o una devolución → **0 filas**, sin policy que lo permita. `UPDATE` directo de `stock_actual` →
+rechazado; subirlo por el kardex → +25 correctamente. Y las seis del cliente con sucursal, arriba.
+
+**Estado final: ni un `FOR ALL` en las cinco tablas de dinero e inventario.**
 
 ---
 
