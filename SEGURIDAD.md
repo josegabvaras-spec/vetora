@@ -9,8 +9,8 @@ ataques contra la base de producción** — ver «Lo que no se pudo probar».
 | Severidad | Hallazgos | Estado |
 |---|---|---|
 | Crítico | 0 | — |
-| Alto | 3 | corregidos |
-| Medio | 7 | 5 corregidos, 1 mitigado (precio del POS, auditable), 1 pendiente (registro público de Auth, requiere Dashboard) |
+| Alto | 4 | corregidos |
+| Medio | 8 | 7 corregidos (incluido el registro público de Auth, cerrado por el usuario en el Dashboard), 1 mitigado (precio del POS, auditable) |
 | Bajo / Info | 3 | 2 corregidos, 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
@@ -362,9 +362,9 @@ nadie lo ve sin escribir SQL.
 
 ---
 
-### H-12 · MEDIO · Registro público de Auth abierto — PENDIENTE (requiere el Dashboard)
+### H-12 · MEDIO · Registro público de Auth abierto — CERRADO (por el usuario, en el Dashboard)
 
-`GET /auth/v1/settings` en producción devuelve `"disable_signup": false`. Con la clave anónima —que
+`GET /auth/v1/settings` en producción devolvía `"disable_signup": false`. Con la clave anónima —que
 es pública por diseño— cualquiera puede `POST /auth/v1/signup` y crear una cuenta en `auth.users`
 directamente, saltándose la puerta de `registro-portal` (la que comprueba que el WhatsApp corresponda
 a una ficha de cliente sin reclamar).
@@ -374,20 +374,81 @@ las policies cuelgan de una u otra, así que no ve absolutamente nada. El riesgo
 cuentas huérfanas en `auth.users` y consumo del límite de envío de correos del servicio de desarrollo
 de Supabase, que ya va limitado.
 
-**No se corrigió esta sesión, y el motivo es concreto, no falta de tiempo.** `supabase config push`
+**No se pudo corregir por CLI, y el motivo es concreto, no falta de tiempo.** `supabase config push`
 —el único comando del CLI que toca la configuración de Auth remota— empuja el `[auth]` **entero** del
 `config.toml` **local**, que incluye `site_url = "http://127.0.0.1:3000"` y
-`additional_redirect_urls` de desarrollo. Correrlo sobre producción rompería los redirects reales de
-Auth (confirmación de correo, reseteo de contraseña) para arreglar un campo. La vía quirúrgica es la
-API de gestión de Supabase (`PATCH /v1/projects/{ref}/config/auth` con solo `{"disable_signup":
+`additional_redirect_urls` de desarrollo. Correrlo sobre producción habría roto los redirects reales
+de Auth (confirmación de correo, reseteo de contraseña) para arreglar un campo. La vía quirúrgica es
+la API de gestión de Supabase (`PATCH /v1/projects/{ref}/config/auth` con solo `{"disable_signup":
 true}`), pero eso exige un token de gestión que el CLI guarda en el almacén seguro del sistema — no en
 un fichero — y no se intentó extraerlo de ahí.
 
-**Se cierra con un solo cambio en el panel de Supabase**: Authentication → Settings → desactivar
-"Allow new users to sign up". Ningún flujo legítimo lo necesita — las tres altas de cuenta del
-proyecto (`crear-cuenta`, `acceso`, `registro-portal`) usan `service_role`/`admin.createUser`, nunca
+**Cerrado por el usuario en el panel de Supabase**: Authentication → Settings → "Allow new users to
+sign up" desactivado. Ningún flujo legítimo lo necesitaba — las tres altas de cuenta del proyecto
+(`crear-cuenta`, `acceso`, `registro-portal`) usan `service_role`/`admin.createUser`, nunca
 `supabase.auth.signUp()` desde el cliente (confirmado: cero coincidencias en todo `src/` y
-`supabase/functions/`).
+`supabase/functions/`). Verificado tras el cambio: `GET /auth/v1/settings` → `"disable_signup":true`.
+
+---
+
+### H-14 · MEDIO → BAJO · Sin Content-Security-Policy — VERIFICADA Y ENDURECIDA (sigue en Report-Only)
+
+La CSP llevaba desde una auditoría anterior en `Content-Security-Policy-Report-Only`: reporta
+violaciones sin bloquear nada, así que hasta ahora no protegía — era un instrumento de medición sin
+medir. Esta sesión se hizo el trabajo de medir.
+
+**Análisis previo a tocar nada:**
+- Cero campos de la aplicación aceptan una URL externa arbitraria (`logo_url`, fotos de paciente y de
+  catálogo salen todas de `readAsDataURL` o de Storage de Supabase — verificado por código, no por
+  suposición).
+- Cero `eval` y cero `new Function` en los cinco bundles de producción, jszip y workbox incluidos —
+  era el riesgo real de que `script-src 'self'` (sin `'unsafe-eval'`) rompiera algo.
+
+**Verificación dinámica, con un colector de `securitypolicyviolation` instalado en la pestaña real de
+`vetora.online`:**
+- Sitio público + modal de Planes (REST y el intento de WebSocket de realtime): 0 violaciones.
+- **Zona autenticada del portal del cliente**, con una cuenta desechable real creada por el camino
+  legítimo (`registro-portal`) y borrada al terminar: login, Dashboard, Mascotas, Citas, Tienda y
+  Perfil — **0 violaciones** en las seis.
+- Se aprovechó el recorrido para reforzar H-10 al mismo tiempo: buscar `50%,test)` en la Tienda —el
+  patrón que rompía el `.or()` antiguo— devolvió un resultado limpio («Ninguna tienda tiene eso
+  publicado»), confirmando la corrección en producción y no solo en la base.
+
+**Sigue en Report-Only, y es deliberado.** Pasarla a bloqueo es una decisión aparte, no un trámite:
+exige el mismo recorrido pero con `enforce`, donde un fallo real deja la pantalla en blanco en vez de
+solo anotarse en consola. Lo que aporta esta sesión es que el recorrido **ya se hizo** y salió limpio;
+subirla a bloqueo es de ahora en adelante una formalidad de un archivo (`vercel.json`), no una
+exploración a ciegas.
+
+### H-15 · ALTO · La migración que cerraba F-05 rompió el login del portal — CORREGIDO
+
+**Autoincidente, encontrado probando H-14.** `0052` cerró `clinicas_select` a `auth_es_personal()` y
+migró los tres sitios que leían la tabla desde el portal (`AuthContext`, `PortalPerfilPage`,
+`portalCliente`). Se le escapó un cuarto: `motivoDeBloqueo()` en
+[services/sesion.ts](src/services/sesion.ts), que corre en **cada login, de cualquier rol**, y hacía
+`select id, estado, nombre from clinicas where id = usuario.clinica_id`.
+
+Para un `cliente` esa consulta pasó a devolver vacío, y la función interpreta el vacío como «la
+clínica ya no existe»: **ningún cliente del portal podía entrar**, desde que `0052` se desplegó hasta
+que se corrigió en la misma sesión. El resto de la aplicación no se enteró porque los demás lectores
+de `clinicas` son rutas de personal, que sí pasan `auth_es_personal()`.
+
+**Corrección (`0055`):** `clinica_del_portal()` gana una columna, `estado`, que es lo que
+`motivoDeBloqueo()` necesitaba para poder seguir bloqueando a los clientes de una clínica suspendida
+—su razón de existir— sin volver a leer la tabla en crudo. `sesion.ts` pasa a usar la RPC.
+
+⚠️ **Detalle que casi se repite dos veces en la misma migración.** Cambiar el `returns table` de una
+función obliga a `drop` + `create` (PostgreSQL no deja cambiar el tipo de retorno con
+`create or replace`: `42P13`), y un `drop` + `create` reinicia el ACL al valor por defecto — la
+trampa exacta de `0047`, donde `PUBLIC` (y por tanto `anon`) recupera `execute` en silencio. Las
+revocaciones van en la misma migración que el `drop`, no en un paso aparte.
+
+Verificado en producción, con el bundle nuevo ya servido:
+- JWT real de cliente contra la RPC → `{nombre, logo_url, estado}`.
+- La misma cuenta contra la tabla en crudo → `[]` (F-05 sigue cerrado).
+- `anon` contra la RPC tras el `drop`+`create` → `401` (no se reabrió `PUBLIC`).
+- Login real en el navegador, de principio a fin → entra, aterriza en el Dashboard, cero errores de
+  consola achacables a la aplicación.
 
 ---
 
