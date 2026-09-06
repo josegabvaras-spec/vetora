@@ -10,7 +10,7 @@ ataques contra la base de producción** — ver «Lo que no se pudo probar».
 |---|---|---|
 | Crítico | 0 | — |
 | Alto | 3 | corregidos |
-| Medio | 6 | 5 corregidos, 1 pendiente (registro público de Auth, requiere Dashboard) |
+| Medio | 7 | 5 corregidos, 1 mitigado (precio del POS, auditable), 1 pendiente (registro público de Auth, requiere Dashboard) |
 | Bajo / Info | 3 | 2 corregidos, 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
@@ -323,6 +323,42 @@ Verificado antes de aplicar: 0 filas existentes violaban la invariante. Verifica
 dos pruebas envueltas en transacciones que nunca se confirman: vincular una ficha a un cliente de otra
 clínica se rechaza con `P0001` y no escribe nada (comprobado leyendo la fila después); reafirmar el
 vínculo correcto dentro de la misma clínica se permite sin error.
+
+---
+
+### H-13 · MEDIO · El precio del POS se podía falsificar por API — MITIGADO (auditable, no bloqueado)
+
+`procesarVentaPOS()` insertaba `precio_unitario_bs` y `subtotal_bs` tal como llegaban del carrito del
+navegador, sin releer el producto. Corregido en el servicio ([services/pos.ts](src/services/pos.ts)),
+que ahora relee `productos.precio_bs` antes de cobrar.
+
+**Pero eso cierra la aplicación, no la API.** `cobro_lineas` no tenía ningún trigger y sus únicos
+checks son `>= 0`: quien llame a PostgREST directamente con credenciales de personal sigue pudiendo
+insertar una línea con el precio que quiera. Y era **invisible** — el arqueo del turno cuadra igual,
+porque lo esperado se calcula sobre lo registrado.
+
+**No se puede bloquear sin romper una función real, y conviene dejar escrito por qué.** La idea obvia
+—una columna `origen` ('pos' | 'caja') y un trigger que exija precio de catálogo solo en las del
+POS— no es una barrera: esa columna la escribiría el mismo cliente que falsifica el precio. Y no hay
+otra forma de distinguirlas: `aplicarAjustes()` en [services/caja.ts](src/services/caja.ts) permite
+**a propósito** que un operador fije el importe de una línea de consumo («un operador puede fijar el
+precio, que es la funcionalidad», dice su propio comentario), esas líneas llevan `producto_id` igual
+que las del POS, y su `movimiento_id` no se persiste. Para la base son idénticas.
+
+**Lo que sí se hizo (`0054`): que deje de ser invisible.** `trg_precio_catalogo` guarda en
+`cobro_lineas.precio_catalogo_bs` lo que el catálogo decía al cobrar. Es `security definer` y **toma
+el precio de la base, pisando cualquier valor que venga en el INSERT** — un precio de referencia que
+el cliente pudiera escribir sería tan falsificable como el que pretende auditar. No bloquea nada, así
+que `aplicarAjustes()` sigue funcionando.
+
+Verificado en producción, en una transacción revertida: un INSERT crudo cobrando a Bs. 5.00 un
+producto de Bs. 50.00 **y mandando `precio_catalogo_bs: 5.00` para tapar el rastro** quedó guardado
+con `precio_catalogo_bs = 50.00` y una diferencia de Bs. 45 visible.
+
+La consulta para revisarlo está en la cabecera de la migración. ⚠️ Una diferencia **no es un fraude**:
+los ajustes de caja y los descuentos acordados producen diferencias legítimas a diario. Lo que da es
+algo que mirar, que antes no existía. **Falta llevarlo a una pantalla**: hoy el dato se captura pero
+nadie lo ve sin escribir SQL.
 
 ---
 

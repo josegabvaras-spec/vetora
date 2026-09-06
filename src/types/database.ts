@@ -708,6 +708,19 @@ export interface CobroLinea {
   subtotal_bs: number
   servicio_id?: string | null
   producto_id?: string | null
+  /**
+   * Lo que el catálogo decía al cobrar, para poder comparar con lo cobrado.
+   *
+   * ⚠️ **No lo escribe nadie desde aquí**: lo pone `trg_precio_catalogo`
+   * (migración 0054) leyéndolo de `productos`/`servicios`, y pisa cualquier
+   * valor que llegue en el INSERT. Un precio de referencia que el cliente
+   * pudiera escribir sería tan falsificable como el que pretende auditar.
+   *
+   * Null en líneas sin producto ni servicio (un suplemento de peluquería, un
+   * cargo manual) y en todas las anteriores a 0054, que no se rellenaron: el
+   * precio de catálogo de entonces no se puede reconstruir.
+   */
+  precio_catalogo_bs?: number | null
 }
 
 /** 7. Peluquería / Estética Canina y Felina */
