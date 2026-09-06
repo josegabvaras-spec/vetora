@@ -9,8 +9,14 @@ import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import { Seccion } from '../components/ui/Seccion'
 import { TablaResponsive, type Columna } from '../components/ui/Tabla'
-import { obtenerResumenMetricas, type MetricasResumen } from '../services/metricas'
+import {
+  obtenerResumenMetricas,
+  listDesviacionesDePrecio,
+  type MetricasResumen,
+  type DesviacionDePrecio,
+} from '../services/metricas'
 import { formatBs } from '../lib/currency'
+import { formatClinicDateTime } from '../lib/datetime'
 import { useSuscripcionTabla } from '../mocks/useDb'
 import { useAuth } from '../context/useAuth'
 import { ReporteRentabilidad } from '../features/petshop/ReporteRentabilidad'
@@ -20,6 +26,72 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts'
 import { Modal } from '../components/ui/Modal'
+
+/**
+ * Rótulo de `cobro_lineas.origen` (migración `0063`).
+ *
+ * `catalogo` es la única marca que el **servidor** pone: significa que el
+ * precio lo releyó `registrar_venta_pos()` del catálogo. El resto son líneas
+ * cuyo importe el servidor no verificó, que es justo lo que hay que poder
+ * distinguir de un vistazo.
+ */
+const ORIGEN_LABEL: Record<string, { texto: string; tono: 'teal' | 'amber' | 'slate' }> = {
+  catalogo: { texto: 'Verificado', tono: 'teal' },
+  ajuste_manual: { texto: 'Precio fijado en caja', tono: 'amber' },
+  servicio: { texto: 'Servicio', tono: 'slate' },
+  suplemento: { texto: 'Suplemento', tono: 'slate' },
+}
+
+const COLUMNAS_DESVIACIONES: Columna<DesviacionDePrecio>[] = [
+  {
+    clave: 'concepto',
+    cabecera: 'Concepto',
+    movil: 'titulo',
+    celda: (d) => (
+      <div>
+        <span className="font-medium text-slate-900">{d.concepto}</span>
+        <span className="block text-[11px] text-slate-400">
+          {formatClinicDateTime(d.fecha)} · {d.usuario_nombre}
+        </span>
+      </div>
+    ),
+  },
+  {
+    clave: 'cobrado',
+    cabecera: 'Se cobró',
+    movil: 'detalle',
+    alineadaDerecha: true,
+    celda: (d) => <span className="tabular-nums text-slate-700">{formatBs(d.subtotal_bs)}</span>,
+  },
+  {
+    clave: 'esperado',
+    cabecera: 'Catálogo',
+    movil: 'detalle',
+    alineadaDerecha: true,
+    celda: (d) => <span className="tabular-nums text-slate-500">{formatBs(d.esperado_bs)}</span>,
+  },
+  {
+    clave: 'diferencia',
+    cabecera: 'Diferencia',
+    movil: 'destacado',
+    alineadaDerecha: true,
+    celda: (d) => (
+      <Badge tone={d.diferencia_bs < 0 ? 'amber' : 'teal'} size="sm" className="font-bold tabular-nums">
+        {d.diferencia_bs > 0 ? '+' : ''}
+        {formatBs(d.diferencia_bs)}
+      </Badge>
+    ),
+  },
+  {
+    clave: 'origen',
+    cabecera: 'Origen',
+    movil: 'detalle',
+    celda: (d) => {
+      const o = ORIGEN_LABEL[d.origen ?? ''] ?? { texto: d.origen ?? '—', tono: 'slate' as const }
+      return <Badge tone={o.tono} size="sm">{o.texto}</Badge>
+    },
+  },
+]
 
 const COLUMNAS_BAJO_STOCK: Columna<Producto>[] = [
   {
@@ -193,6 +265,7 @@ export function MetricasPage() {
   ].join('-')
 
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  const [desviaciones, setDesviaciones] = useState<DesviacionDePrecio[]>([])
 
   /**
    * Un negocio de retail sin expediente clínico ve OTRAS métricas.
@@ -214,6 +287,13 @@ export function MetricasPage() {
     obtenerResumenMetricas()
       .then(setMetricas)
       .catch((err) => setErrorCarga(err instanceof Error ? err.message : 'No se pudieron calcular las métricas'))
+
+    // Se pide aparte y **no se propaga su error a la pantalla**: es un panel de
+    // revisión, no el contenido principal. Si fallara, las métricas de arriba
+    // tienen que seguir viéndose.
+    listDesviacionesDePrecio()
+      .then(setDesviaciones)
+      .catch(() => setDesviaciones([]))
   }, [revisionMetricas, esRetail])
 
   if (esRetail) {
@@ -291,6 +371,29 @@ export function MetricasPage() {
           onClick={() => setChartActivo('inventario')}
         />
       </div>
+
+      {/* Revisión de precios cobrados fuera del catálogo.
+          ⚠️ Una diferencia NO es un fraude: los ajustes de caja son una
+          funcionalidad deliberada y los descuentos acordados producen
+          diferencias legítimas a diario. El dato se captura desde la migración
+          0054 y hasta ahora había que escribir SQL para verlo. */}
+      {desviaciones.length > 0 && (
+        <Seccion titulo="Cobros por fuera del precio de catálogo" tono="destacado">
+          <p className="mb-3 text-xs text-slate-500">
+            Líneas cobradas por un importe distinto al del catálogo.{' '}
+            <strong className="text-slate-700">Una diferencia no es un fraude:</strong> un ajuste de
+            precio en caja o un descuento acordado la producen con toda normalidad. Es para revisar,
+            no para acusar.
+          </p>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <TablaResponsive
+              columnas={COLUMNAS_DESVIACIONES}
+              filas={desviaciones}
+              claveDe={(d) => d.linea_id}
+            />
+          </div>
+        </Seccion>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">

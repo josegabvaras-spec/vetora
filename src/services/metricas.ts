@@ -226,3 +226,66 @@ export async function obtenerResumenMetricas(): Promise<MetricasResumen> {
     historial
   }
 }
+
+/** Una línea cobrada por un importe distinto del que dice el catálogo. */
+export interface DesviacionDePrecio {
+  linea_id: string
+  cobro_id: string
+  fecha: string
+  concepto: string
+  cantidad: number
+  subtotal_bs: number
+  esperado_bs: number
+  diferencia_bs: number
+  origen: string | null
+  usuario_nombre: string
+}
+
+/**
+ * Líneas cobradas por encima o por debajo del catálogo, más recientes primero.
+ *
+ * ⚠️ **Una diferencia NO es un fraude.** Los ajustes de caja son una
+ * funcionalidad deliberada: `aplicarAjustes()` deja que un operador fije el
+ * importe de una línea de consulta, y los descuentos acordados producen
+ * diferencias legítimas a diario. Esto no acusa a nadie: da algo que mirar,
+ * que hasta ahora no existía.
+ *
+ * El dato se captura desde la migración `0054` y **nadie lo había visto
+ * nunca**: había que escribir SQL. `0063` añadió la vista y esto la trae a
+ * pantalla. Un control que nadie mira no es un control.
+ *
+ * La vista es `security_invoker`, así que la RLS acota a la propia clínica sin
+ * que este servicio tenga que filtrar nada.
+ */
+export async function listDesviacionesDePrecio(limite = 50): Promise<DesviacionDePrecio[]> {
+  const { data, error } = await supabase
+    .from('desviaciones_de_precio')
+    .select('*')
+    .order('fecha', { ascending: false })
+    .limit(limite)
+
+  if (error) throw new Error(`No se pudieron leer las desviaciones de precio: ${error.message}`)
+  if (!data || data.length === 0) return []
+
+  // Los nombres, en una sola consulta: son pocas filas, pero el patrón del
+  // proyecto es no pedir un usuario por fila.
+  const ids = [...new Set(data.map((d) => d.usuario_id).filter(Boolean))]
+  const { data: usuarios } = ids.length
+    ? await supabase.from('usuarios').select('id, nombre').in('id', ids)
+    : { data: [] as { id: string; nombre: string }[] }
+
+  const nombre = new Map((usuarios ?? []).map((u) => [u.id, u.nombre]))
+
+  return data.map((d) => ({
+    linea_id: d.linea_id,
+    cobro_id: d.cobro_id,
+    fecha: d.fecha,
+    concepto: d.concepto,
+    cantidad: Number(d.cantidad),
+    subtotal_bs: Number(d.subtotal_bs),
+    esperado_bs: Number(d.esperado_bs),
+    diferencia_bs: Number(d.diferencia_bs),
+    origen: d.origen,
+    usuario_nombre: nombre.get(d.usuario_id) ?? 'Caja',
+  }))
+}

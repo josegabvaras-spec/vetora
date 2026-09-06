@@ -18,7 +18,7 @@ tienen entrada aquí**: se documentan allí.
 |---|---|---|
 | Crítico | 0 | — |
 | Alto | 7 | corregidos (H-19, H-20 y H-22 incluidos) |
-| Medio | 10 | 9 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18 y H-21), 1 mitigado (precio del POS, auditable) |
+| Medio | 11 | 10 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18, H-21 y H-23), 1 mitigado (precio del POS fuera del camino verificado) |
 | Bajo / Info | 5 | 3 corregidos, 1 verificado seguro (Vercel), 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
@@ -778,6 +778,71 @@ a la clínica sin poder vender.
 así que la consulta y la venta de mostrador siguen sin transacción; el ajuste manual de precio por
 línea sigue sin discriminador `origen` (H-13); y `productos_all` sigue siendo `FOR ALL`, así que el
 stock se puede mover con un `UPDATE productos` directo, por fuera del kardex.
+*(El discriminador `origen` llegó después en H-23.)*
+
+### H-23 · MEDIO · `cobro_lineas.origen`: por fin se distingue un ajuste legítimo de un precio inventado — CORREGIDO
+
+Fase 4 del plan del Bloque 1, y la pieza que H-13 llevaba pendiente desde el principio.
+
+**Por qué H-13 nunca se pudo bloquear.** `aplicarAjustes()` (`caja.ts`) permite **a propósito** que
+un operador fije el importe de una línea de consulta —«un operador puede fijar el precio, que es la
+funcionalidad», dice su propio comentario— y esas líneas eran **idénticas en el esquema** a una línea
+de POS falsificada: mismo `producto_id`, mismo `subtotal_bs`, y el `movimiento_id` que las
+distinguiría no se persiste. Sin forma de separarlas, cualquier bloqueo habría roto una función real.
+
+`0063` añade `cobro_lineas.origen` ∈ {`catalogo`, `ajuste_manual`, `servicio`, `suplemento`}.
+
+⚠️ **Y la parte que hace que sirva de algo: NO se acepta del cliente.** Si `origen` viajara en el
+INSERT, bastaría con mandar `origen = 'ajuste_manual'` para esquivar cualquier bloqueo, y el
+discriminador no discriminaría nada. Lo escribe `trg_precio_catalogo`, **pisando siempre lo que
+venga**. Verificado: un INSERT con `origen: 'catalogo'` en el cuerpo quedó guardado como
+`ajuste_manual`.
+
+**Cómo sabe el trigger que una línea viene del camino verificado:** por una **marca de transacción**
+(`set_config('vetora.linea_verificada', 'on', true)`) que solo pone `registrar_venta_pos()` y que se
+desvanece al terminar la transacción. Un cliente de PostgREST no puede fijarla: no hay ninguna
+función expuesta que lo haga. Verificado también que **no se filtra**: una línea insertada a mano
+justo después de una venta del POS sale como `ajuste_manual`, no hereda la marca.
+
+Sobre las líneas marcadas `catalogo` —las únicas que produce el servidor releyendo el precio— el
+trigger **sí bloquea** cualquier desviación: ahí una diferencia es un error de programación, no una
+decisión de negocio. Sobre `ajuste_manual` no bloquea nada, que es lo que mantiene viva la
+funcionalidad de caja.
+
+**El backfill no inventó verificaciones.** Las líneas anteriores a esta migración se clasificaron
+por su forma (`ajuste_manual` / `servicio` / `suplemento`) y **ninguna quedó como `catalogo`**: decir
+que una línea histórica está verificada cuando nadie la verificó es exactamente el tipo de dato que
+hace inútil un control.
+
+**Y por fin alguien puede MIRARLO.** El dato existía desde `0054` y **nadie lo había visto nunca** —
+hacía falta escribir SQL. La vista `desviaciones_de_precio` y la sección «Cobros por fuera del precio
+de catálogo» en `/metricas` lo ponen en pantalla, con quién cobró, cuándo, cuánto y el origen.
+⚠️ El texto de la pantalla dice explícitamente que **una diferencia no es un fraude**: los ajustes de
+caja y los descuentos acordados producen diferencias legítimas a diario.
+
+**Dos detalles de permisos, y los dos importan:**
+
+- La vista es **`security_invoker = true`**. Sin eso, una vista corre con los privilegios de su dueño
+  y **se salta la RLS** — es el agujero de aislamiento más clásico de PostgreSQL. La fase 4 de la
+  auditoría había verificado que el proyecto no tenía ninguna vista («riesgo eliminado por
+  ausencia»); la primera que se crea entra con el invoker puesto.
+- ⚠️ **`revoke` a `authenticated` antes del `grant select`, y no sobra.** Supabase concede *todos*
+  los privilegios a `authenticated` sobre lo que se crea en `public`, así que un `grant select` a
+  secas solo **añade**: la vista quedó con `arwdDxtm` (insert, update y delete incluidos). Hoy es
+  inerte —una vista con `join` no es actualizable en PostgreSQL— pero deja de serlo el día que
+  alguien la simplifique a una sola tabla. Corregido en la misma sesión: ahora es `authenticated=r`.
+
+**Verificado en producción con 8 pruebas en transacción revertida:** la venta del POS marca sus
+líneas como `catalogo`; una línea a mano después de esa venta no hereda la marca; mandar
+`origen: 'catalogo'` en el cuerpo se ignora; la línea falseada aparece en `desviaciones_de_precio`
+con la diferencia; las líneas de servicio y los suplementos se clasifican bien; **el ajuste manual
+legítimo sigue permitido**; y el backfill dejó cero líneas históricas como `catalogo`.
+
+**Lo que esto NO cierra**, y conviene no darlo por cerrado: un INSERT crudo en `cobro_lineas` con un
+precio inventado **sigue siendo posible** — cae como `ajuste_manual`, que por definición no se
+bloquea. Lo que cambia es que deja de ser invisible y queda separado de lo que el servidor sí
+verificó. Cerrarlo del todo exige migrar `registrarCobro` y `registrarVentaDirecta` a funciones de
+servidor, como ya está el POS desde `0062`.
 
 ---
 

@@ -2631,7 +2631,35 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      /**
+       * Líneas cobradas por un importe distinto del catálogo (migración `0063`).
+       *
+       * ⚠️ Una diferencia **no es un fraude**: los ajustes de caja y los
+       * descuentos acordados producen diferencias legítimas a diario. Es algo
+       * que mirar, que antes no existía — el dato se capturaba desde `0054` y
+       * había que escribir SQL para verlo.
+       *
+       * La vista es `security_invoker`, así que respeta la RLS de quien la lee:
+       * nadie ve las líneas de otra clínica.
+       */
+      desviaciones_de_precio: {
+        Row: {
+          linea_id: string
+          cobro_id: string
+          clinica_id: string
+          sucursal_id: string
+          fecha: string
+          usuario_id: string
+          concepto: string
+          cantidad: number
+          subtotal_bs: number
+          precio_catalogo_bs: number
+          esperado_bs: number
+          diferencia_bs: number
+          origen: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       /**
