@@ -2,8 +2,22 @@ import { useEffect, useState } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
 import { supabase } from '../../lib/supabase'
-import type { Clinica } from '../../types/database'
 import { ArrowLeft, LogOut, User, Building2, Mail, Shield, PawPrint } from 'lucide-react'
+
+/**
+ * Lo único que esta pantalla pinta de la clínica.
+ *
+ * ⚠️ Antes era `Clinica` entera con un `select('*')`, y de las veinte columnas
+ * solo se usaban estas dos: el resto —`precio_acordado_usd`, `estado_pago`,
+ * `proximo_cobro`, las cuotas de WhatsApp e IA— viajaba al navegador del
+ * dueño de la mascota sin que nada lo pintara. Desde la migración `0052` la
+ * tabla ya no se lee en crudo desde el portal: `clinica_del_portal()`
+ * devuelve exactamente estos dos campos.
+ */
+interface ClinicaDelPortal {
+  nombre: string
+  logo_url: string | null
+}
 
 /**
  * Perfil del usuario — pestaña «Perfil» de la barra inferior.
@@ -14,17 +28,17 @@ import { ArrowLeft, LogOut, User, Building2, Mail, Shield, PawPrint } from 'luci
  */
 export function PortalPerfilPage() {
   const { usuario, logout } = useAuth()
-  const [clinica, setClinica] = useState<Clinica | null>(null)
+  const [clinica, setClinica] = useState<ClinicaDelPortal | null>(null)
 
   useEffect(() => {
     async function load() {
       if (usuario?.clinica_id) {
-        const { data } = await supabase
-          .from('clinicas')
-          .select('*')
-          .eq('id', usuario.clinica_id)
-          .single()
-        if (data) setClinica(data as any)
+        // La función resuelve la clínica por `auth_clinica_id()`, así que no
+        // hace falta —ni se puede— pasarle un id: siempre devuelve la de quien
+        // llama.
+        const { data } = await supabase.rpc('clinica_del_portal')
+        const fila = Array.isArray(data) ? data[0] : data
+        if (fila) setClinica(fila as ClinicaDelPortal)
       }
     }
     load()

@@ -2682,6 +2682,22 @@ export type Database = {
         Returns: string
       }
       desvincular_cuenta_portal: { Args: { p_ficha: string }; Returns: string }
+      // Migración 0052. Añadidas a mano, por lo mismo que las de 0028: el
+      // portal ya no lee `usuarios` ni `clinicas` en crudo.
+      clinica_del_portal: {
+        Args: never
+        Returns: {
+          nombre: string
+          logo_url: string | null
+        }[]
+      }
+      nombres_de_usuarios: {
+        Args: { p_ids: string[] }
+        Returns: {
+          id: string
+          nombre: string
+        }[]
+      }
       // Migración 0044. Añadida a mano, por lo mismo que las de 0028.
       ia_uso_resumen_mensual: {
         Args: never

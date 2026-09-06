@@ -59,7 +59,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * aplicación reventaría al arrancar con «Cannot access before
    * initialization».
    */
-  const cargarContextoClinica = useCallback(async (clinicaId: string) => {
+  const cargarContextoClinica = useCallback(async (clinicaId: string, rol: string) => {
+    // ⚠️ El rol `cliente` no entra aquí, y desde la migración `0052` tampoco
+    // podría: `clinicas_select` exige `auth_es_personal()`. Es información
+    // para el menú y el gateo por módulo del área clínica, y **el portal no
+    // lee ninguno de los dos** (`modulosHabilitados` ni `tipoNegocio`). Sin
+    // esta guarda, cada login del portal lanzaría una consulta que la RLS
+    // devuelve vacía, y quien la viera en el registro pensaría que algo falla.
+    if (rol === 'cliente') return
+
     try {
       const { data: clinica } = await supabase
         .from('clinicas')
@@ -111,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUsuario(data as Usuario)
           // Cargar tipo de negocio y módulos del plan al reconectar sesión
           if (data.clinica_id) {
-            cargarContextoClinica(data.clinica_id)
+            cargarContextoClinica(data.clinica_id, data.rol)
           }
         }
       }
@@ -150,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(verificado)
     // Cargar tipo de negocio y módulos al iniciar sesión
     if (verificado.clinica_id) {
-      await cargarContextoClinica(verificado.clinica_id)
+      await cargarContextoClinica(verificado.clinica_id, verificado.rol)
     }
   }
 

@@ -370,9 +370,16 @@ export async function getFichaPacientePortal(pacienteId: string): Promise<FichaP
     ])
 
   // Solo los veterinarios que firman ESTAS consultas, no la plantilla entera.
+  //
+  // ⚠️ Va por `nombres_de_usuarios()` y no por `from('usuarios')` (migración
+  // 0052). La consulta directa ya solo pedía `id, nombre`, pero la TABLA
+  // dejaba leer el directorio completo del personal —correo, WhatsApp, rol—
+  // a cualquier cuenta del portal que la consultara por su cuenta. La
+  // función devuelve esas dos columnas y nada más, acotada a la clínica de
+  // quien llama.
   const veterinarioIds = [...new Set((historiales ?? []).map((h: any) => h.veterinario_id).filter(Boolean))]
   const { data: veterinarios } = veterinarioIds.length
-    ? await supabase.from('usuarios').select('id, nombre').in('id', veterinarioIds)
+    ? await supabase.rpc('nombres_de_usuarios', { p_ids: veterinarioIds as string[] })
     : { data: [] as { id: string; nombre: string }[] }
 
   const nombreDe = (id: string | null | undefined) =>
