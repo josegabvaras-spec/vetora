@@ -17,8 +17,8 @@ tienen entrada aquí**: se documentan allí.
 | Severidad | Hallazgos | Estado |
 |---|---|---|
 | Crítico | 0 | — |
-| Alto | 8 | corregidos (H-19, H-20, H-22 y H-25 incluidos) |
-| Medio | 12 | 11 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18, H-21, H-23 y H-24), 1 mitigado → **cerrado en H-25**: ya no hay INSERT directo de cobros |
+| Alto | 9 | corregidos (H-19, H-20, H-22, H-25 y H-29 incluidos) |
+| Medio | 14 | 13 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18, H-21, H-23, H-24, H-27 y H-28), 1 mitigado → **cerrado en H-25**: ya no hay INSERT directo de cobros |
 | Bajo / Info | 5 | 3 corregidos, 1 verificado seguro (Vercel), 1 heredado pendiente (rotar la contraseña) |
 
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
@@ -1079,6 +1079,152 @@ día con 0 violaciones. Si alguna pantalla del personal se rompiera, revertir es
   `listProductos`, `listInternaciones`, `listClinicas` y `listProgramados`. El último es el más caro:
   de él salen los avisos de refuerzo de vacuna, y devolver vacío por un fallo significa que **nadie
   llama a esos dueños**. Los otros ~112 quedan anotados, no corregidos.
+
+---
+
+### H-27 · El respaldo seguía sin la mitad de la clínica — CORREGIDO
+
+H-26 lo dejó en dieciocho tablas y lo dio por cerrado. **No lo estaba**: de las **40** tablas con
+`clinica_id`, seguían fuera **veintidós**. Y lo que faltaba no era secundario — era *todo lo que no
+es la veterinaria clásica*:
+
+- **La peluquería entera**, siete tablas: órdenes, fichas, fotos, comisiones, servicios
+  configurados, insumos y configuración. Una peluquería que pidiera su respaldo se llevaba un ZIP
+  sin una sola de sus órdenes de trabajo.
+- **El inventario avanzado**: lotes (y por tanto los vencimientos), proveedores, órdenes de compra
+  y sus detalles.
+- El catálogo de la Tienda, el vademécum, las devoluciones y promociones del petshop, los pagos de
+  suscripción, y **`sucursales`**, que es la estructura misma de la clínica.
+
+Es la misma clase de error que H-26 y por eso duele: se corrigió el caso que se tenía delante —el
+expediente clínico— y se dio por hecho que el resto ya estaba. **Un respaldo se mide contra el
+esquema, no contra lo que uno recuerda que existe.**
+
+Entran **37**. Las tres que quedan fuera se descartan con motivo, no por olvido: `invitaciones` son
+tokens de acceso de un solo uso (un respaldo no reparte credenciales), e `ia_uso` y
+`registro_errores` son telemetría de la plataforma, no datos de la clínica.
+
+`usuarios` se **exporta pero no se importa**: `usuarios.id` es clave foránea a `auth.users` y
+restaurar la fila no recrea la cuenta con la que esa persona entra. Por eso la Edge Function tiene
+ahora dos listas y no una.
+
+**Verificado, no supuesto:**
+
+- **Orden de restauración contra el grafo real** de `pg_constraint`: 62 aristas de clave foránea
+  dentro del respaldo, **0 violaciones**. El orden no se dedujo leyendo el código.
+- **Visibilidad con un JWT de admin real**, en transacción revertida: las 37 tablas se leen bajo
+  RLS, **0 discrepancias** entre filas reales y filas visibles.
+
+Dos defectos más, encontrados de camino:
+
+- ⚠️ **`generarRespaldo()` se saltaba en silencio la tabla que fallara.** Hacía `continue`: el ZIP
+  salía sin ese CSV y el navegador lo descargaba con normalidad. Un respaldo al que le faltaba el
+  historial entero parecía correcto **hasta el día de restaurarlo**. Ahora aborta y dice cuál falló.
+  Una tabla vacía no es un fallo y no aborta nada.
+- ⚠️ **`importarRespaldo()` era código muerto que hoy no podría funcionar.** No lo llamaba nadie,
+  pero seguía exportado: `0066` quitó `cobros_insert`, y `trg_stock_solo_por_kardex` y
+  `trg_kardex_inmutable` rechazan el `upsert`. Retirado, con la explicación de dónde vive de verdad
+  la restauración (la Edge Function con `service_role`, que es para lo que esos triggers llevan su
+  salida `auth.uid() is null`).
+
+La pantalla de `/respaldo` listaba **seis** archivos de los dieciocho que había. Ahora agrupa por
+área y **declara lo que el ZIP NO lleva**: los archivos de estudios, las fotos de peluquería y los
+comprobantes viven en Storage.
+
+---
+
+### H-28 · El copiloto tenía tope de vueltas, no de gasto — CORREGIDO (`0071`)
+
+Es VUL-37. `MAX_VUELTAS = 6` cuenta **llamadas**; la cuota mensual del plan se consume **una vez por
+pregunta**. Entre esas dos cosas no había nada que acotara lo que una unidad de cuota puede costar.
+
+Y las vueltas no valen lo mismo: cada resultado de herramienta se queda en `messages` y se reenvía
+en la siguiente, así que la sexta cuesta bastante más que la primera. El tamaño de lo que devuelven
+las herramientas no lo limita nada —`obtener_resumen_paciente` trae el historial completo de un
+paciente—, y ahí estaba la escalada.
+
+Ahora el bucle evalúa, **antes de cada vuelta**, lo gastado hasta ese momento con la **misma**
+`costoEstimadoUsd()` que ya escribe `ia_uso.costo_estimado_usd`. Al pasarse entrega lo que tenga,
+con su advertencia, exactamente igual que ya hacía al agotar las vueltas.
+
+**La cifra se simuló, no se eligió a ojo** (Sonnet 5, con el prompt y las herramientas cacheados):
+
+| Escenario | Coste |
+|---|---|
+| Simple, 1 vuelta | $0,016 |
+| Normal, 2 vueltas | $0,025 |
+| Compleja, 4 vueltas | $0,044 |
+| **Muy compleja, las 6 vueltas** | **$0,065** |
+| Herramientas devolviendo historiales completos, 6 vueltas | >$0,14 → **cortado en la vuelta 3** |
+
+Los $0,016 de la primera fila coinciden con los ~$0,017 medidos en su día contra la consola real de
+Anthropic, así que el modelo de coste no está inventado.
+
+⚠️ **El primer valor que puse fue $0,06 y estaba mal**, y lo delató la propia simulación: una
+pregunta legítima que use las seis vueltas cuesta $0,065 y habría quedado cortada **por hacer
+exactamente lo que se le permite**. $0,12 es el doble de ese máximo legítimo.
+
+`0071` añade `'tope'` a `ia_uso.resultado`. Sin eso estas preguntas se registrarían como `'ok'` y no
+habría forma de saber si el tope está bien calibrado: **un control que no se puede medir es una
+afirmación**. Muchos `'tope'` = está bajo; ninguno nunca = no está haciendo nada.
+
+⚠️ Lo que este tope **no** acota es la **primera** llamada: se comprueba antes de cada vuelta, así
+que lo que cueste la vuelta 0 ya está gastado cuando se mira. Ahí el techo lo ponen `pregunta`
+(2000 caracteres) y `max_tokens`. Lo que se acota es la escalada, que es de donde venía el riesgo.
+
+---
+
+### H-29 · El superadmin, con una contraseña y nada más — CORREGIDO (`0072`)
+
+La cuenta que crea credenciales (`crear-cuenta`), **borra clínicas enteras** (`eliminar-clinica`) y
+puede pedir el respaldo completo de cualquier inquilino (`respaldo-clinica`) no tenía segundo
+factor. Es el único punto del sistema donde una sola contraseña filtrada lo entrega todo.
+
+`auth_es_plataforma()` exige ahora `aal2`. **Se cambia la función y no las trece policies que la
+usan** —`clinicas`, `planes`, `pagos_suscripcion`, `invitaciones`, `configuracion_plataforma`,
+`ia_uso`, `registro_errores`, `sucursales` y `usuarios` quedan cubiertas a la vez—: es exactamente
+para lo que existen las funciones `auth_*`.
+
+⚠️ **DOS TRAMPAS, y son el motivo de que la migración tenga ese orden concreto.**
+
+**1. Cerrarse con llave por dentro.** `usuarios_select` era `(clinica_id = auth_clinica_id() and
+auth_es_personal()) or auth_es_plataforma()`. El superadmin tiene `clinica_id = null`, así que la
+primera rama **nunca** empareja: su única vía para leer su propia fila era `auth_es_plataforma()`.
+Al exigirle MFA no habría podido leer su perfil, `AuthContext` no arranca, la aplicación no pinta
+nada — **y por tanto nunca llega a la pantalla donde configurar el segundo factor**. Por eso lo
+primero que hace `0072` es añadir `id = auth.uid()`. No abre nada: son sus propios datos, no el
+directorio del personal que cerró VUL-03.
+
+**2. Exigir aal2 a quien todavía no tiene con qué darlo.** `auth_mfa_suficiente()` lo exige **solo a
+quien ya tiene un factor verificado**. Quien no lo tiene entra con contraseña, se topa con la
+pantalla que le obliga a configurarlo, y desde ese momento la RLS se lo exige para siempre.
+Consecuencia honesta, que conviene escribir: **entre aplicar esto y configurar el factor, la cuenta
+sigue protegida solo por la contraseña.** Esa ventana la cierra la persona, no la migración.
+
+**Verificado con un factor simulado en transacción revertida — 10 asertos, 0 fallos:**
+
+| Situación | Resultado |
+|---|---|
+| Sin factor, `aal1` | Entra y opera con normalidad — **no hay ventana de bloqueo** |
+| Con factor, `aal1` | `auth_es_plataforma()` **false**, `clinicas` devuelve **0 filas**… |
+| Con factor, `aal1` | …**pero sigue leyendo su propia fila**, así que la app arranca y le pide el código |
+| Con factor, `aal2` | Todo vuelve |
+
+**Las cinco Edge Functions con guarda de superadmin lo comprueban aparte**, y no es redundancia:
+corren con `service_role`, que **no aplica RLS**, así que lo anterior no las protege — serían la
+única puerta del sistema que sigue abriéndose solo con la contraseña. Usan
+`tiene_mfa_verificado(uuid)`, `security definer` y con el `execute` **solo para `service_role`**:
+saber quién tiene MFA configurado es justo el dato que sirve para elegir a quién atacar (misma
+disciplina de ACL que H-14 de `0047` — revocar de `PUBLIC` además de `anon`).
+
+`MfaGate` va **dentro** de `AuthProvider`, sustituyendo a `children`, así que ninguna ruta se pinta
+detrás ni tecleándola a mano. **Sin botón de «ahora no»**: si se pudiera posponer no sería
+obligatorio. Enseña el secreto en texto además del QR, porque configurarlo desde el mismo teléfono
+en el que está abierta la web es el caso normal, no el raro.
+
+⚠️ **Solo se le exige al `superadmin`.** El `admin` de una clínica no lo lleva: es una decisión de
+producto —fricción diaria para quien solo ve sus propios datos— y cambiarla es tocar
+`necesitaMfa()` en `AuthContext` y las policies que correspondan, no solo la pantalla.
 
 ---
 
