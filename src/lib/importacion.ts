@@ -1,27 +1,47 @@
 import JSZip from 'jszip'
-import { supabase } from './supabase'
 
 /**
  * Orden de restauración: las tablas que otras referencian van primero.
  *
  * Insertar una cita antes que su paciente revienta con un 23503 de clave
  * foránea, así que este orden no es cosmético.
- */
-/**
+ *
  * Mismo conjunto y mismo orden que `TABLAS_RESPALDO` (`lib/exportacion.ts`),
  * y **tienen que seguir coincidiendo**: si el ZIP trae un CSV que esta lista no
  * recorre, ese archivo se ignora en silencio y la clínica cree haber
  * restaurado algo que no restauró.
  *
- * El orden es de dependencia: cada tabla va después de aquellas a las que
- * apunta.
+ * ⚠️ **Con una excepción deliberada: `usuarios` se exporta y NO se importa.**
+ * `usuarios.id` es clave foránea a `auth.users`, y restaurar la fila no recrea
+ * la cuenta con la que esa persona inicia sesión. En una clínica nueva el
+ * `upsert` fallaría con un 23503 y arrastraría al resto del import; en la misma
+ * clínica sería un `update` que no cambia nada. Se exporta porque el directorio
+ * del personal es un dato de la clínica; no se restaura porque no hay nada que
+ * restaurar sin la cuenta de Auth detrás.
  */
 export const ORDEN_IMPORTACION = [
+  // 1. La estructura.
+  'sucursales',
+  'proveedores',
+  'servicios',
+  'vademecum',
+  'peluqueria_configuracion',
+  'peluqueria_servicios_config',
+  'petshop_configuracion',
+  'petshop_promociones',
+  // 2. Las fichas.
   'clientes',
   'pacientes',
-  'servicios',
+  // 3. El inventario.
   'productos',
+  'producto_lotes',
+  'catalogo_productos',
+  'peluqueria_servicio_insumos',
+  'ordenes_compra',
+  'orden_compra_detalles',
+  // 4. La caja.
   'turnos_caja',
+  // 5. La atención y su expediente.
   'citas',
   'historial_clinico',
   'recetas',
@@ -32,9 +52,17 @@ export const ORDEN_IMPORTACION = [
   'estudios_imagen',
   'internaciones',
   'notas_internacion',
+  'peluqueria_fichas',
+  // 6. El dinero.
   'cobros',
   'cobro_lineas',
   'movimientos_inventario',
+  'petshop_devoluciones',
+  'pagos_suscripcion',
+  // 7. Peluquería operativa: `peluqueria_ordenes` apunta a `cobros`.
+  'peluqueria_ordenes',
+  'peluqueria_comisiones',
+  'peluqueria_fotos',
 ] as const
 
 /**
@@ -147,24 +175,33 @@ export async function leerZip(file: File): Promise<Record<string, any[]>> {
   return datosRestaurados
 }
 
-/** Restauración que hace la propia clínica; la RLS acota dónde puede escribir. */
-export async function importarRespaldo(file: File) {
-  const datosRestaurados = await leerZip(file)
-  const fallidas: string[] = []
-
-  for (const tabla of ORDEN_IMPORTACION) {
-    const filas = datosRestaurados[tabla]
-    if (!filas || filas.length === 0) continue
-
-    const { error } = await supabase.from(tabla as any).upsert(filas)
-    // Antes esto solo hacía `console.error`: la pantalla decía «importado» aunque
-    // no hubiera entrado una sola fila.
-    if (error) fallidas.push(`${tabla} (${error.message})`)
-  }
-
-  if (fallidas.length > 0) {
-    throw new Error(`No se pudieron importar algunas tablas: ${fallidas.join('; ')}`)
-  }
-
-  return datosRestaurados
-}
+/*
+ * ⚠️ **Aquí había un `importarRespaldo()` que restauraba desde el navegador, y
+ * se ha retirado: hoy sería imposible que funcionara.**
+ *
+ * No lo llamaba nadie —`/respaldo` solo descarga— pero seguía exportado, y un
+ * código muerto que promete restaurar es peor que no tenerlo: el día que
+ * alguien lo cablee a un botón descubre, con el ZIP ya cargado, que la mitad de
+ * las tablas rebotan.
+ *
+ * El endurecimiento del Bloque 1 cerró ese camino a propósito, y cada cierre
+ * tiene su motivo:
+ *
+ * - `0066` eliminó `cobros_insert` y `cobro_lineas_insert`: un cobro solo puede
+ *   nacer dentro de `registrar_cobro()`. Un `upsert` desde el navegador no
+ *   tiene por dónde entrar.
+ * - `trg_stock_solo_por_kardex` (`0064`) impide fijar `productos.stock_actual`
+ *   fuera de un movimiento de inventario.
+ * - `trg_kardex_inmutable` (`0058`) y `trg_turno_cerrado_inmutable` (`0056`)
+ *   rechazan el `update` que hace un `upsert` sobre filas que ya existen.
+ *
+ * **La restauración vive en la Edge Function `respaldo-clinica`**, que corre con
+ * `service_role` —por eso cada uno de esos triggers lleva su salida
+ * `auth.uid() is null`— y además comprueba, antes de escribir una sola fila,
+ * que ningún `id` del respaldo pertenezca ya a otra clínica. Esa comprobación
+ * no se puede hacer desde el cliente, porque la RLS le oculta precisamente las
+ * filas ajenas que hay que detectar.
+ *
+ * `leerZip()` se conserva y se usa: es lo que `services/respaldoPlataforma.ts`
+ * emplea para leer el archivo antes de mandárselo a la función.
+ */

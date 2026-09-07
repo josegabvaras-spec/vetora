@@ -55,22 +55,43 @@ function cabecerasCors(origen: string | null) {
 }
 
 /**
- * Mismas tablas que `lib/exportacion.ts`; el orden importa al restaurar.
+ * Las 37 tablas de una clínica, **en orden de restauración** (cada una después
+ * de aquellas a las que apunta). El orden sale del grafo real de claves
+ * foráneas, consultado contra la base.
  *
- * ⚠️ Estas tres listas —esta, `TABLAS_RESPALDO` y `ORDEN_IMPORTACION`— tienen
- * que decir lo mismo. Eran once tablas y **ninguna del expediente clínico**:
- * un respaldo restaurado perdía vacunas, recetas, desparasitaciones,
- * consentimientos firmados e informes (VUL-36). `servicios` faltaba además por
- * integridad: `cobro_lineas.servicio_id` lo referencia con `no action`.
+ * ⚠️ Estas listas —esta, `TABLAS_RESPALDO` y `ORDEN_IMPORTACION`— tienen que
+ * decir lo mismo. Eran once y luego dieciocho: con once no viajaba nada del
+ * expediente clínico, y con dieciocho faltaba **todo lo que no es la
+ * veterinaria clásica** (la peluquería entera, lotes, proveedores, órdenes de
+ * compra, catálogo, vademécum, devoluciones, y hasta `sucursales`). Es VUL-36.
  *
- * ⚠️ Los ARCHIVOS de `estudios_imagen` viven en el bucket `estudios` y no
- * viajan aquí; esto restaura la ficha, no la imagen.
+ * Quedan fuera a propósito `invitaciones` (son tokens de acceso de un solo uso;
+ * un respaldo no reparte credenciales), `ia_uso` y `registro_errores`
+ * (telemetría de la plataforma, no datos de la clínica) y `onboarding_usuario`
+ * (no tiene `clinica_id` y se regenera solo).
+ *
+ * ⚠️ Los ARCHIVOS de `estudios_imagen`, `peluqueria_fotos` y los comprobantes
+ * de pago viven en Storage y no viajan aquí; esto restaura la ficha, no la
+ * imagen.
  */
-const TABLAS = [
+const TABLAS_EXPORTACION = [
+  'sucursales',
+  'usuarios',
+  'proveedores',
+  'servicios',
+  'vademecum',
+  'peluqueria_configuracion',
+  'peluqueria_servicios_config',
+  'petshop_configuracion',
+  'petshop_promociones',
   'clientes',
   'pacientes',
-  'servicios',
   'productos',
+  'producto_lotes',
+  'catalogo_productos',
+  'peluqueria_servicio_insumos',
+  'ordenes_compra',
+  'orden_compra_detalles',
   'turnos_caja',
   'citas',
   'historial_clinico',
@@ -82,10 +103,30 @@ const TABLAS = [
   'estudios_imagen',
   'internaciones',
   'notas_internacion',
+  'peluqueria_fichas',
   'cobros',
   'cobro_lineas',
   'movimientos_inventario',
+  'petshop_devoluciones',
+  'pagos_suscripcion',
+  'peluqueria_ordenes',
+  'peluqueria_comisiones',
+  'peluqueria_fotos',
 ] as const
+
+/**
+ * Lo mismo, **menos `usuarios`**.
+ *
+ * ⚠️ `usuarios.id` es clave foránea a `auth.users`, y esta función no crea
+ * cuentas de Auth (eso es `crear-cuenta`). Restaurar la fila del personal sobre
+ * una clínica nueva reventaría con un 23503 y arrastraría el import entero al
+ * `fallidas`; sobre la misma clínica sería un `update` que no cambia nada. Se
+ * exporta —el directorio del personal es un dato de la clínica— y no se
+ * restaura, porque sin la cuenta detrás no hay nada que restaurar.
+ */
+const TABLAS_IMPORTACION = TABLAS_EXPORTACION.filter(
+  (tabla) => tabla !== 'usuarios',
+) as readonly string[]
 
 function texto(valor: unknown): string {
   return typeof valor === 'string' ? valor.trim() : ''
@@ -148,7 +189,7 @@ Deno.serve(async (peticion) => {
 
     if (accion === 'exportar') {
       const tablas: Record<string, unknown[]> = {}
-      for (const tabla of TABLAS) {
+      for (const tabla of TABLAS_EXPORTACION) {
         const { data, error } = await admin.from(tabla).select('*').eq('clinica_id', clinicaId)
         if (error) {
           // El mensaje crudo de Postgres lleva nombres de constraint y de columna.
@@ -192,7 +233,7 @@ Deno.serve(async (peticion) => {
       // No se regeneran los `id` al importar a propósito: eso convertiría un
       // reintento del mismo respaldo en filas duplicadas cada vez, en vez de
       // conciliarse con lo que ya existe.
-      for (const tabla of TABLAS) {
+      for (const tabla of TABLAS_IMPORTACION) {
         const filas = tablas[tabla]
         if (!Array.isArray(filas) || filas.length === 0) continue
 
@@ -223,7 +264,7 @@ Deno.serve(async (peticion) => {
       }
 
       const fallidas: string[] = []
-      for (const tabla of TABLAS) {
+      for (const tabla of TABLAS_IMPORTACION) {
         const filas = tablas[tabla]
         if (!Array.isArray(filas) || filas.length === 0) continue
 

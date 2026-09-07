@@ -38,19 +38,48 @@ export function RespaldoPage() {
       <Card>
         <Seccion titulo="Descargar Archivo ZIP">
           <div className="flex flex-col gap-4">
+            {/* Esta lista decía seis archivos cuando el ZIP llevaba dieciocho, y
+                hoy lleva 37. Se agrupa por área en vez de enumerar 37 nombres de
+                tabla: quien lee esto quiere saber si su trabajo está dentro, no
+                cómo se llaman las tablas. El recuento sí es exacto. */}
             <p className="text-sm text-slate-600">
-              El archivo incluirá datos en formato CSV y las fotografías de las mascotas guardadas.
-              Al exportar se generarán los siguientes archivos:
+              El archivo lleva <b>un CSV por cada una de las 37 tablas</b> de tu clínica, más las
+              fotografías de las mascotas:
             </p>
-            <ul className="list-disc pl-5 text-sm text-slate-600">
-              <li>clientes.csv</li>
-              <li>pacientes.csv</li>
-              <li>citas.csv</li>
-              <li>historial_clinico.csv</li>
-              <li>cobros.csv y cobro_lineas.csv</li>
-              <li>turnos_caja.csv</li>
-              <li>Carpeta <b>fotos/</b> con las imágenes nombradas por código de mascota.</li>
+            <ul className="list-disc pl-5 text-sm text-slate-600 space-y-1">
+              <li>
+                <b>Fichas</b> — clientes, pacientes y sus fotos.
+              </li>
+              <li>
+                <b>Expediente clínico</b> — historial, recetas, vacunas, desparasitaciones,
+                internaciones, consentimientos firmados e informes.
+              </li>
+              <li>
+                <b>Agenda y caja</b> — citas, turnos, cobros y sus líneas.
+              </li>
+              <li>
+                <b>Inventario</b> — productos, lotes, proveedores, órdenes de compra y movimientos.
+              </li>
+              <li>
+                <b>Peluquería y Pet Shop</b> — órdenes, fichas, comisiones, servicios configurados,
+                promociones y devoluciones.
+              </li>
+              <li>
+                <b>Configuración</b> — sucursales, personal, servicios, vademécum y catálogo de la
+                Tienda.
+              </li>
+              <li>
+                Carpeta <b>fotos/</b> con las imágenes nombradas por código de mascota.
+              </li>
             </ul>
+
+            {/* Decirlo aquí y no solo en el código: quien guarda este ZIP creyendo
+                que lleva sus radiografías se entera el día que las necesita. */}
+            <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              <b>Lo que el ZIP no lleva:</b> los archivos de los estudios de imagen, las fotos de
+              peluquería y los comprobantes de pago. Esos viven en el almacenamiento y se descargan
+              desde su propia pantalla; aquí viaja la ficha, no la imagen.
+            </p>
 
             <div className="mt-4 flex flex-wrap items-center gap-4">
               <Button onClick={handleDescargar} disabled={generando}>
