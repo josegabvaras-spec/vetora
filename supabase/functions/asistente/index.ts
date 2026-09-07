@@ -313,7 +313,7 @@ async function registrarUso(
     entrada?: TokensDeEntrada
     tokens_salida?: number
     duracion_ms: number
-    resultado: 'ok' | 'error' | 'rechazo' | 'sin_cuota'
+    resultado: 'ok' | 'error' | 'rechazo' | 'sin_cuota' | 'tope'
   },
 ) {
   try {
@@ -474,7 +474,11 @@ Deno.serve(async (peticion) => {
         entrada: resultado.entrada,
         tokens_salida: resultado.salida,
         duracion_ms: Date.now() - inicio,
-        resultado: 'ok',
+        // 'tope' cuando el bucle se cortó por gasto (VUL-37). La respuesta se
+        // entrega igual —degradada, con su advertencia— así que sin este matiz
+        // quedaría registrada como 'ok' y el tope sería invisible en la
+        // bitácora: no se podría saber si está bien calibrado.
+        resultado: resultado.topeDeGasto ? 'tope' : 'ok',
       })
 
       return responder({

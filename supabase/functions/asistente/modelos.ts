@@ -132,6 +132,59 @@ const TARIFAS: Record<string, { entrada: number; salida: number }> = {
 }
 
 /**
+ * Lo máximo que puede costar **una sola pregunta** al copiloto, en dólares.
+ *
+ * ⚠️ Esto es la corrección de VUL-37, y hace falta explicar por qué no es el
+ * `MAX_VUELTAS` que ya existía.
+ *
+ * La cuota mensual del plan se consume **una vez por pregunta**, no por llamada
+ * al modelo — y eso es deliberado: el copiloto necesita varias vueltas de
+ * herramientas para responder bien, y cobrar cuota por vuelta castigaría
+ * justamente la pregunta bien planteada. Pero entonces `MAX_VUELTAS` acota el
+ * NÚMERO de llamadas y no lo que cuestan, y las dos cosas no son proporcionales:
+ * cada resultado de herramienta se acumula en `messages` y se reenvía en la
+ * vuelta siguiente, así que la sexta vuelta cuesta bastante más que la primera
+ * aunque sea «una vuelta» igual que ella.
+ *
+ * Con el `contexto` sin acotar (VUL-16, ya cerrada con un tope de 20.000
+ * caracteres y un 413), esto significaba que el tope del plan limitaba cuántas
+ * preguntas se hacían y **no la factura**. Cerrada aquella, faltaba poner techo
+ * a lo que el bucle acumula.
+ *
+ * **La cifra no se eligió a ojo: se simuló el bucle con esta misma
+ * `costoEstimadoUsd()` y estos costes salieron** (Sonnet 5, con el prompt y las
+ * herramientas cacheados como en producción):
+ *
+ * | Escenario | Coste |
+ * |---|---|
+ * | Pregunta simple, 1 vuelta | $0,016 |
+ * | Normal, 2 vueltas | $0,025 |
+ * | Compleja, 4 vueltas | $0,044 |
+ * | **Muy compleja, las 6 vueltas** | **$0,065** |
+ * | Herramientas devolviendo historiales completos, 6 vueltas | >$0,14 |
+ *
+ * Los $0,016 de la primera fila coinciden con los ~$0,017 medidos en su día
+ * contra la consola real de Anthropic, así que el modelo de coste no está
+ * inventado.
+ *
+ * ⚠️ **El primer valor que puse fue $0,06, y estaba mal**: la simulación lo
+ * delató enseguida — una pregunta legítima que use las seis vueltas cuesta
+ * $0,065 y habría quedado cortada por hacer exactamente lo que se le permite.
+ * $0,12 es el doble de ese máximo legítimo: nunca corta el uso normal, y sí
+ * corta el desbocado (en la vuelta 3 del último escenario).
+ *
+ * Si en `ia_uso` empiezan a aparecer muchos `resultado = 'tope'`, la cifra está
+ * baja; si no aparece ninguno nunca, no está haciendo nada y hay que bajarla.
+ *
+ * ⚠️ Lo que este tope NO acota es la **primera** llamada: se comprueba antes de
+ * cada vuelta, así que lo que cueste la vuelta 0 ya está gastado cuando se mira.
+ * Ahí el techo lo ponen `pregunta` (2000 caracteres) y `max_tokens`. Lo que se
+ * acota aquí es la escalada, que es de donde viene el riesgo real: el tamaño de
+ * lo que devuelven las herramientas no está limitado por nada.
+ */
+export const TOPE_USD_POR_PREGUNTA = 0.12
+
+/**
  * La entrada no es un número, son tres, y cada una se paga distinto.
  *
  * ⚠️ **`usage.input_tokens` NO incluye los tokens de caché**: la creación y la

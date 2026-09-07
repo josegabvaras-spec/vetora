@@ -10,7 +10,7 @@ import {
   ejecutarHerramienta,
   hoyEnLaClinica,
 } from './herramientas.ts'
-import { soportaFallbacks } from './modelos.ts'
+import { costoEstimadoUsd, soportaFallbacks, TOPE_USD_POR_PREGUNTA } from './modelos.ts'
 
 /**
  * Cuántas veces puede el modelo pedir datos antes de tener que responder.
@@ -115,6 +115,13 @@ export interface ResultadoCopiloto {
   herramientas: string[]
   entrada: { frescos: number; cacheEscritura: number; cacheLectura: number }
   salida: number
+  /**
+   * La pregunta se cortó al alcanzar el tope de gasto, no porque el modelo
+   * terminara. Sube hasta `ia_uso.resultado = 'tope'`: sin distinguirlo, estas
+   * preguntas se registrarían como `'ok'` y no habría manera de saber si el
+   * tope está bien calibrado. Ver `TOPE_USD_POR_PREGUNTA` en `modelos.ts`.
+   */
+  topeDeGasto?: boolean
 }
 
 interface UsoDelModelo {
@@ -168,6 +175,35 @@ export async function orquestar(opciones: {
     `Hoy es ${hoyEnLaClinica()} (zona horaria de Bolivia).`
 
   for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
+    // ⚠️ Dos topes, y cuentan cosas distintas: `MAX_VUELTAS` cuenta LLAMADAS y
+    // esto cuenta DINERO (VUL-37). No son intercambiables porque las vueltas no
+    // valen lo mismo: cada resultado de herramienta se queda en `messages` y se
+    // reenvía en la siguiente, así que la sexta vuelta cuesta bastante más que
+    // la primera. Un tope de seis llamadas no acota la factura de una pregunta;
+    // este sí.
+    //
+    // Se comprueba ANTES de llamar, no después: lo ya gastado no se recupera, y
+    // lo único que se puede evitar es la llamada siguiente. Por eso no se
+    // evalúa en la primera vuelta — nunca hay que impedir la llamada inicial,
+    // que es la que responde la inmensa mayoría de las preguntas.
+    const gastado = costoEstimadoUsd(modelo, entrada, salida)
+    if (vuelta > 0 && gastado >= TOPE_USD_POR_PREGUNTA) {
+      // Al operador, la cifra; a quien preguntó, qué hacer. Un usuario de la
+      // clínica no tiene por qué ver dólares de tokens en pantalla.
+      console.error(
+        `asistente: tope de gasto por pregunta alcanzado en la vuelta ${vuelta}`,
+        { gastado, tope: TOPE_USD_POR_PREGUNTA, modelo, herramientas },
+      )
+      return {
+        respuesta: comoRespuesta(
+          'La consulta necesitó revisar demasiados datos y se detuvo antes de terminar. ' +
+            'Prueba a preguntarlo de forma más concreta, o acotando las fechas.',
+          'Se alcanzó el tope de datos que una sola pregunta puede consultar.',
+        ),
+        herramientas, entrada, salida, topeDeGasto: true,
+      }
+    }
+
     const respuesta = await cliente.beta.messages.create({
       model: modelo,
       max_tokens: 16000,
