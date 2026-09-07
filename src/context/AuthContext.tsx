@@ -189,10 +189,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /**
    * ¿Hay que pararle antes de dejarle entrar?
    *
-   * `nivelSiguiente === 'aal2'` con `nivelActual === 'aal1'` es exactamente lo
-   * que Supabase responde cuando la cuenta tiene un factor y la sesión no lo ha
-   * usado. Se comprueba así y no por `tieneFactor` a secas porque el nivel es lo
-   * que la RLS mira: si un día divergieran, la pantalla debe seguir a la RLS.
+   * Se mira `nivelActual !== 'aal2'` y no `tieneFactor` a secas porque el nivel
+   * es lo que la RLS mira: si un día divergieran, la pantalla debe seguir a la
+   * RLS y no al revés.
+   *
+   * ⚠️ **Si la consulta del estado falla, `mfa` queda en `null` y esto es
+   * `false`: se le deja pasar.** Es deliberado, y solo es defendible porque la
+   * barrera de verdad está en otro sitio. Un fallo de red aquí no puede dejar
+   * al superadmin encerrado en una pantalla que tampoco podría funcionar —y si
+   * de verdad tiene un factor sin usar, la RLS le devolverá cero filas de
+   * `clinicas` igualmente, así que no entra a nada—. Al revés (fallar cerrado
+   * en la pantalla) la seguridad no mejoraría ni un poco y el bloqueo sí sería
+   * real.
    */
   const mfaPendiente =
     usuario?.rol === 'superadmin' &&
