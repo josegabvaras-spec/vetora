@@ -7,13 +7,29 @@ import { supabase } from './supabase'
  * Insertar una cita antes que su paciente revienta con un 23503 de clave
  * foránea, así que este orden no es cosmético.
  */
+/**
+ * Mismo conjunto y mismo orden que `TABLAS_RESPALDO` (`lib/exportacion.ts`),
+ * y **tienen que seguir coincidiendo**: si el ZIP trae un CSV que esta lista no
+ * recorre, ese archivo se ignora en silencio y la clínica cree haber
+ * restaurado algo que no restauró.
+ *
+ * El orden es de dependencia: cada tabla va después de aquellas a las que
+ * apunta.
+ */
 export const ORDEN_IMPORTACION = [
   'clientes',
   'pacientes',
+  'servicios',
   'productos',
   'turnos_caja',
   'citas',
   'historial_clinico',
+  'recetas',
+  'vacunas_aplicadas',
+  'desparasitaciones_aplicadas',
+  'consentimientos_cirugia',
+  'informes_firmados',
+  'estudios_imagen',
   'internaciones',
   'notas_internacion',
   'cobros',

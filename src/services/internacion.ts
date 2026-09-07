@@ -199,7 +199,13 @@ export async function listInternaciones(
   if (estado) query = query.eq('estado', estado)
   if (veterinarioId) query = query.eq('veterinario_id', veterinarioId)
 
-  const { data: internaciones } = await query
+  // ⚠️ El `error` se mira, y no es cosmético: sin esto, un fallo de RLS o de red
+  // deja `data` en null y la pantalla dice «no hay internaciones» — un listado
+  // roto es indistinguible de uno vacío. Es la misma clase de fallo mudo que ya
+  // se corrigió en `portalCliente.ts`, donde un portal roto parecía un portal
+  // sin mascotas (VUL-41).
+  const { data: internaciones, error } = await query
+  if (error) throw new Error(`No se pudieron leer las internaciones: ${error.message}`)
   if (!internaciones || internaciones.length === 0) return []
 
   return componerDetalleDeInternaciones(internaciones as Internacion[])

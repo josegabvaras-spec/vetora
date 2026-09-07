@@ -113,12 +113,86 @@ function cedula(valor: string): string {
   return rachas.sort((a, b) => b.length - a.length)[0] ?? ''
 }
 
+
+/**
+ * IP de quien llama, probando las cabeceras que ponen los distintos proxies.
+ *
+ * ⚠️ No se da por hecha ninguna, y no es precaución teórica: en la primera
+ * prueba contra producción `x-forwarded-for` llegó vacía, el límite no se
+ * activó, y **las doce peticiones seguidas pasaron**. Solo se vio porque el
+ * contador de la base seguía en cero — la respuesta HTTP era idéntica con
+ * límite y sin él. Se prueban en orden y, si ninguna trae nada, se deja pasar:
+ * un problema de cabeceras no puede tumbar la puerta pública.
+ */
+function ipDeLaPeticion(peticion: Request): string {
+  const candidatas = [
+    "x-forwarded-for",
+    "x-real-ip",
+    "cf-connecting-ip",
+    "fly-client-ip",
+    "true-client-ip",
+  ]
+  for (const nombre of candidatas) {
+    const valor = (peticion.headers.get(nombre) ?? "").split(",")[0].trim()
+    if (valor) return valor
+  }
+  return ""
+}
+
+/**
+ * Cuenta el intento y dice si se pasa del limite.
+ *
+ * El estado vive en la base (`consumir_intento_publico`, migración `0068`) y no
+ * en memoria: las Edge Functions son sin estado y pueden correr en varias
+ * instancias a la vez, así que un contador local no contaría nada. Comprueba y
+ * consume en UNA sentencia, igual que `consumir_cuota_whatsapp()`.
+ */
+async function dentroDelLimite(peticion: Request, prefijo: string, maximo: number, minutos: number) {
+  const ip = ipDeLaPeticion(peticion)
+  if (!ip) return true
+  const { data, error } = await admin.rpc('consumir_intento_publico', {
+    p_clave: `${prefijo}:${ip}`,
+    p_maximo: maximo,
+    p_ventana_minutos: minutos,
+  })
+  // Si el contador falla, se deja pasar: un fallo de la tabla de frecuencia no
+  // puede tumbar el registro ni el canje de invitaciones.
+  if (error) {
+    console.error('limite de frecuencia:', error)
+    return true
+  }
+  return data !== false
+}
+
 Deno.serve(async (peticion) => {
   const cabeceras = cabecerasCors(peticion.headers.get('origin'))
   if (peticion.method === 'OPTIONS') return new Response('ok', { headers: cabeceras })
 
+  // Solo POST. Las ocho funciones interceptaban OPTIONS y despues aceptaban
+  // GET, PUT o DELETE indistintamente, cayendo al catch al no poder parsear el
+  // cuerpo (VUL-42). Rechazar con 405 es lo que corresponde y evita ruido en
+  // los logs que parece un error de la funcion y no lo es.
+  if (peticion.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Metodo no permitido' }), {
+      status: 405,
+      headers: { ...cabeceras, Allow: 'POST, OPTIONS' },
+    })
+  }
+
   function responder(cuerpo: unknown, status = 200) {
     return new Response(JSON.stringify(cuerpo), { status, headers: cabeceras })
+  }
+
+  // Frecuencia (VUL-18 / E-2). Es la función pública más expuesta del sistema:
+  // sin sesión, con `service_role`, y crea cuentas de Auth. Sin límite, permite
+  // sondear a alta velocidad el oráculo que el propio código documenta y acepta
+  // —«¿es este número cliente de esta clínica?»—: aceptar la fuga de UNA
+  // consulta es una cosa, dejar barrer una lista de miles de números es otra.
+  if (!(await dentroDelLimite(peticion, 'registro', 10, 10))) {
+    return responder(
+      { error: 'Demasiados intentos desde esta conexión. Espera unos minutos y vuelve a probar.' },
+      429,
+    )
   }
 
   try {

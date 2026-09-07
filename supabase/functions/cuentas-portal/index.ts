@@ -84,6 +84,17 @@ Deno.serve(async (peticion) => {
   const cabeceras = cabecerasCors(peticion.headers.get('origin'))
   if (peticion.method === 'OPTIONS') return new Response('ok', { headers: cabeceras })
 
+  // Solo POST. Las ocho funciones interceptaban OPTIONS y despues aceptaban
+  // GET, PUT o DELETE indistintamente, cayendo al catch al no poder parsear el
+  // cuerpo (VUL-42). Rechazar con 405 es lo que corresponde y evita ruido en
+  // los logs que parece un error de la funcion y no lo es.
+  if (peticion.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Metodo no permitido' }), {
+      status: 405,
+      headers: { ...cabeceras, Allow: 'POST, OPTIONS' },
+    })
+  }
+
   function responder(cuerpo: unknown, status = 200) {
     return new Response(JSON.stringify(cuerpo), { status, headers: cabeceras })
   }

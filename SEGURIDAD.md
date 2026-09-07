@@ -950,6 +950,136 @@ cobro sin nombre ni atención rechazado; caja cerrada rechazada. De `0066`, con
 línea → `42501`**, modificar el importe de un cobro → 0 filas, borrarlo → 0 filas; y siguen
 funcionando cobrar por la función, la venta del POS, y leer cobros y líneas.
 
+### H-26 · Lo que quedaba fuera del Bloque 1 — CORREGIDO
+
+Seis frentes distintos que el informe general dejaba abiertos y que no eran de caja. Se cierran
+juntos porque ninguno dependía de los demás.
+
+#### VUL-24 · Una clínica suspendida seguía operando por API — `0067`
+
+`motivoDeBloqueo()` la sacaba de la interfaz, y `CLAUDE.md` lo reconocía como fachada desde hace
+tiempo: *«hoy no está en la RLS: su JWT seguiría leyendo su clínica entera desde PostgREST»*. `0050`
+cerró la mitad —`activo` en el usuario— y su propio comentario dejó anotado que la clínica seguía
+pendiente. Es la palanca comercial del negocio: quien deja de pagar seguía trabajando.
+
+⚠️ **Lo importante es DÓNDE va el candado, y por poco lo pongo donde no era.** Lo obvio sería
+añadir el estado a `auth_clinica_id()`, de donde cuelga todo. **Habría repetido exactamente la
+regresión H-15**: `clinica_del_portal()` resuelve la clínica con esa función y corre en *cada login
+de cualquier rol*; si devolviera null, `motivoDeBloqueo()` interpretaría el vacío como «la clínica ya
+no existe» y el usuario quedaría bloqueado **con el mensaje equivocado**, sin saber que solo tiene
+que pagar.
+
+Así que va en las cuatro funciones de **permiso** (`auth_es_personal`, `auth_es_admin`,
+`auth_es_clinico`, `auth_ve_expediente`), no en la de **identidad**. `auth_es_plataforma()` tampoco
+se toca: el superadmin no tiene clínica. Solo bloquea `'suspendida'`; una clínica en `'demo'` sigue
+operando.
+
+Verificado con 12 pruebas: con la clínica activa las cuatro dan `true`; suspendida las cuatro dan
+`false` **y `auth_clinica_id()` sigue devolviendo la clínica**, que es lo que hace que el login diga
+«La cuenta de X está suspendida. Regulariza el pago». Por PostgREST no lee pacientes, ni cobros, ni
+historiales, ni inventario. El superadmin no se ve afectado y una clínica en demo tampoco.
+
+#### VUL-36 · El respaldo no guardaba el expediente clínico
+
+Cubría **once tablas y ninguna del expediente**. Una clínica que restaurara su respaldo perdía el
+carné de vacunas, las recetas, las desparasitaciones, los consentimientos firmados y los informes.
+Es una funcionalidad que prometía algo que no cumplía.
+
+Pasa a **dieciocho**, en orden de dependencia. `servicios` faltaba además por integridad pura:
+`cobro_lineas.servicio_id` y `citas.servicio_id` lo referencian con `no action`, así que restaurar
+un recibo de un servicio ausente reventaba con un `23503`.
+
+⚠️ **Lo que el ZIP sigue sin llevar, y hay que decirlo:** `estudios_imagen` guarda la *ficha*, pero
+los **archivos** viven en el bucket `estudios` de Storage y no se descargan. Restaurar deja la ficha
+apuntando a un archivo que puede no estar.
+
+Las tres listas —`TABLAS_RESPALDO`, `ORDEN_IMPORTACION` y la de `respaldo-clinica`— tienen que decir
+lo mismo, y ahora lo dicen.
+
+#### VUL-17 · La autoría de un registro clínico era falsificable — `0069`
+
+`historial_insert` anclaba inquilino y rol, y **ninguna otra columna**. Cualquiera de los tres roles
+clínicos podía fijar `veterinario_id` a otro profesional, o `editable: false` para que el registro
+**naciera cerrado** —inmodificable para siempre, porque no hay ruta de reapertura en todo el
+esquema—. Es el activo con más peso legal del sistema: de él cuelgan recetas y consentimientos.
+
+No se corrige forzando `veterinario_id = auth.uid()`: eso rompería el flujo real, donde recepción
+abre la consulta desde la cita y el veterinario no es quien la crea. Se **deriva de la cita**,
+ignorando lo que venga en el cuerpo, y `editable` se fuerza a `true`.
+
+⚠️ **Y salió algo mejor de lo diseñado, probándolo:** `historial_clinico.cita_id` es **NOT NULL**
+—lo descubrió el propio retest, cuando el caso «sin cita» reventó con un `23502` antes de llegar al
+trigger—. Así que **toda** consulta cuelga de una cita y la autoría se deriva **siempre**:
+`veterinario_id` deja de ser un campo que el cliente pueda influir, en ningún caso. La rama para
+«sin cita» se conserva como red por si algún día se relaja ese `NOT NULL`.
+
+Las recetas llevan su equivalente: no pueden colgarse de un historial de otra clínica.
+
+#### VUL-18 · Sin límite de frecuencia en las dos puertas públicas — `0068`
+
+`registro-portal` permitía sondear a alta velocidad el oráculo que el propio código documenta y
+acepta —«¿es este número cliente de esta clínica?»—: aceptar la fuga de *una* consulta es una cosa,
+dejar barrer listas de miles de números es otra. Y `acceso` no tenía nada frenando la fuerza bruta
+contra tokens.
+
+El estado va en la base (`consumir_intento_publico`), no en memoria: las Edge Functions son sin
+estado y pueden correr en varias instancias, así que un contador local no cuenta nada. Comprueba y
+consume en **una sentencia**, igual que `consumir_cuota_whatsapp()`. La tabla tiene RLS activada y
+**cero policies**: solo la toca la función `security definer`. No guarda datos personales —clave,
+ventana y número— y la función no se concede a `anon` ni a `authenticated`: concedérsela permitiría
+inflar el contador de otra IP para dejarla fuera, convirtiendo el límite en un arma.
+
+⚠️ **La primera versión no funcionaba y la primera prueba lo dijo.** `x-forwarded-for` llegó vacía,
+el límite no se activó y **las doce peticiones seguidas pasaron**. Solo se vio porque el contador de
+la base seguía en cero: la respuesta HTTP era idéntica con límite y sin él. Ahora se prueban cinco
+cabeceras en orden. Verificado contra producción: 10 pasan, la 11 y la 12 dan `429`.
+
+#### VUL-16 · El `contexto` que va al modelo no tenía techo
+
+Se serializaba y se inyectaba tal cual. `pregunta` sí estaba acotada «para no inflar la factura de
+tokens», y el mismo razonamiento nunca se aplicó al campo más grande de los dos. Como la cuota se
+consume **una vez por petición** sea cual sea el tamaño, el tope mensual acotaba el número de
+preguntas y **no la factura**: un contexto de varios megabytes costaba una unidad. Tope de 20.000
+caracteres sobre el JSON serializado —que es lo que de verdad viaja a Anthropic—, con `413`.
+
+#### VUL-14 · La CSP pasa de medir a bloquear
+
+Llevaba en `Report-Only` desde que se puso: reportaba violaciones sin impedir nada. Antes de
+cambiarla se contrastaron los orígenes de la política contra **los que el código usa de verdad** y
+contra los del bundle compilado: los únicos externos son `fonts.googleapis.com`, `fonts.gstatic.com`
+y el proyecto de Supabase, los tres ya cubiertos. Los demás que aparecen en el bundle
+(`github.com`, `react.dev`, `redux.js.org`…) son **enlaces de documentación dentro de mensajes de
+error** de librerías, no destinos de red; y `wa.me` es navegación por enlace, que la CSP no gobierna.
+
+⚠️ **Lo que no se pudo recorrer**: el área autenticada **del personal** con una sesión real, porque
+esta auditoría no tiene credenciales de clínica. El portal del cliente sí se recorrió entero en su
+día con 0 violaciones. Si alguna pantalla del personal se rompiera, revertir es una palabra en
+`vercel.json`.
+
+#### Higiene — `0070` y varios
+
+- **Las 8 Edge Functions rechazan lo que no sea `POST`** con `405` (VUL-42). Antes interceptaban
+  `OPTIONS` y aceptaban `GET`/`PUT`/`DELETE` indistintamente, cayendo al `catch` al no poder parsear
+  el cuerpo — ruido en los logs con forma de error de la función.
+- **`respaldo-clinica` deja de devolver el mensaje crudo de PostgreSQL** (VUL-33), que llevaba
+  nombres de constraint y de columna. Era la única de las ocho que no redactaba sus errores.
+- **`search_path`** fijado en `generar_numero_orden_compra()` y
+  `fn_asignar_numero_orden_peluqueria()` (VUL-38). ⚠️ Hay una **tercera**, `get_citas_end_time()`,
+  que **se deja como está a propósito**: es `IMMUTABLE`, `INVOKER`, su cuerpo entero es
+  `start_time + interval '30 minutes'` —no resuelve ningún objeto que un path inyectado pueda
+  secuestrar— y la usa el `exclude using gist` que impide solapar citas. Tocar el guardián de la
+  agenda para arreglar algo que no puede fallar es mal negocio.
+- **Realtime** (VUL-40): la publicación tenía 2 de las 9 tablas a las que `useTable` se suscribe, así
+  que `.subscribe()` conectaba sin error y no llegaba ni un evento — indistinguible de «no hay
+  cambios». Pasa a 11 tablas. `historial_clinico` y `movimientos_inventario` **no** entran a
+  propósito: crecen sin techo y `useTable` recarga la tabla entera ante cada evento.
+- **Fallos mudos** (VUL-41): el informe decía 13 y **son 116**. Arreglarlos todos a ciegas es un
+  refactor grande y arriesgado —cada uno necesita su semántica—, así que se corrigieron los cuatro
+  donde el silencio miente de verdad, comprobando antes que su pantalla maneje el error:
+  `listProductos`, `listInternaciones`, `listClinicas` y `listProgramados`. El último es el más caro:
+  de él salen los avisos de refuerzo de vacuna, y devolver vacío por un fallo significa que **nadie
+  llama a esos dueños**. Los otros ~112 quedan anotados, no corregidos.
+
 ---
 
 ## Rendimiento — CORREGIDO

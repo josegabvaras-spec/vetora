@@ -40,7 +40,12 @@ function ventanaDeAvisos(): { desde: string; hasta: string } {
 export async function listProgramados(sucursalId?: string): Promise<Programado[]> {
   const { desde, hasta } = ventanaDeAvisos()
 
-  const { data: pacientes } = await supabase.from('pacientes').select('*').limit(TOPE_CARTERA)
+  // ⚠️ Aquí el fallo mudo es el más caro de todos: de esta lista salen los
+  // avisos de refuerzo de vacuna y de desparasitación. Si la lectura falla y se
+  // devuelve vacío, la pantalla dice «no hay nada que avisar» y **nadie llama a
+  // esos dueños** — un problema clínico, no de interfaz (VUL-41).
+  const { data: pacientes, error } = await supabase.from('pacientes').select('*').limit(TOPE_CARTERA)
+  if (error) throw new Error(`No se pudo leer la cartera de pacientes: ${error.message}`)
   const { data: clientes } = await supabase.from('clientes').select('*').limit(TOPE_CARTERA)
   const { data: servicios } = await supabase.from('servicios').select('*')
 

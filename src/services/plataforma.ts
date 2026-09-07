@@ -343,11 +343,15 @@ async function detalleDeClinica(clinica: Clinica): Promise<ClinicaConDetalle> {
  * mapas no compensa.
  */
 export async function listClinicas(): Promise<ClinicaConDetalle[]> {
-  const { data: clinicas } = await supabase
+  // El `error` se mira: un fallo aquí dejaba el panel de plataforma diciendo
+  // «no hay clínicas», que para el dueño del producto es exactamente la peor
+  // información posible (VUL-41).
+  const { data: clinicas, error } = await supabase
     .from('clinicas')
     .select('*')
     .order('nombre')
 
+  if (error) throw new Error(`No se pudieron leer las clínicas: ${error.message}`)
   if (!clinicas || clinicas.length === 0) return []
   const filas = clinicas as Clinica[]
 

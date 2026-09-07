@@ -110,12 +110,84 @@ function resuelto(usuario: { id: string; nombre: string; email: string }, clinic
   }
 }
 
+
+/**
+ * IP de quien llama, probando las cabeceras que ponen los distintos proxies.
+ *
+ * No se da por hecha ninguna: en la primera prueba contra produccion
+ * `x-forwarded-for` llego vacia y el limite no se activo, cosa que solo se vio
+ * porque el contador de la base seguia en cero. Se prueban en orden y, si
+ * ninguna trae nada, se deja pasar — un problema de cabeceras no puede tumbar
+ * la puerta publica.
+ */
+function ipDeLaPeticion(peticion: Request): string {
+  const candidatas = [
+    "x-forwarded-for",
+    "x-real-ip",
+    "cf-connecting-ip",
+    "fly-client-ip",
+    "true-client-ip",
+  ]
+  for (const nombre of candidatas) {
+    const valor = (peticion.headers.get(nombre) ?? "").split(",")[0].trim()
+    if (valor) return valor
+  }
+  return ""
+}
+
+/**
+ * Cuenta el intento y dice si se pasa del limite.
+ *
+ * El estado vive en la base (`consumir_intento_publico`, migración `0068`) y no
+ * en memoria: las Edge Functions son sin estado y pueden correr en varias
+ * instancias a la vez, así que un contador local no contaría nada. Comprueba y
+ * consume en UNA sentencia, igual que `consumir_cuota_whatsapp()`.
+ */
+async function dentroDelLimite(peticion: Request, prefijo: string, maximo: number, minutos: number) {
+  const ip = ipDeLaPeticion(peticion)
+  if (!ip) return true
+  const { data, error } = await admin.rpc('consumir_intento_publico', {
+    p_clave: `${prefijo}:${ip}`,
+    p_maximo: maximo,
+    p_ventana_minutos: minutos,
+  })
+  // Si el contador falla, se deja pasar: un fallo de la tabla de frecuencia no
+  // puede tumbar el registro ni el canje de invitaciones.
+  if (error) {
+    console.error('limite de frecuencia:', error)
+    return true
+  }
+  return data !== false
+}
+
 Deno.serve(async (peticion) => {
   const cabeceras = cabecerasCors(peticion.headers.get('origin'))
   if (peticion.method === 'OPTIONS') return new Response('ok', { headers: cabeceras })
 
+  // Solo POST. Las ocho funciones interceptaban OPTIONS y despues aceptaban
+  // GET, PUT o DELETE indistintamente, cayendo al catch al no poder parsear el
+  // cuerpo (VUL-42). Rechazar con 405 es lo que corresponde y evita ruido en
+  // los logs que parece un error de la funcion y no lo es.
+  if (peticion.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Metodo no permitido' }), {
+      status: 405,
+      headers: { ...cabeceras, Allow: 'POST, OPTIONS' },
+    })
+  }
+
   function responder(cuerpo: unknown, status = 200) {
     return new Response(JSON.stringify(cuerpo), { status, headers: cabeceras })
+  }
+
+  // Más estricto que el registro: aquí lo que se prueba es un token, y el
+  // único motivo por el que la fuerza bruta era impracticable era el tamaño del
+  // espacio de un UUID v4 — nada la frenaba (VUL-18 / E-2). 20 en 10 minutos no
+  // molesta a nadie que abra su enlace y falle un par de veces.
+  if (!(await dentroDelLimite(peticion, 'acceso', 20, 10))) {
+    return responder(
+      { error: 'Demasiados intentos desde esta conexión. Espera unos minutos y vuelve a probar.' },
+      429,
+    )
   }
 
   try {

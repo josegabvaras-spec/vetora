@@ -189,7 +189,8 @@ export async function listProductos(sucursalId?: string): Promise<ProductoConMov
   let query = supabase.from('productos').select('*').eq('activo', true).order('nombre')
   if (sucursalId) query = query.eq('sucursal_id', sucursalId)
 
-  const { data: productos } = await query
+  const { data: productos, error } = await query
+  if (error) throw new Error(`No se pudo leer el inventario: ${error.message}`)
   if (!productos) return []
 
   // Acotado a los productos que se van a pintar. Antes se traía

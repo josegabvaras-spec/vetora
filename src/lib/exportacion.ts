@@ -16,18 +16,51 @@ import { supabase } from './supabase'
 export const SEPARADOR_CSV = ';'
 
 /** Tablas operativas de una clínica. El orden aquí no importa; al importar, sí. */
+/**
+ * Tablas que entran en el respaldo, **en orden de restauración**: cada una va
+ * después de aquellas a las que apunta, o la importación falla por clave
+ * foránea.
+ *
+ * ⚠️ Hasta esta versión eran once, y **ninguna del expediente clínico**. Una
+ * clínica que restaurara su respaldo perdía el carné de vacunas, las recetas,
+ * las desparasitaciones, los consentimientos firmados y los informes. Es el
+ * hallazgo VUL-36 del informe de auditoría, que arrastraba desde antes: el
+ * propio `SEGURIDAD.md` lo tenía anotado como «una funcionalidad a medio
+ * terminar».
+ *
+ * `servicios` tampoco estaba, y su ausencia era un fallo de restauración en sí
+ * mismo: `cobro_lineas.servicio_id` y `citas.servicio_id` lo referencian con
+ * `no action`, así que restaurar un recibo de un servicio que no existe
+ * reventaba con un 23503.
+ *
+ * ⚠️ **Lo que el ZIP sigue sin llevar, y hay que decirlo:** `estudios_imagen`
+ * guarda la *ficha* del estudio, pero **los archivos viven en el bucket
+ * `estudios` de Storage** y no se descargan aquí. Restaurar deja la ficha
+ * apuntando a un archivo que puede no estar. Las fotos de paciente sí van, en
+ * la carpeta `fotos/`.
+ */
 export const TABLAS_RESPALDO = [
+  // Catálogo y fichas, primero: casi todo lo demás apunta aquí.
   'clientes',
   'pacientes',
+  'servicios',
+  'productos',
+  'turnos_caja',
+  // La atención y su expediente.
   'citas',
   'historial_clinico',
-  'cobros',
-  'cobro_lineas',
-  'turnos_caja',
-  'productos',
-  'movimientos_inventario',
+  'recetas',
+  'vacunas_aplicadas',
+  'desparasitaciones_aplicadas',
+  'consentimientos_cirugia',
+  'informes_firmados',
+  'estudios_imagen',
   'internaciones',
   'notas_internacion',
+  // El dinero al final: `cobros` apunta a citas e internaciones.
+  'cobros',
+  'cobro_lineas',
+  'movimientos_inventario',
 ] as const
 
 function objectToCSV(data: any[]): string {

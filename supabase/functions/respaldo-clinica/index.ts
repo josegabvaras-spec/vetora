@@ -54,14 +54,32 @@ function cabecerasCors(origen: string | null) {
   }
 }
 
-/** Mismas tablas que `lib/exportacion.ts`; el orden importa al restaurar. */
+/**
+ * Mismas tablas que `lib/exportacion.ts`; el orden importa al restaurar.
+ *
+ * ⚠️ Estas tres listas —esta, `TABLAS_RESPALDO` y `ORDEN_IMPORTACION`— tienen
+ * que decir lo mismo. Eran once tablas y **ninguna del expediente clínico**:
+ * un respaldo restaurado perdía vacunas, recetas, desparasitaciones,
+ * consentimientos firmados e informes (VUL-36). `servicios` faltaba además por
+ * integridad: `cobro_lineas.servicio_id` lo referencia con `no action`.
+ *
+ * ⚠️ Los ARCHIVOS de `estudios_imagen` viven en el bucket `estudios` y no
+ * viajan aquí; esto restaura la ficha, no la imagen.
+ */
 const TABLAS = [
   'clientes',
   'pacientes',
+  'servicios',
   'productos',
   'turnos_caja',
   'citas',
   'historial_clinico',
+  'recetas',
+  'vacunas_aplicadas',
+  'desparasitaciones_aplicadas',
+  'consentimientos_cirugia',
+  'informes_firmados',
+  'estudios_imagen',
   'internaciones',
   'notas_internacion',
   'cobros',
@@ -94,6 +112,17 @@ Deno.serve(async (peticion) => {
   const cabeceras = cabecerasCors(peticion.headers.get('origin'))
   if (peticion.method === 'OPTIONS') return new Response('ok', { headers: cabeceras })
 
+  // Solo POST. Las ocho funciones interceptaban OPTIONS y despues aceptaban
+  // GET, PUT o DELETE indistintamente, cayendo al catch al no poder parsear el
+  // cuerpo (VUL-42). Rechazar con 405 es lo que corresponde y evita ruido en
+  // los logs que parece un error de la funcion y no lo es.
+  if (peticion.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Metodo no permitido' }), {
+      status: 405,
+      headers: { ...cabeceras, Allow: 'POST, OPTIONS' },
+    })
+  }
+
   function responder(cuerpo: unknown, status = 200) {
     return new Response(JSON.stringify(cuerpo), { status, headers: cabeceras })
   }
@@ -121,7 +150,13 @@ Deno.serve(async (peticion) => {
       const tablas: Record<string, unknown[]> = {}
       for (const tabla of TABLAS) {
         const { data, error } = await admin.from(tabla).select('*').eq('clinica_id', clinicaId)
-        if (error) return responder({ error: `No se pudo leer ${tabla}: ${error.message}` }, 500)
+        if (error) {
+          // El mensaje crudo de Postgres lleva nombres de constraint y de columna.
+          // Solo lo ve un superadmin, pero las otras siete funciones ya redactan
+          // sus errores y esta era la excepcion (VUL-33).
+          console.error(`respaldo-clinica: leer ${tabla}`, error)
+          return responder({ error: `No se pudo leer la tabla ${tabla}` }, 500)
+        }
         tablas[tabla] = data ?? []
       }
       return responder({ clinica: clinica.nombre, tablas })
@@ -170,7 +205,8 @@ Deno.serve(async (peticion) => {
           .in('id', ids)
 
         if (errorLectura) {
-          return responder({ error: `No se pudo comprobar ${tabla} antes de importar: ${errorLectura.message}` }, 500)
+          console.error(`respaldo-clinica: comprobar ${tabla}`, errorLectura)
+          return responder({ error: `No se pudo comprobar la tabla ${tabla} antes de importar` }, 500)
         }
 
         const ajenas = (existentes ?? []).filter((fila) => fila.clinica_id !== clinicaId)
@@ -194,7 +230,10 @@ Deno.serve(async (peticion) => {
         const conDestino = filas.map((fila) => ({ ...fila, clinica_id: clinicaId }))
 
         const { error } = await admin.from(tabla).upsert(conDestino)
-        if (error) fallidas.push(`${tabla} (${error.message})`)
+        if (error) {
+          console.error(`respaldo-clinica: importar ${tabla}`, error)
+          fallidas.push(tabla)
+        }
       }
 
       if (fallidas.length > 0) {

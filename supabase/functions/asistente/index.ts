@@ -183,6 +183,17 @@ function parametrosNoDeclaradosPorElSdk(modelo: string, esfuerzo: string, conEsq
  * no por cookie, así que un origen ajeno no puede adjuntar la sesión de
  * quien la visita— pero no cuesta nada acotarlo.
  */
+/**
+ * Tope del `contexto` que se manda al modelo, medido sobre el JSON serializado
+ * —que es lo que de verdad viaja a Anthropic—.
+ *
+ * 20.000 caracteres son unos 5.000 tokens: holgado de sobra para lo que arma
+ * `contextoDeAviso()` (paciente, especie, nombre de pila del dueño, fecha y
+ * procedimiento) y para el contexto de un informe, y estrecho de sobra para que
+ * nadie convierta una unidad de cuota en una factura de varios megabytes.
+ */
+const MAX_CONTEXTO_CARACTERES = 20000
+
 const ORIGENES_PERMITIDOS = [
   'https://vetora.online',
   'https://www.vetora.online',
@@ -332,6 +343,17 @@ Deno.serve(async (peticion) => {
   const cabeceras = cabecerasCors(peticion.headers.get('origin'))
   if (peticion.method === 'OPTIONS') return new Response('ok', { headers: cabeceras })
 
+  // Solo POST. Las ocho funciones interceptaban OPTIONS y despues aceptaban
+  // GET, PUT o DELETE indistintamente, cayendo al catch al no poder parsear el
+  // cuerpo (VUL-42). Rechazar con 405 es lo que corresponde y evita ruido en
+  // los logs que parece un error de la funcion y no lo es.
+  if (peticion.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Metodo no permitido' }), {
+      status: 405,
+      headers: { ...cabeceras, Allow: 'POST, OPTIONS' },
+    })
+  }
+
   // Como `cabeceras`: se declara aquí, no a nivel de módulo, para que
   // dependa del origen de esta petición. El `catch` de más abajo también lo
   // necesita, y sigue teniendo acceso por closure — está fuera del `try`,
@@ -367,6 +389,34 @@ Deno.serve(async (peticion) => {
     const consulta = typeof pregunta === 'string' ? pregunta.trim() : ''
     if (tarea === 'copiloto' && (consulta.length < 3 || consulta.length > 2000)) {
       return responder({ error: 'La pregunta tiene que tener entre 3 y 2000 caracteres' }, 400)
+    }
+
+    // ⚠️ `contexto` también, y llevaba sin tope desde que se escribió la
+    // función (VUL-16 / IA-1 de la fase 7).
+    //
+    // Se serializa y se inyecta tal cual en el mensaje al modelo. `pregunta` sí
+    // estaba acotada «para no inflar la factura de tokens», y **el mismo
+    // razonamiento no se había aplicado aquí**, que es el campo más grande de
+    // los dos. La cuota se consume una vez por petición sea cual sea el tamaño
+    // de la entrada, así que el tope mensual acotaba el número de preguntas,
+    // **no la factura**: un contexto de varios megabytes costaba una sola
+    // unidad de cuota.
+    //
+    // Se comprueba sobre el JSON ya serializado —que es exactamente lo que
+    // viaja a Anthropic— y no sobre el número de claves: un objeto de dos
+    // campos puede pesar megas.
+    if (contexto !== undefined && contexto !== null) {
+      if (typeof contexto !== 'object' || Array.isArray(contexto)) {
+        return responder({ error: 'El contexto tiene que ser un objeto' }, 400)
+      }
+      const serializado = JSON.stringify(contexto)
+      if (serializado.length > MAX_CONTEXTO_CARACTERES) {
+        console.error('asistente: contexto rechazado por tamaño', serializado.length)
+        return responder(
+          { error: 'El contexto de la consulta es demasiado grande para procesarlo' },
+          413,
+        )
+      }
     }
 
     const clinica = await datosDeLaClinica(jwt)
