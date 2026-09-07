@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { MailCheck } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -216,6 +216,25 @@ export function RegistroClientePage() {
           <Button type="submit" disabled={registrando} className="w-full mt-4">
             {registrando ? 'Registrando...' : 'Completar Registro'}
           </Button>
+
+          {/* La política estaba enlazada desde el inicio y desde el login, pero
+              NO desde aquí — que es justo el único sitio donde una persona
+              entrega sus propios datos (nombre, CI, WhatsApp) para que se
+              guarden. Enlazarla donde solo se lee, y no donde se entrega, es
+              tenerla para cumplir el trámite y no para informar. */}
+          <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-500">
+            Al registrarte, tus datos se guardan según nuestra{' '}
+            <Link
+              to="/privacidad"
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-teal-600 underline underline-offset-2 hover:text-teal-700"
+            >
+              Política de Privacidad
+            </Link>
+            . Se almacenan en servidores ubicados en Brasil, y solo la veterinaria que elegiste
+            puede verlos.
+          </p>
 
           <div className="mt-4 text-center">
             <button
