@@ -77,7 +77,45 @@ async function esSuperadmin(peticion: Request): Promise<boolean> {
     .eq('id', data.user.id)
     .maybeSingle()
 
-  return Boolean(perfil) && perfil!.activo === true && perfil!.rol === 'superadmin'
+  if (!perfil || perfil.activo !== true || perfil.rol !== 'superadmin') return false
+
+  // ⚠️ Segundo factor (migración 0072). Esta función corre con `service_role`,
+  // que **no aplica RLS**, así que el `aal2` que ahora exige
+  // `auth_es_plataforma()` no la protege: sin esta comprobación, las cinco
+  // funciones con guarda de superadmin serían la única puerta del sistema que
+  // sigue abriéndose solo con la contraseña — y son justo las que crean
+  // credenciales y borran clínicas enteras.
+  //
+  // Condicional a tener factor verificado, exactamente igual que en la base:
+  // a quien todavía no lo configuró no se le puede exigir, o no podría entrar
+  // a configurarlo.
+  const { data: conMfa } = await admin.rpc('tiene_mfa_verificado', { p_usuario: data.user.id })
+  if (conMfa !== true) return true
+
+  return nivelDelJwt(jwt) === 'aal2'
+}
+
+/**
+ * El `aal` del JWT: `aal1` con contraseña, `aal2` tras superar el desafío TOTP.
+ *
+ * ⚠️ Se lee el payload **sin volver a verificar la firma, y es correcto**:
+ * quien llama a esto ya pasó por `admin.auth.getUser(jwt)`, que la valida
+ * contra el servidor de Auth. Repetirla aquí sería trabajo duplicado; leer el
+ * payload de un token que AÚN NO se ha validado sería el error, y no es el
+ * caso — el orden importa y por eso está escrito.
+ */
+function nivelDelJwt(jwt: string): string {
+  try {
+    const cuerpo = jwt.split('.')[1]
+    if (!cuerpo) return 'aal1'
+    const base64 = cuerpo.replace(/-/g, '+').replace(/_/g, '/')
+    const relleno = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
+    const payload = JSON.parse(atob(relleno))
+    return typeof payload.aal === 'string' ? payload.aal : 'aal1'
+  } catch {
+    // Un token ilegible no asciende a aal2. Fallar hacia el nivel bajo.
+    return 'aal1'
+  }
 }
 
 Deno.serve(async (peticion) => {

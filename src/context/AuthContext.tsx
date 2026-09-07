@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { AuthContext, type AuthContextValue } from './useAuth'
 import { motivoDeBloqueo } from '../services/sesion'
 import { verificarCredenciales } from '../services/cuentas'
+import { estadoMfa, type EstadoMfa } from '../services/mfa'
+import { MfaGate } from '../features/auth/MfaGate'
 import { supabase } from '../lib/supabase'
 import { limpiarTablasCacheadas } from '../mocks/useDb'
 import type { ModuloVetora, TipoNegocio, Usuario } from '../types/database'
@@ -38,6 +40,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const guardada = localStorage.getItem('vetora_sucursal')
     return esUUIDValido(guardada) ? guardada : null
   })
+  /**
+   * Qué le falta al superadmin para poder operar: nada, configurar el segundo
+   * factor, o superarlo. `null` cuando no aplica o todavía no se ha consultado.
+   *
+   * ⚠️ Solo se le pide al `superadmin`, y no es un olvido con el resto del
+   * personal: es la cuenta que crea credenciales, borra clínicas enteras y pide
+   * el respaldo completo de cualquier inquilino, y hasta 0072 la protegía una
+   * contraseña. Extenderlo al admin de una clínica es una decisión de producto
+   * —le añade fricción diaria a quien solo ve sus propios datos— y se toma
+   * aparte, cambiando `necesitaMfa()` y las policies que correspondan.
+   */
+  const [mfa, setMfa] = useState<EstadoMfa | null>(null)
 
   useEffect(() => {
     if (sucursalOverride && esUUIDValido(sucursalOverride)) {
@@ -121,6 +135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (data.clinica_id) {
             cargarContextoClinica(data.clinica_id, data.rol)
           }
+          // Al reconectar una sesión guardada hay que volver a mirarlo: el
+          // token se renueva conservando su `aal`, así que una sesión que
+          // nunca superó el desafío sigue siendo `aal1` días después.
+          if (data.rol === 'superadmin') {
+            const estado = await estadoMfa().catch(() => null)
+            if (montado) setMfa(estado)
+          }
         }
       }
       if (montado) setCargando(false)
@@ -160,7 +181,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (verificado.clinica_id) {
       await cargarContextoClinica(verificado.clinica_id, verificado.rol)
     }
+    if (verificado.rol === 'superadmin') {
+      setMfa(await estadoMfa().catch(() => null))
+    }
   }
+
+  /**
+   * ¿Hay que pararle antes de dejarle entrar?
+   *
+   * `nivelSiguiente === 'aal2'` con `nivelActual === 'aal1'` es exactamente lo
+   * que Supabase responde cuando la cuenta tiene un factor y la sesión no lo ha
+   * usado. Se comprueba así y no por `tieneFactor` a secas porque el nivel es lo
+   * que la RLS mira: si un día divergieran, la pantalla debe seguir a la RLS.
+   */
+  const mfaPendiente =
+    usuario?.rol === 'superadmin' &&
+    mfa !== null &&
+    (!mfa.tieneFactor || mfa.nivelActual !== 'aal2')
 
   const value: AuthContextValue = {
     usuario,
@@ -180,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout: async () => {
       await supabase.auth.signOut()
       setUsuario(null)
+      setMfa(null)
       setTipoNegocio('veterinaria')
       setModulosHabilitados(MODULOS_VETERINARIA_COMPLETA)
     },
@@ -187,6 +225,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   if (cargando) return null // O un spinner si prefieres
+
+  // La puerta del segundo factor va DENTRO del provider y no envolviéndolo: la
+  // propia pantalla necesita `logout`, y dejarla fuera obligaría a duplicar el
+  // cierre de sesión. Sustituye a `children`, así que ninguna ruta —ni tecleada
+  // a mano— se pinta detrás.
+  if (mfaPendiente && mfa) {
+    return (
+      <AuthContext.Provider value={value}>
+        <MfaGate
+          estadoInicial={mfa}
+          onListo={async () => setMfa(await estadoMfa().catch(() => null))}
+          onCerrarSesion={value.logout}
+        />
+      </AuthContext.Provider>
+    )
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
