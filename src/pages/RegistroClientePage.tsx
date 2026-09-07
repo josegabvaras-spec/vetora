@@ -232,8 +232,7 @@ export function RegistroClientePage() {
             >
               Política de Privacidad
             </Link>
-            . Se almacenan en servidores ubicados en Brasil, y solo la veterinaria que elegiste
-            puede verlos.
+            . Solo la veterinaria que elegiste puede verlos.
           </p>
 
           <div className="mt-4 text-center">
