@@ -12,14 +12,19 @@ cómo se aísla cada cliente, cómo escala y **cuánto cuesta**.
 ## Estado real (no lo redescubras)
 
 - **El backend existe y está desplegado.** React 19 + Vite 8 + TypeScript + Tailwind v4 + React
-  Router 7, contra Supabase real: 20 tablas con RLS, Auth, 2 Edge Functions. `isMockMode = false`.
+  Router 7, contra Supabase real: **44 tablas con RLS**, Auth, **8 Edge Functions** (`acceso`,
+  `crear-cuenta`, `registro-portal`, `eliminar-clinica`, `eliminar-usuario`, `cuentas-portal`,
+  `respaldo-clinica`, `asistente`). `isMockMode = false`. El esquema vive en **más de setenta
+  migraciones** (`0001` a `0072` a la fecha) — cuéntalas en vez de citar un número de memoria, este
+  archivo mismo tenía "20 tablas" y "2 Edge Functions" desde que el proyecto era mucho más chico.
 - **No hay test runner ni CI.** La verificación es `npm run build` y el navegador. Eso es un riesgo
   de arquitectura, no solo de calidad: no hay puerta que impida desplegar una regresión.
 - El inquilino es **`clinica_id`**, con **`sucursal_id`** como segundo eje. El aislamiento lo
   garantiza la RLS de Postgres.
 - **`superadmin` es el dueño del SaaS**: `clinica_id = null`, administra clínicas, planes y cobros de
   suscripción en `/plataforma`, y **no ve datos clínicos de ningún inquilino**.
-- Roles del producto: `superadmin`, `admin`, `veterinario`, `recepcion`, `cliente`.
+- Roles del producto: `superadmin`, `admin`, `veterinario`, `recepcion`, `peluquero` (desde `0025`,
+  paneles de Peluquería y Petshop), `cliente` (portal).
 - Es una **PWA** (`vite-plugin-pwa`, `registerType: 'autoUpdate'`), con seis rutas de impresión que
   producen documentos en papel.
 - Contexto de negocio: moneda **Bolivianos** (`formatBs`), zona horaria **`America/La_Paz`**,

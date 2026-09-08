@@ -25,7 +25,7 @@ No hay runner de tests configurado. La verificación real es `npm run build` (ty
 
 **No queda modo mock.** `src/mocks/db.ts` y `seed.ts` fueron eliminados en la migración; hoy son ficheros vacíos que solo existen por un motivo de build (ver más abajo). `isMockMode` sigue exportándose en [src/lib/supabase.ts](src/lib/supabase.ts) pero es `const false`: cualquier `if (isMockMode)` es código muerto.
 
-- [supabase/migrations/](supabase/migrations/) es el esquema de verdad y **es normativo** — pero eso es las **treinta y siete** migraciones, no solo la primera. `0001_init.sql` es la base (20 tablas, RLS habilitada en las 20, 35 policies, 3 triggers, 4 funciones `SECURITY DEFINER`); `0002` a `0010` son correcciones de seguridad reales y features que ya están aplicadas encima (RLS de `historial_update`/`internaciones_update`, índices, cuota de WhatsApp, portal del cliente, `pacientes.codigo`/`foto`, venta directa, recetario, tipo de cita `peluqueria`, inventario fraccionado). Leer solo `0001` da una foto vieja del esquema — antes de decir "esta tabla/columna no existe" o "esta policy no tiene `with check`", revisa si una migración posterior ya lo tocó.
+- [supabase/migrations/](supabase/migrations/) es el esquema de verdad y **es normativo** — pero eso son **más de setenta** migraciones (`0001` a `0072` a la fecha, y sigue creciendo — no cites el número exacto de memoria, cuéntalo con `ls supabase/migrations/*.sql | wc -l`), no solo la primera. `0001_init.sql` es la base tal como quedó el día que se escribió (20 tablas, 35 policies, 3 triggers, 4 funciones `SECURITY DEFINER`) — hoy el esquema tiene 44 tablas y una quinta función (`auth_es_personal()`, añadida en `0004`). De `0002` en adelante hay correcciones de seguridad reales y features aplicadas encima, hasta la más reciente (RLS de `historial_update`/`internaciones_update`, índices, cuota de WhatsApp, portal del cliente, `pacientes.codigo`/`foto`, venta directa, recetario, tipo de cita `peluqueria`, inventario fraccionado, el respaldo completo de 37 tablas, el tope de gasto del copiloto, el MFA del superadmin…). Leer solo `0001` da una foto vieja del esquema — antes de decir "esta tabla/columna no existe" o "esta policy no tiene `with check`", revisa si una migración posterior ya lo tocó.
 - [src/types/database.ts](src/types/database.ts) pretende reflejar fila por fila las tablas del SQL, y [src/types/supabase.ts](src/types/supabase.ts) es el tipo generado desde la base real. Cuando discrepen, **gana el SQL**.
 
 **Regla estructural: solo `src/services/*.ts` habla con Supabase.** Las páginas y los `features` nunca llaman a `supabase` directamente; consumen servicios, que devuelven los tipos de `types/views.ts`. La única excepción legítima es `useTable` (abajo), que es infraestructura de reactividad, no de negocio.
@@ -258,16 +258,17 @@ La tarjeta «Agendar Peluquería» del portal apuntaba a `/portal-cliente/tienda
 
 **El aislamiento lo garantiza la RLS de PostgreSQL, y solo ella.** No hay ninguna barrera en el cliente: los servicios consultan sin filtrar por clínica porque la policy añade el predicado. Si una policy falta o está mal, no hay una segunda red debajo.
 
-Todo cuelga de cuatro funciones `SECURITY DEFINER` ([0001_init.sql:483-498](supabase/migrations/0001_init.sql#L483)):
+Todo cuelga de cinco funciones `SECURITY DEFINER` ([0001_init.sql:483-498](supabase/migrations/0001_init.sql#L483), la quinta añadida en [0004_portal_cliente.sql](supabase/migrations/0004_portal_cliente.sql)):
 
 | Función | Devuelve |
 |---|---|
 | `auth_clinica_id()` | la clínica del usuario de `auth.uid()` — el inquilino |
 | `auth_sucursal_id()` | su sucursal asignada, o null |
 | `auth_es_admin()` | si su rol es `admin` |
-| `auth_es_plataforma()` | si su rol es `superadmin` |
+| `auth_es_plataforma()` | si su rol es `superadmin` — desde `0072` exige además `aal2` cuando el superadmin ya tiene MFA verificado |
+| `auth_es_personal()` | si su rol está en `admin`/`veterinario`/`recepcion`/`peluquero` — separa las policies de negocio de las de solo-lectura del portal (`cliente`) |
 
-Son `SECURITY DEFINER` porque leen `usuarios`, que a su vez está bajo RLS: sin eso la policy se llamaría a sí misma. Cualquier cambio ahí se propaga a las 35 policies a la vez.
+Son `SECURITY DEFINER` porque leen `usuarios`, que a su vez está bajo RLS: sin eso la policy se llamaría a sí misma. Cualquier cambio ahí se propaga a todas las policies que dependen de ella a la vez — no cites un número fijo de policies, ya divergió una vez (era "35" cuando el proyecto tenía 20 tablas; hoy son 44 y siguen creciendo).
 
 `planes` es global (`using (true)` en SELECT): cada clínica necesita leer sus propios límites, pero solo la plataforma pone precios.
 
@@ -277,7 +278,7 @@ Hay una tercera cara de esto: el rol `cliente` del portal ([migración 0004](sup
 
 ⚠️ **`clientes` es la excepción: desde `0036` ya no tiene un solo `for all`.** Se parte en select / insert / update para el personal, y el DELETE va aparte. `pacientes.cliente_id` es `on delete cascade` y desde `pacientes` cascadean **doce** tablas —historial, citas, vacunas, desparasitaciones, internaciones, consentimientos, recetas, informes, estudios y las tres de peluquería—, así que borrar un dueño con mascotas destruiría el expediente médico entero de cada una.
 
-⚠️ **Esa condición NO puede vivir dentro de la policy, y `0036` se estrelló ahí.** Puso `not exists (select 1 from pacientes …)` en el `using` del DELETE, y esa subconsulta cierra un ciclo: `clientes` (delete) → `pacientes` (select) → `pacientes_portal`, que consulta `clientes`. PostgreSQL aborta con `42P17`, «infinite recursion detected in policy», y PostgREST lo devuelve como un **500**: borrar fallaba siempre, con mascotas y sin ellas. **Es la misma trampa que estas cuatro funciones `auth_*` evitan siendo `SECURITY DEFINER`** — una policy no puede consultar libremente otra tabla con RLS.
+⚠️ **Esa condición NO puede vivir dentro de la policy, y `0036` se estrelló ahí.** Puso `not exists (select 1 from pacientes …)` en el `using` del DELETE, y esa subconsulta cierra un ciclo: `clientes` (delete) → `pacientes` (select) → `pacientes_portal`, que consulta `clientes`. PostgreSQL aborta con `42P17`, «infinite recursion detected in policy», y PostgREST lo devuelve como un **500**: borrar fallaba siempre, con mascotas y sin ellas. **Es la misma trampa que estas cinco funciones `auth_*` evitan siendo `SECURITY DEFINER`** — una policy no puede consultar libremente otra tabla con RLS.
 
 `0037` lo corrige: la policy se queda con el inquilino y el rol, y la invariante baja a **`trg_cliente_sin_expediente`**, `security definer` —lo que rompe el ciclo *y* garantiza que la comprobación vea todas las mascotas, no las que la RLS del que llama deje ver—. Es como se protege el resto (`trg_historial_inmutable`, `trg_internacion_inmutable`), y además dice **cuántas** mascotas hay en vez de filtrar la fila en silencio. ⚠️ Lleva una salida para `eliminar-clinica`: **una cascada sí dispara los triggers de la tabla hija**, así que sin comprobar primero que la fila de `clinicas` siga existiendo, dar de baja a un cliente de la plataforma se volvía imposible.
 
@@ -445,7 +446,7 @@ Mientras tanto, el riesgo que la confirmación iba a mitigar —registrar con el
 
 `crear-cuenta` **exige que quien llama sea un superadmin activo** (valida el JWT y lee el rol con el cliente admin): crea credenciales, así que no puede ser pública. Su acción `borrar` solo toca cuentas **sin fila en `usuarios`** — es el rollback de un perfil que no llegó a crearse, no un «borrar cualquier cuenta»; las cuentas con perfil se desactivan (`activo = false`), que para eso firman historiales y cobros.
 
-**Borrar una clínica entera es aparte, en `eliminar-clinica`** (para cuando el cliente da de baja el servicio, no para el rollback de un alta). Mismo guard de superadmin, pero hace tres cosas que `crear-cuenta` no hace: vacía los buckets privados (`estudios`, `comprobantes`, `catalogo`) de esa clínica, borra la fila de `clinicas` —que en cascada de FK se lleva sola las ~20 tablas del inquilino—, y solo entonces borra la cuenta de `auth.users` de cada uno de sus usuarios (borrar `usuarios` por cascada no toca `auth.users`; la flecha corre al revés). Es irreversible a propósito, distinto de `cambiarEstadoClinica` (suspender), que no borra nada.
+**Borrar una clínica entera es aparte, en `eliminar-clinica`** (para cuando el cliente da de baja el servicio, no para el rollback de un alta). Mismo guard de superadmin, pero hace tres cosas que `crear-cuenta` no hace: vacía los buckets privados (`estudios`, `comprobantes`, `catalogo`) de esa clínica, borra la fila de `clinicas` —que en cascada de FK se lleva sola las ~44 tablas del inquilino (eran ~20 cuando se escribió esta función; el esquema creció y la cascada la sigue cubriendo sola porque cuelga de `clinica_id references clinicas(id) on delete cascade`, no de una lista mantenida a mano)—, y solo entonces borra la cuenta de `auth.users` de cada uno de sus usuarios (borrar `usuarios` por cascada no toca `auth.users`; la flecha corre al revés). Es irreversible a propósito, distinto de `cambiarEstadoClinica` (suspender), que no borra nada.
 
 ### El portal es para clientes YA registrados en esa clínica
 

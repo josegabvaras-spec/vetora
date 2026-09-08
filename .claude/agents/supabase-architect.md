@@ -11,9 +11,16 @@ para clínicas de Bolivia. Tu terreno es PostgreSQL sobre Supabase: esquema, rel
 
 - **El backend ya existe y está desplegado.** No vienes a cablear Supabase: vienes a revisar y
   extender lo que corre en producción. `isMockMode = false`, el store mock fue eliminado.
-- [supabase/migrations/0001_init.sql](supabase/migrations/0001_init.sql) es **la fuente de verdad**:
-  679 líneas, **20 tablas con RLS habilitada en las 20**, 35 policies, 3 triggers, 4 funciones
-  `SECURITY DEFINER`.
+- [supabase/migrations/](supabase/migrations/) **entero** es la fuente de verdad, no solo
+  `0001_init.sql`: son **más de setenta migraciones** (`0001` a `0072` a la fecha, sigue creciendo —
+  cuéntalas con `ls supabase/migrations/*.sql | wc -l`, no de memoria). `0001_init.sql` es la base
+  tal como quedó el día que se escribió (679 líneas, 20 tablas, 35 policies, 3 triggers, 4 funciones
+  `SECURITY DEFINER`) — el esquema de hoy tiene **44 tablas con RLS habilitada en las 44** y **más de
+  40 funciones `SECURITY DEFINER`** distintas, contando las añadidas después (`auth_es_personal()`
+  en `0004`, `auth_es_clinico()` en `0042`, `auth_ve_expediente()` en `0053`, `auth_mfa_suficiente()`
+  y `tiene_mfa_verificado()` en `0072`, entre muchas otras). Leer solo `0001` da una foto vieja y
+  produce hallazgos falsos — antes de decir "esta tabla no existe" o "esta policy no cubre X", revisa
+  si una migración posterior ya lo tocó.
 - [src/types/database.ts](src/types/database.ts) refleja fila por fila las tablas del SQL, y
   [src/types/views.ts](src/types/views.ts) las formas compuestas (joins). Si el SQL y los tipos
   discrepan, **gana el SQL** — pero deja constancia de la discrepancia.
@@ -26,12 +33,20 @@ para clínicas de Bolivia. Tu terreno es PostgreSQL sobre Supabase: esquema, rel
 
 El inquilino es **`clinica_id`**, y la garantía vive **en la base de datos**, no en el cliente.
 
-- Las 4 funciones de auth (`auth_clinica_id`, `auth_sucursal_id`, `auth_es_admin`,
-  `auth_es_plataforma`) son el eje de las 35 policies. Cualquier cambio ahí se propaga a todo el
-  esquema. Son `SECURITY DEFINER` porque leen `usuarios`, que a su vez está bajo RLS — la recursión
-  clásica. **Toda función `SECURITY DEFINER` necesita `set search_path` explícito**; sin él es un
-  vector de escalada y Supabase lo marca como `function_search_path_mutable`.
-- `TABLAS_GLOBALES` (`planes`, `credenciales`) se saltan el filtro por diseño, igual que en el SQL.
+- Las 5 funciones de auth (`auth_clinica_id`, `auth_sucursal_id`, `auth_es_admin`,
+  `auth_es_plataforma`, `auth_es_personal`) son el eje de todas las policies que dependen de ellas.
+  Cualquier cambio ahí se propaga al esquema entero. Son `SECURITY DEFINER` porque leen `usuarios`,
+  que a su vez está bajo RLS — la recursión clásica. **Toda función `SECURITY DEFINER` necesita
+  `set search_path` explícito**; sin él es un vector de escalada y Supabase lo marca como
+  `function_search_path_mutable`. ⚠️ Verifica también `ALTER FUNCTION ... set search_path` aparte
+  del `CREATE FUNCTION` — `auth_sucursal_id()` lo recibió así, en `0002`, separado de su definición
+  original en `0001`; un grep que solo mire dentro del bloque de creación la marca como
+  desprotegida por error. `auth_es_plataforma()` exige además `aal2` desde `0072` cuando el
+  superadmin ya tiene MFA verificado.
+- **No hay una constante `TABLAS_GLOBALES` en el código, y no existe una tabla `credenciales`.**
+  La única tabla realmente global (RLS `using (true)` en SELECT, sin filtro por `clinica_id`) es
+  `planes`: cada clínica necesita leer sus propios límites, pero solo la plataforma pone precios.
+  No repitas esa referencia sin verificarla primero contra `supabase/migrations/`.
 - **`superadmin` tiene `clinica_id = null`** y no debe ver datos clínicos: las policies dan falso
   solas porque `auth_clinica_id()` es null. Preserva esa propiedad; no la sustituyas por excepciones
   explícitas que abran acceso lateral.

@@ -25,7 +25,10 @@
 //
 // Orden: primero Storage y la lista de cuentas (nada irreversible todavía),
 // luego el `DELETE` de `clinicas` (aquí es el punto sin retorno: la cascada de
-// FK de 0001 en adelante limpia las otras ~20 tablas del inquilino solas),
+// FK de 0001 en adelante limpia las otras ~44 tablas del inquilino solas —
+// eran ~20 cuando se escribió este comentario; no hay lista que mantener a
+// mano, la cascada cuelga de `clinica_id references clinicas(id) on delete
+// cascade` en cada tabla),
 // y al final las cuentas de Auth. Si algo falla ANTES del DELETE, no se ha
 // perdido nada. Si falla DESPUÉS (una cuenta de Auth que no se pudo borrar),
 // los datos ya se fueron: se informa cuántas fallaron en vez de fingir que
