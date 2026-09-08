@@ -1474,3 +1474,46 @@ un Supabase administrable, las policies se leen, no se ejecutan.** Los triggers 
 (`0056`–`0065`) están en el repo y sus funciones asociadas existen en producción, pero que *disparen*
 lo que dicen disparar no se ha visto ocurrir. Es la única forma de mover H-19–H-24 de
 NEEDS_REVIEW a CORREGIDO, y exige montar un proyecto de prueba con dos clínicas y sus usuarios.
+
+### Incidente durante el propio retest — dos controles revertidos en silencio (`0073`)
+
+Mientras se verificaba el estado de `auth_es_personal()`, se re-ejecutó por error el SQL de `0050`
+contra producción. **No dio ningún error. Las policies siguieron funcionando. Y se perdieron dos
+controles de seguridad**, porque `0050`, `0067` y `0072` redefinen funciones que se solapan y las
+tres usan `create or replace function`:
+
+| Función | Qué le quitó re-ejecutar `0050` |
+|---|---|
+| `auth_es_personal()` | el `c.estado <> 'suspendida'` de `0067` |
+| `auth_es_admin()` | ídem |
+| **`auth_es_plataforma()`** | **`auth_mfa_suficiente()` de `0072` — el segundo factor del superadmin** |
+| `auth_es_clinico()` · `auth_ve_expediente()` | nada: `0050` no las toca |
+
+Que las dos últimas se salvaran es lo peor del caso, no lo mejor: dejó el esquema **en estado
+mixto**, donde el expediente clínico sí bloqueaba a una clínica suspendida y la agenda no. Un
+esquema a medias es más difícil de diagnosticar que uno roto entero.
+
+**No hubo fuga entre inquilinos en ningún momento** — `auth_clinica_id()` siguió acotando la
+clínica, y ninguna cuenta vio datos ajenos. Lo perdido fueron dos controles: el que sostiene el
+cobro de la suscripción y el segundo factor de la cuenta que puede borrar clínicas enteras.
+
+**Reparado con `0073`**, que deja las seis funciones en su estado correcto de una vez y es
+re-ejecutable. `auth_clinica_id()` se queda con la versión de `0050`, que es la correcta: `0067`
+explica por qué el candado de suspensión **no** va ahí (repetiría la regresión H-15, dejando a
+`motivoDeBloqueo()` diciendo «esta clínica ya no existe» en vez de «está suspendida»).
+
+⚠️ **La lección, que es más valiosa que el arreglo: una migración aplicada es historia, no un script
+de mantenimiento.** Re-ejecutar una vieja revierte lo que las posteriores construyeron encima, y lo
+hace **sin un solo error ni aviso** — el fallo mudo otra vez, como la publicación `supabase_realtime`
+o el `execute` a `PUBLIC` de `0047`. Antes de volver a correr cualquier migración, hay que mirar qué
+migraciones **posteriores** tocan los mismos objetos. Para estas funciones el orden vigente es:
+
+    0050 → activo        (las cuatro)
+    0067 → + suspensión  (personal, admin, clinico, ve_expediente)
+    0072 → + MFA         (plataforma)
+    0073 → repara lo anterior de una sola vez
+
+Y una observación sobre el propio retest: **esto se detectó porque se estaba verificando en vez de
+suponer.** El MFA del superadmin llevaba horas desactivado a nivel de RLS y nada en la aplicación lo
+habría delatado — la pantalla del segundo factor sigue apareciendo igual, porque es usabilidad, no
+la barrera. Sin la consulta a `pg_proc` no se habría sabido.
