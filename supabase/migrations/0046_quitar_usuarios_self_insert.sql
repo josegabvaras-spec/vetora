@@ -1,6 +1,10 @@
 -- Elimina `usuarios_self_insert`, que permite auto-asignarse `superadmin`.
 --
--- ⚠️ NO APLICADA TODAVÍA. Escrita para revisión; se aplica cuando se apruebe.
+-- ✅ APLICADA. Verificado en producción el 2026-09-08 (retest): la policy
+--    `usuarios_self_insert` ya no existe en `pg_policies`.
+--    (La línea anterior decía "NO APLICADA TODAVÍA" y era falsa: nadie la
+--    actualizó al aplicarla. Si aplicas una migración, corrige su cabecera —
+--    un estado obsoleto aquí hace que una auditoría reporte falsos positivos.)
 --
 -- =========================================================
 -- Qué es y por qué es lo más grave que hay abierto

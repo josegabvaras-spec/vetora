@@ -1,6 +1,10 @@
 -- Las cuotas de WhatsApp e IA solo las consume el personal.
 --
--- ⚠️ NO APLICADA TODAVÍA. Escrita para revisión; se aplica cuando se apruebe.
+-- ✅ APLICADA. Verificado en producción el 2026-09-08 (retest): llamar a
+--    `consumir_cuota_ia` y `consumir_cuota_whatsapp` devuelve los mensajes que
+--    introduce ESTA migración ("Solo el personal de la clínica puede usar el
+--    asistente" / "...puede enviar mensajes"), que no existen en ninguna otra.
+--    (La línea anterior decía "NO APLICADA TODAVÍA" y era falsa.)
 --
 -- Las dos funciones son `security definer` y su única condición es
 -- `c.id = auth_clinica_id()`. No miran el rol. Un cliente del portal tiene

@@ -399,7 +399,14 @@ sign up" desactivado. Ningún flujo legítimo lo necesitaba — las tres altas d
 
 ---
 
-### H-14 · MEDIO → BAJO · Sin Content-Security-Policy — VERIFICADA Y ENDURECIDA (sigue en Report-Only)
+### H-14 · MEDIO → BAJO · Sin Content-Security-Policy — VERIFICADA Y ENDURECIDA (Report-Only entonces; **hoy en bloqueo**, ver VUL-14)
+
+> ⚠️ **Este hallazgo describe el estado de su fecha, y ese estado YA NO ES EL ACTUAL.** Lo que sigue
+> era cierto cuando se escribió: la CSP estaba en `Report-Only` y no bloqueaba nada. Después se
+> subió a modo bloqueo — lo documenta **VUL-14 · «La CSP pasa de medir a bloquear»**, más abajo en
+> este mismo registro, y es la entrada vigente. Confirmado en producción durante el retest del
+> 2026-09-08: `www.vetora.online` sirve `Content-Security-Policy`, sin el sufijo `-Report-Only`.
+> No se reescribe lo de abajo porque este archivo es un registro fechado, no una foto del presente.
 
 La CSP llevaba desde una auditoría anterior en `Content-Security-Policy-Report-Only`: reporta
 violaciones sin bloquear nada, así que hasta ahora no protegía — era un instrumento de medición sin

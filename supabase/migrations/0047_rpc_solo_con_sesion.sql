@@ -1,6 +1,10 @@
 -- Quita a `anon` el permiso de ejecutar los RPC de la Tienda y la peluquería.
 --
--- ⚠️ NO APLICADA TODAVÍA. Escrita para revisión; se aplica cuando se apruebe.
+-- ✅ APLICADA. Verificado en producción el 2026-09-08 (retest): con la clave
+--    anónima y sin sesión, `clinicas_con_catalogo`, `clinicas_con_peluqueria` y
+--    `servicios_peluqueria_de` responden 401 `42501 permission denied`, y
+--    `clinicas_para_registro` sigue dando 200 (pública a propósito).
+--    (La línea anterior decía "NO APLICADA TODAVÍA" y era falsa.)
 --
 -- CLAUDE.md afirma sobre `clinicas_con_catalogo()`: «`grant execute` va a
 -- `authenticated`, no a `anon`: la Tienda solo se ve con sesión iniciada en el

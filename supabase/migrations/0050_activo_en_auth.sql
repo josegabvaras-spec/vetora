@@ -1,6 +1,10 @@
 -- Que desactivar a un usuario signifique algo para la RLS.
 --
--- ⚠️⚠️ NO APLICADA TODAVÍA, Y ES LA MÁS PELIGROSA DE LAS SEIS. ⚠️⚠️
+-- ✅ APLICADA. Verificado en producción el 2026-09-08 (retest): el cuerpo de
+--    `auth_es_personal()` en `pg_proc` contiene la comprobación de `activo`.
+--    (La línea anterior decía "NO APLICADA TODAVÍA, Y ES LA MÁS PELIGROSA DE
+--    LAS SEIS" y era falsa — ya estaba aplicada. Sigue siendo la más delicada
+--    de tocar: estas cuatro funciones son el cimiento de todas las policies.)
 --
 -- Estas cuatro funciones son el cimiento de las 103 policies del proyecto. Un
 -- error aquí no rompe una pantalla: deja a TODO EL MUNDO fuera de TODO. No la

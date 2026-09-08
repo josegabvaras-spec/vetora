@@ -1,7 +1,11 @@
 -- Borrar un paciente no puede llevarse por delante la caja.
 --
--- ⚠️ NO APLICADA TODAVÍA. Escrita para revisión; se aplica cuando se apruebe.
--- ⚠️ Lleva además UNA DECISIÓN PENDIENTE, marcada más abajo.
+-- ✅ APLICADA. Verificado en producción el 2026-09-08 (retest): el trigger
+--    `trg_paciente_sin_caja` existe en `pg_trigger`.
+--    (La línea anterior decía "NO APLICADA TODAVÍA" y era falsa.)
+-- ⚠️ Lleva además UNA DECISIÓN PENDIENTE, marcada más abajo — revísala: quedó
+--    marcada como pendiente y la migración se aplicó de todos modos, así que
+--    sea cual fuera la opción que está viva hoy, lo está sin haberse decidido.
 --
 -- =========================================================
 -- El problema
