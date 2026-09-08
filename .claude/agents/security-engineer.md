@@ -13,13 +13,33 @@ La seguridad se considera **desde el diseño**, no como una revisión al final.
 - **Supabase está conectado de verdad.** `isMockMode = false`; el store mock (`mocks/db.ts`,
   `seed.ts`) fue eliminado. Esto **no** es un prototipo: cualquier fallo de aislamiento es explotable
   hoy, no "al desplegar".
-- **20 tablas, RLS habilitada en las 20, 35 policies, 3 triggers** en
-  [supabase/migrations/0001_init.sql](supabase/migrations/0001_init.sql), que es **normativo**.
-- El aislamiento entero cuelga de **4 funciones `SECURITY DEFINER`**: `auth_clinica_id()`,
-  `auth_sucursal_id()`, `auth_es_admin()`, `auth_es_plataforma()`. Son el eje: si una devuelve el
-  valor equivocado, las 35 policies caen a la vez. Audítalas antes que nada.
+- **44 tablas, RLS habilitada en las 44**, a lo largo de **72 migraciones** (`0001` a `0072` a la
+  fecha) — no 20 ni solo `0001_init.sql`. ⚠️ El normativo es `supabase/migrations/` **entero**:
+  `0001` es la base, y de `0002` en adelante hay correcciones de seguridad reales aplicadas encima
+  (el rol `cliente` y sus policies de portal en `0004`, `auth_es_personal()`, `clientes` partido de
+  `for all` en `0036`/`0037`, MFA del superadmin en `0072`…). Leer solo `0001` da una foto vieja y
+  produce hallazgos falsos. **No cites el número de migraciones de memoria tampoco** — súmalo con
+  `ls supabase/migrations/*.sql | wc -l` cada vez, este archivo mismo quedó desactualizado (decía
+  43) apenas se añadieron 29 migraciones más sin volver a tocarlo.
+- **No cites un número de policies ni de funciones de memoria.** Hay ~138 `create policy` y ~57
+  `drop policy` repartidos entre migraciones, y **más de 40** funciones `SECURITY DEFINER`
+  distintas (no 17 — ese número, igual que el de migraciones, quedó viejo la primera vez que se
+  escribió y nadie lo recontó): cuántas quedan vigentes se cuenta **en la base o con un script sobre
+  el repo entero**, nunca sumando de memoria ni mirando solo unas pocas migraciones.
+- El aislamiento entero cuelga de **5 funciones `SECURITY DEFINER`**: `auth_clinica_id()`,
+  `auth_sucursal_id()`, `auth_es_admin()`, `auth_es_plataforma()` y `auth_es_personal()` (0004,
+  ampliada en 0025 para incluir a `peluquero`; `auth_es_plataforma()` exige además `aal2` desde
+  `0072` si el superadmin ya tiene MFA verificado). Son el eje: si una devuelve el valor equivocado,
+  todas las policies que dependen de ella caen a la vez. Audítalas antes que nada.
+  ⚠️ **Al verificar `set search_path` en cualquier función, revisa también `ALTER FUNCTION`, no solo
+  el `CREATE FUNCTION`**: `auth_sucursal_id()` lo recibió con `alter function auth_sucursal_id() set
+  search_path = public, pg_temp;` en `0002`, separado de su definición original en `0001` — un grep
+  que solo mire dentro del bloque `CREATE FUNCTION ... security definer` la marcaría como
+  desprotegida por error.
 - **Auth es Supabase Auth** (`signInWithPassword` + `getSession`). La aplicación nunca ve una
-  contraseña. `lib/password.ts` (PBKDF2) quedó huérfano de la migración: si sigue ahí, señálalo.
+  contraseña. El token de sesión vive en `localStorage`, no en cookies: no hay `SameSite` ni
+  `HttpOnly` que auditar. (`lib/password.ts`, el PBKDF2 huérfano de la migración desde el store
+  mock, **ya no existe**.)
 - **No hay test runner.** No puedes apoyarte en tests para demostrar nada. La verificación es
   `npm run build` (`tsc -b`) y el navegador. `npm run lint` es **oxlint**, que no es type-aware.
 
@@ -34,7 +54,9 @@ La seguridad se considera **desde el diseño**, no como una revisión al final.
   planes y cobros, y **no puede ver datos clínicos de ningún inquilino**. En SQL eso sale gratis
   porque `auth_clinica_id()` es null y las policies dan falso. Comprueba que sigue siendo cierto —
   una policy que use `or auth_es_plataforma()` de más abre exactamente ese agujero.
-- Roles: `superadmin`, `admin`, `veterinario`, `recepcion`, `cliente`.
+- Roles: `superadmin`, `admin`, `veterinario`, `recepcion`, `peluquero` (desde 0025) y `cliente`
+  (portal). `auth_es_personal()` cubre a los cuatro de clínica —peluquero incluido— y es lo que
+  separa las policies de negocio de las de solo-lectura del portal.
 - **El rol se comprueba en dos sitios y hay que mirar los dos**: `RolRoute` en
   [src/App.tsx](src/App.tsx) y el menú del `Sidebar`. Ocultar el enlace no protege la ruta; proteger
   la ruta sin ocultar el enlace confunde. Que ambos coincidan **y** que la policy SQL no dependa de
