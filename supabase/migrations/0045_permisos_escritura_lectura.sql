@@ -1,6 +1,14 @@
 -- Cierra escrituras y lecturas que hoy acepta cualquier cuenta autenticada.
 --
--- ⚠️ NO APLICADA TODAVÍA. Escrita para revisión; se aplica cuando se apruebe.
+-- ✅ APLICADA. Verificado en producción el 2026-09-08 (retest): ninguna policy
+--    de las siete tablas queda sin comprobar el rol — la consulta sobre
+--    `pg_policies` buscando policies sin `auth_es_personal` NI `auth_es_admin`
+--    devuelve 0 filas. (`petshop_config_escritura` usa `auth_es_admin()`, que es
+--    más estricto, no un hueco.)
+--    (La línea anterior decía "NO APLICADA TODAVÍA" y era falsa. Las SEIS
+--    migraciones 0045-0050 llevaban esa cabecera y las seis estaban aplicadas:
+--    se aplicaron y nadie volvió a tocar el comentario. Un estado obsoleto aquí
+--    hace que una auditoría reporte falsos positivos — pasó en el retest.)
 --
 -- El defecto es uno solo y se repite en las siete tablas de `0030`:
 --
