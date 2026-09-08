@@ -80,7 +80,7 @@ Tres tablas guardan **firmas capturadas en el dispositivo, en base64**:
 | Aplicación web (estático + CDN) | **Vercel** | EE. UU. / red global |
 | Asistente de IA | **Anthropic** | EE. UU. |
 
-⚠️ **La ubicación de Supabase (São Paulo) procede de la documentación interna del proyecto y debe confirmarse en el panel de Supabase antes de declararla en un documento legal.** No pude verificarla independientemente desde el entorno de revisión.
+**Sobre la ubicación de la base de datos:** confirmada por el responsable del producto — São Paulo (`sa-east-1`) es la única región sudamericana que ofrece Supabase, elegida por proximidad a Bolivia. No pude verificarla desde el entorno de revisión (las cabeceras HTTP devuelven el nodo de CDN en La Paz, no la ubicación de la base). ⚠️ **Para el expediente conviene una captura del panel** (Supabase → proyecto → Settings → General): evidencia primaria en vez de declaración de parte.
 
 **Hay transferencia internacional de datos personales en los tres casos.** Es el punto 1 del resumen.
 
@@ -143,6 +143,24 @@ Las cascadas de clave foránea **no evalúan la RLS ni disparan los triggers `be
 **Consecuencia:** el expediente médico de un animal puede desaparecer por una vía que la política declara imposible. El caso realista no es malicioso: alguien borra una ficha duplicada.
 
 **Salida:** extender `trg_paciente_sin_caja` para que cuente también historiales cerrados, con el mismo escape que ya lleva para `eliminar-clinica`. Técnicamente es añadir una condición al trigger que ya existe.
+
+### 6.1 ⚠️ Los controles pueden revertirse en silencio — incidente del 2026-09-08
+
+Se declara porque es material para valorar si las medidas son adecuadas, aunque no hubo filtración.
+
+**Qué pasó:** durante esta misma revisión se reejecutó por error una actualización antigua de la base de datos. Al hacerlo se desactivaron **dos controles de seguridad** que llevaban semanas funcionando: el **segundo factor obligatorio** de la cuenta de operador, y el **bloqueo de clínicas suspendidas**. Estuvieron caídos varias horas.
+
+**Por qué no se notó:** no hubo ningún error. El sistema siguió funcionando con normalidad, y la pantalla que pide el código de verificación **seguía apareciendo igual** — porque esa pantalla es una comodidad, no la barrera real. Nada en la aplicación lo delataba.
+
+**Alcance real, para no exagerarlo ni minimizarlo:**
+
+- **No hubo acceso indebido ni filtración entre clínicas.** El aislamiento por clínica siguió intacto en todo momento: ninguna cuenta pudo ver datos de otra.
+- Lo que quedó temporalmente sin protección fueron **el segundo factor de la cuenta de operador** y **la restricción de acceso a clínicas suspendidas**.
+- Se detectó porque se estaba verificando el estado real de la base, no porque el sistema avisara.
+
+**Qué se hizo:** los dos controles se restauraron el mismo día y se verificó su funcionamiento por los dos caminos afectados. Además se creó un **procedimiento de comprobación** que contrasta el estado real de las protecciones contra lo que deberían ser y devuelve un resultado inmediato. Ejecutado tras la reparación: sin discrepancias.
+
+**Por qué está en este informe:** una lista de medidas de seguridad no dice nada si esas medidas pueden desactivarse sin dejar rastro. La pregunta relevante para la asesoría no es solo *qué controles existen*, sino *cómo se sabe que siguen activos* — y hasta hoy no había respuesta a la segunda.
 
 ---
 
