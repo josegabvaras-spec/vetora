@@ -21,6 +21,12 @@ tienen entrada aquí**: se documentan allí.
 | Medio | 14 | 13 corregidos (incluidos el registro público de Auth, cerrado por el usuario en el Dashboard, H-18, H-21, H-23, H-24, H-27 y H-28), 1 mitigado → **cerrado en H-25**: ya no hay INSERT directo de cobros |
 | Bajo / Info | 5 | 3 corregidos, 1 verificado seguro (Vercel), 1 heredado pendiente (rotar la contraseña) |
 
+📌 **Hay un retest de todo esto al final del archivo** («Retest del 2026-09-08»): revisa H-1 a H-29
+una por una, con pruebas en vivo contra producción. Ninguna corregida resultó estar abierta; 4
+quedan en NEEDS_REVIEW por no poder probarse sin dos sesiones de clínicas distintas. Su hallazgo
+principal no fue una vulnerabilidad, sino que **seis migraciones aplicadas seguían marcadas como
+pendientes** y `CLAUDE.md` daba por inexistentes dos protecciones que sí existen.
+
 Segunda pasada con los agentes `pentester`, `supabase-architect` y `qa-engineer`: hallazgos H-5 a
 H-8. Cada uno se verificó a mano antes de corregirlo, y **uno de los reportados resultó falso** —
 está documentado más abajo, para que nadie lo "arregle" luego.
@@ -1398,3 +1404,73 @@ detén el despliegue y avísame.
 Está disponible el agente **`pentester`** (`.claude/agents/pentester.md`), con mentalidad de atacante,
 para dirigirlo a una funcionalidad concreta o repasar antes de un despliegue. El `security-engineer`
 (defensivo, desde el diseño) sigue disponible para lo suyo.
+
+---
+
+## Retest del 2026-09-08 — H-1 a H-29 y las seis migraciones «pendientes»
+
+Revisión de las 29 entradas de este registro, sin dar por buena ninguna. Se buscó, para cada una,
+reproducir la condición vulnerable, comprobar la corrección y descartar variantes.
+
+**Resultado: ninguna vulnerabilidad reportada como corregida resultó estar abierta.** 21 confirmadas
+con evidencia, 1 falso positivo ya documentado (H-3), 1 riesgo aceptado (H-4, la credencial rotada),
+y **4 que no se pueden cerrar desde aquí** — H-7, H-8, H-19–H-24 y H-26 dependen de barreras que
+solo se prueban con dos sesiones reales de clínicas distintas. Marcarlas CORREGIDO sería afirmar sin
+evidencia, que es justo lo que este archivo no hace.
+
+### El hallazgo real del retest no fue una vulnerabilidad: fue la documentación
+
+**Las seis migraciones `0045`–`0050` llevaban `⚠️ NO APLICADA TODAVÍA` en su cabecera. Las seis
+estaban aplicadas.** Se aplicaron y nadie volvió a tocar el comentario. Eso convirtió cinco
+controles vivos en «pendientes» a ojos de cualquiera que leyera el repo — y estuvo a punto de
+producir cuatro falsos positivos en este mismo retest.
+
+Por el mismo motivo, `CLAUDE.md` afirmaba **dos protecciones como inexistentes cuando sí existen**:
+
+- que la CSP sigue en `Report-Only` y «no protege» — producción la sirve en **modo bloqueo** desde
+  VUL-14, documentado en este archivo pero nunca reflejado en `CLAUDE.md`;
+- que un empleado con `activo = false` «sigue leyendo y escribiendo las 44 tablas por PostgREST» —
+  lo cerró `0050`, y `0067` cerró la mitad que faltaba (la clínica suspendida).
+
+**La lección, que es lo que vale para la próxima:** aplicar una migración son dos actos, no uno.
+Correrla, y corregir lo que el repo afirme sobre ella — su propia cabecera y lo que `CLAUDE.md`
+diga. Una documentación que subestima la protección es tan cara como una que la exagera: hace que
+se vuelva a auditar lo ya cerrado, y que un hallazgo real se pierda entre el ruido.
+
+### Cómo se verificó (método, para poder repetirlo)
+
+Sin credenciales de Postgres ni CLI: **pruebas de solo lectura contra producción con la clave
+anónima** —la misma que viaja en el bundle— confirmando que el acceso está *denegado*, más lectura
+de código y `grep` de regresión. Ninguna prueba escribió nada.
+
+La técnica que resolvió «¿está aplicada esta migración?» sin acceso a la base: **PostgREST devuelve
+`42501 permission denied` si la función existe pero el rol no puede ejecutarla, y `PGRST202` si no
+la encuentra.** Eso distingue existencia de ausencia sin leer un solo dato.
+
+⚠️ **Y tiene una trampa que hay que conocer antes de usarla:** `PGRST202` significa «no encuentro
+esa función **con esos argumentos**», no «no existe». En la primera pasada, cinco funciones
+(`registrar_cobro`, `registrar_venta_pos`, `consumir_intento_publico`, y las dos de vínculo de
+portal) salieron como no aplicadas **porque se las llamó sin parámetros**. Con la firma correcta,
+las cinco respondieron. Tampoco sirve para funciones de **trigger**: PostgREST no las expone nunca,
+así que un `PGRST202` sobre `paciente_sin_caja` no prueba nada — esa se confirmó con `pg_trigger`.
+
+Evidencia obtenida en vivo, resumida:
+
+| Prueba | Resultado |
+|---|---|
+| Los 3 RPC de Tienda/peluquería con clave anónima | `401 permission denied` — `0047` aplicada |
+| `clinicas_para_registro` (pública a propósito) | `200`, solo `id` y `nombre` |
+| 12 tablas clínicas leídas sin sesión | `[]` en todas; `historial_clinico` y `recetas` ni resuelven |
+| Registro del portal con un nombre de 150 caracteres | `400 «no puede tener más de 120»` — H-9 |
+| `POST /auth/v1/signup` | `422 signup_disabled` — H-12 |
+| Cabeceras de `www.vetora.online` | `Content-Security-Policy` **sin** `-Report-Only`, + 5 más |
+| `auth_mfa_suficiente` / `tiene_mfa_verificado` | Existen — `0072` aplicada |
+| Policies de las 7 tablas de `0030` sin rol | **0 filas** — `0045` aplicada |
+
+### Lo que sigue sin poder probarse, y no cambió
+
+Lo mismo que este archivo dice desde el principio: **sin dos sesiones de clínicas distintas contra
+un Supabase administrable, las policies se leen, no se ejecutan.** Los triggers de caja e inventario
+(`0056`–`0065`) están en el repo y sus funciones asociadas existen en producción, pero que *disparen*
+lo que dicen disparar no se ha visto ocurrir. Es la única forma de mover H-19–H-24 de
+NEEDS_REVIEW a CORREGIDO, y exige montar un proyecto de prueba con dos clínicas y sus usuarios.
