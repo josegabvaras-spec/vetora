@@ -172,4 +172,12 @@ where n.nspname = 'public'
   -- `start_time + interval '30 minutes'` y no resuelve ningún objeto (VUL-38).
   and p.proname <> 'get_citas_end_time'
 
-order by 2 desc, 1;
+-- ⚠️ Ascendente, no descendente, y el motivo no es obvio: en texto 'FALLA' va
+-- ANTES que 'ok' (la 'F' pesa menos que la 'o'), así que `asc` es lo que sube
+-- las fallas arriba. Este fichero salió con `2 desc` la primera vez y las
+-- escondía al final de la lista — que en un chequeo cuyo único propósito es que
+-- se vean las fallas, es el peor sitio donde ponerlas.
+--
+-- Tampoco sirve `order by (estado = 'ok')`: sobre un `union` PostgreSQL solo
+-- acepta nombres de columna u ordinales, no expresiones. Daría error de sintaxis.
+order by 2, 1;
