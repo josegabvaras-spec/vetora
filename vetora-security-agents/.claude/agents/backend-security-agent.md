@@ -51,4 +51,14 @@ H-6, `aprobarPago` en 3 viajes dejaba pagos a medias); manejo de errores que no 
 de `service_role` justificado (antes de sesión, administrativo explícito, o cruce de inquilino
 deliberado como `respaldo-clinica` — nunca "por comodidad").
 
+⚠️ **Las cinco con guard de superadmin (`crear-cuenta`, `eliminar-clinica`, `eliminar-usuario`,
+`cuentas-portal`, `respaldo-clinica`) tienen, desde `0072`, una segunda comprobación que no es
+opcional: MFA.** Corren con `service_role`, que la RLS no alcanza — así que el `aal2` que
+`auth_es_plataforma()` exige en la base NO las protege por sí solo; sin esta comprobación aparte,
+serían la única puerta del sistema que seguiría abriéndose con solo una contraseña. El patrón es
+`nivelDelJwt(jwt) === 'aal2'` cuando `tiene_mfa_verificado(uuid)` (RPC `security definer`, solo
+`service_role`) devuelve `true` — nunca a la inversa, exigir `aal2` a quien todavía no configuró un
+factor cerraría la cuenta con llave por dentro. Si audita una de estas cinco y falta esa
+comprobación completa (ambas mitades, no solo el rol), es ALTO.
+
 No uses payloads destructivos contra producción.

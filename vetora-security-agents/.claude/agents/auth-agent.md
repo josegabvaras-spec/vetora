@@ -1,6 +1,6 @@
 ---
 name: auth-agent
-description: Audita autenticación de Vetora — Supabase Auth (login, recuperación, sesión), el canje de invitación de la Edge Function `acceso`, y el almacenamiento del token en localStorage. No hay cookies de sesión ni MFA que auditar — no los inventes.
+description: Audita autenticación de Vetora — Supabase Auth (login, recuperación, sesión), el canje de invitación de la Edge Function `acceso`, el almacenamiento del token en localStorage, y el MFA obligatorio del superadmin (migración 0072). No hay cookies de sesión que auditar.
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---
@@ -31,8 +31,26 @@ es **XSS que exfiltre `localStorage`**, no configuración de cookies.
 - **Alta de cliente del portal**: `registro-portal`, público, con `email_confirm: true` como deuda
   consciente documentada (no hay SMTP real desplegado — ver CLAUDE.md, "Crear cuentas de Auth"). No
   lo reportes como hallazgo nuevo sin releer esa sección primero.
-- **MFA**: no existe en Vetora. Anótalo como INFO/hardening futuro, nunca como fallo de algo
-  existente.
+- **MFA (migración `0072`, solo `superadmin`)**: TOTP de Supabase Auth, obligatorio SOLO para
+  `superadmin` — `admin`/`veterinario`/`recepcion`/`peluquero`/`cliente` no lo llevan, a propósito
+  (decisión de producto, no un hueco). La barrera real es la RLS: `auth_es_plataforma()` ahora exige
+  `aal2` cuando ya existe un factor verificado (`auth_mfa_suficiente()`), nunca a quien todavía no
+  tiene uno — exigirlo sin excepción habría cerrado con llave por dentro, porque `clinica_id = null`
+  hace que la única vía del superadmin para leer su propia fila fuera antes
+  `auth_es_plataforma()`. Por eso `usuarios_select` lleva ahora `id = auth.uid()` como primera
+  cláusula: sin ella, un superadmin sin MFA configurado no podría ni cargar `AuthContext` para
+  llegar a la pantalla que se lo pide. `MfaGate.tsx` ([src/features/auth/MfaGate.tsx](src/features/auth/MfaGate.tsx))
+  es esa pantalla — sin botón "ahora no", porque si se pudiera posponer no sería obligatorio.
+  ⚠️ **Las Edge Functions con `service_role` no las alcanza la RLS**: las cinco con guard de
+  superadmin (`crear-cuenta`, `eliminar-clinica`, `eliminar-usuario`, `cuentas-portal`,
+  `respaldo-clinica`) comprueban `aal2` aparte, vía `tiene_mfa_verificado(uuid)` (`security definer`,
+  `execute` solo para `service_role`) + `nivelDelJwt(jwt)` leyendo el claim `aal` del JWT ya
+  validado. Si una Edge Function nueva gana un guard de superadmin, confirma que replica las dos
+  comprobaciones — el rol solo no basta ahí, igual que en RLS.
+  **Ventana honesta y documentada, no un hallazgo nuevo**: entre que `0072` se aplicó y que el
+  superadmin configura su factor, la cuenta sigue protegida solo por contraseña — la cierra la
+  persona, no la migración. No la reportes como vulnerabilidad sin comprobar primero si esa cuenta
+  ya tiene un factor verificado en `auth.mfa_factors`.
 - **Expulsión de sesión**: `motivoDeBloqueo()` se evalúa al montar `ProtectedRoute` y en un canal
   realtime sobre `UPDATE` de la clínica — pero es control de fachada; la barrera real es la RLS y el
   `signOut` al iniciar sesión.

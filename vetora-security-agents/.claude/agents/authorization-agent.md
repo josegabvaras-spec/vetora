@@ -17,6 +17,12 @@ también.
 `clientes.usuario_id = auth.uid()`). `auth_es_personal()` (`rol in
 ('admin','veterinario','recepcion','peluquero')`) separa las policies de negocio de las de portal.
 
+**`superadmin` es también el único rol con MFA obligatorio** (`0072`, ver `auth-agent`): la RLS le
+exige `aal2` una vez que configura un segundo factor TOTP. No es autorización por rol en el sentido
+de este agente —no cambia QUÉ puede hacer un superadmin, exige demostrar QUIÉN es con más fuerza—
+pero si auditas por qué una cuenta de plataforma no puede leer `clinicas`/`planes`, revisa el nivel
+de la sesión (`aal`) antes de asumir que es un problema de rol.
+
 ## Los tres sitios que tienen que coincidir
 
 Para cada ruta protegida, compara:

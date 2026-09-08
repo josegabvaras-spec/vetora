@@ -17,7 +17,7 @@ integral programada. No dupliques: delega a esos dos cuando un hallazgo merezca 
 
 ## Activación automática
 
-- `login`, `sesión`, `JWT`, `contraseña`, invitación, `/acceso/:token` → `auth-agent`.
+- `login`, `sesión`, `JWT`, `contraseña`, invitación, `/acceso/:token`, MFA, `aal`, TOTP, segundo factor → `auth-agent`.
 - rol, `RolRoute`, `auth_es_personal`, `auth_es_admin`, admin/veterinario/recepción/peluquero/cliente → `authorization-agent`.
 - `clinica_id`, `sucursal_id`, RLS, policies de Supabase, aislamiento entre clínicas → `tenant-isolation-agent` + `database-security-agent`.
 - migración SQL, tabla, policy, función `SECURITY DEFINER`, trigger, Storage bucket → `database-security-agent`.

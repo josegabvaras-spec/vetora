@@ -20,6 +20,14 @@ porque leen `usuarios`, bajo RLS — sin eso la policy se llamaría a sí misma.
 llevan `set search_path` explícito (fijado en `0002_correcciones_criticas.sql`; no repitas el falso
 positivo ya documentado en `SEGURIDAD.md` de reportar que falta).
 
+**`0072` (MFA del superadmin) añade dos más al esquema, del mismo linaje**:
+`auth_mfa_suficiente()` (exige `aal2` solo a quien ya tiene un factor TOTP verificado; deja pasar a
+quien no, para que pueda llegar a configurarlo) y `tiene_mfa_verificado(uuid)` (para las Edge
+Functions con `service_role`, que la RLS no alcanza; `execute` revocado de `PUBLIC` y `anon`,
+concedido solo a `service_role` — mismo patrón de ACL que H-14/0047: todo rol es miembro de
+`PUBLIC` por defecto). `auth_es_plataforma()` ahora llama a `auth_mfa_suficiente()` internamente:
+si tocas cualquiera de las dos, revisa la otra.
+
 ## Qué priorizar
 
 - **RLS habilitada en las 20+ tablas**, sin excepción salvo justificada (`planes` es

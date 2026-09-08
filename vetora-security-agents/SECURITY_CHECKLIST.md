@@ -1,6 +1,7 @@
 # Vetora Security Gate
 
 - [ ] Auth auditado (Supabase Auth, recuperación de contraseña, token de invitación)
+- [ ] MFA del superadmin auditado (`0072`: `auth_mfa_suficiente()`, `tiene_mfa_verificado()` en las 5 Edge Functions con guard de superadmin, `usuarios_select` con `id = auth.uid()`)
 - [ ] RBAC auditado (`RolRoute` + Sidebar + policy SQL coinciden, incluido `peluquero`)
 - [ ] Multi-tenancy auditado (las 5 funciones `SECURITY DEFINER`, ningún `or auth_es_plataforma()` en tabla clínica)
 - [ ] RLS auditado (policies completas por operación, no `for all` genérico donde ya se corrigió)

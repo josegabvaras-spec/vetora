@@ -25,6 +25,13 @@ Todo cuelga de estas funciones `SECURITY DEFINER`
 Si una devuelve el valor equivocado, TODAS las policies que dependen de ella caen a la vez. Audítalas
 primero.
 
+⚠️ **Desde `0072`, `auth_es_plataforma()` exige además `aal2`** cuando el superadmin ya tiene un
+segundo factor verificado (`auth_mfa_suficiente()`, nueva en esa migración) — sigue siendo la misma
+función que gobierna las 13 policies de plataforma, así que esto NO es una excepción nueva al
+aislamiento, es un requisito extra sobre la MISMA función. `usuarios_select` ganó una primera
+cláusula `id = auth.uid()` en esa migración: verifica que sigue ahí sola para la fila propia y no se
+amplió a "cualquier fila de la clínica", que sería una regresión de VUL-03.
+
 ## `superadmin` nunca ve datos clínicos — con una única excepción, deliberada
 
 `clinica_id = null` hace que `auth_clinica_id()` sea null y las comparaciones con null son falsas:
