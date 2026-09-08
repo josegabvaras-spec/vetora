@@ -15,7 +15,11 @@ export function RespaldoPage() {
     try {
       setGenerando(true)
       setError(null)
-      const { generarRespaldo } = await import('../lib/exportacion')
+      // Import dinámico a propósito: arrastra JSZip y file-saver, que no tienen
+      // por qué entrar en el bundle inicial de quien nunca abre esta pantalla.
+      // Va contra el SERVICIO, no contra `lib/exportacion` — las páginas no
+      // hablan con Supabase ni con quien lo haga por ellas.
+      const { generarRespaldo } = await import('../services/respaldo')
       await generarRespaldo()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al generar el respaldo')

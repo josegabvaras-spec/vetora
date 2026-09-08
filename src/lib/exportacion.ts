@@ -1,6 +1,22 @@
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
-import { supabase } from './supabase'
+
+/**
+ * ⚠️ **Este fichero es PURO: no habla con Supabase, y así tiene que seguir.**
+ *
+ * Tuvo dentro `generarRespaldo()`, que consultaba las 37 tablas — un `lib/`
+ * leyendo la base, y encima importado directamente por `RespaldoPage`, saltándose
+ * la capa de servicios. Vive ahora en [services/respaldo.ts](../services/respaldo.ts),
+ * que es donde la regla estructural del proyecto dice que va cualquier cosa que
+ * toque Supabase.
+ *
+ * Lo que queda aquí —construir el CSV, armar el ZIP, disparar la descarga— no
+ * depende de dónde salgan las filas, y por eso lo comparten los **dos** caminos
+ * del respaldo: el de la clínica (`services/respaldo.ts`, con su propia sesión y
+ * la RLS acotándola) y el de la plataforma (`services/respaldoPlataforma.ts`, que
+ * las pide a la Edge Function `respaldo-clinica` con `service_role`). Si metes
+ * una consulta aquí, esa separación se pierde.
+ */
 
 /**
  * Punto y coma, no coma.
@@ -177,38 +193,5 @@ export function descargarZip(contenido: Blob, nombre: string): void {
   saveAs(contenido, nombre)
 }
 
-/**
- * Respaldo que se descarga la propia clínica; la RLS acota lo que ve.
- *
- * ⚠️ **Una tabla que falla ABORTA el respaldo, no se salta.** Antes hacía
- * `continue` ante cualquier error: el ZIP salía sin ese CSV, el navegador lo
- * descargaba con normalidad y la clínica se quedaba con un archivo al que le
- * faltaba —por ejemplo— el historial clínico entero, sin un solo aviso. Un
- * respaldo incompleto que se cree completo es peor que no tener respaldo,
- * porque solo se descubre el día que hay que restaurarlo.
- *
- * Una tabla vacía no es un error y no aborta nada: la RLS devuelve cero filas
- * sin fallar, que es lo que le pasa a una veterinaria sin peluquería.
- */
-export async function generarRespaldo() {
-  const datosPorTabla: Record<string, any[]> = {}
-  const fallidas: string[] = []
-
-  for (const tabla of TABLAS_RESPALDO) {
-    const { data, error } = await supabase.from(tabla as any).select('*')
-    if (error) {
-      fallidas.push(`${tabla} (${error.message})`)
-      continue
-    }
-    datosPorTabla[tabla] = data ?? []
-  }
-
-  if (fallidas.length > 0) {
-    throw new Error(
-      `El respaldo estaría incompleto y no se descargó. No se pudieron leer: ${fallidas.join('; ')}`,
-    )
-  }
-
-  const contenido = await construirZip(datosPorTabla)
-  descargarZip(contenido, `respaldo_${new Date().toISOString().split('T')[0]}.zip`)
-}
+// `generarRespaldo()` estaba aquí y se movió a `services/respaldo.ts`: era la
+// única función del fichero que consultaba Supabase. Ver la cabecera de arriba.
