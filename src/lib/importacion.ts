@@ -140,7 +140,7 @@ function parseCSV(csvText: string): any[] {
   return result
 }
 
-/** Lee el ZIP y devuelve las filas por tabla, con las fotos ya reincorporadas. */
+/** Lee el ZIP y devuelve las filas por tabla, con las fotos y firmas ya reincorporadas. */
 export async function leerZip(file: File): Promise<Record<string, any[]>> {
   const zip = new JSZip()
   await zip.loadAsync(file)
@@ -170,6 +170,25 @@ export async function leerZip(file: File): Promise<Record<string, any[]>> {
     }
     // Columna del CSV, no de la base: si viaja al upsert, Postgres la rechaza.
     pacientesRestaurados.forEach((p: any) => delete p.tiene_foto)
+  }
+
+  // Las firmas manuscritas vuelven a su fila igual que la foto: en el CSV
+  // solo viajaba `tiene_firma`.
+  const firmasFolder = zip.folder('firmas')
+  if (firmasFolder) {
+    for (const tabla of ['consentimientos_cirugia', 'informes_firmados'] as const) {
+      const filas = datosRestaurados[tabla]
+      if (!filas) continue
+      for (const fila of filas as any[]) {
+        for (const campo of ['firma_tutor', 'firma_veterinario'] as const) {
+          const archivo = firmasFolder.file(`${tabla}_${fila.id}_${campo}.png`)
+          if (archivo) {
+            fila[campo] = `data:image/png;base64,${await archivo.async('base64')}`
+          }
+        }
+        delete fila.tiene_firma
+      }
+    }
   }
 
   return datosRestaurados

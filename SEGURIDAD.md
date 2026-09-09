@@ -1583,4 +1583,35 @@ criterio: bloquea `'alta'`, no `'internado'` — una internación en curso no es
 que se promete inmutable. `internaciones.cita_id` es `on delete set null`, no `cascade`, así que no
 existe una "puerta 2" equivalente vía citas para esta tabla.
 
+### H-32 · Las firmas manuscritas salían íntegras en el respaldo CSV — ENDURECIDO
+
+Encontrado ampliando el punto del informe jurídico sobre firmas manuscritas (`consentimientos_cirugia`
+e `informes_firmados`, este último incluye los recibos). No es un incumplimiento de ninguna promesa
+—la política nunca dijo que las firmas se trataran distinto—, y no hay ninguna norma boliviana
+confirmada que lo exija: se corrige por minimización de datos, el mismo principio que ya se le
+aplicaba a la foto del paciente desde el origen del respaldo sin que nadie replicara el criterio
+para la firma.
+
+**Lo que había:** `construirZip()` volcaba `firma_tutor`/`firma_veterinario` como cualquier otra
+columna — la imagen completa en base64, en texto plano, dentro de `consentimientos_cirugia.csv` e
+`informes_firmados.csv`. Cualquiera que abriera el CSV en una hoja de cálculo veía la firma manuscrita
+del dueño y del veterinario como una cadena de texto ilegible pero perfectamente reconstruible.
+
+**Corregido:** mismo patrón que la foto del paciente, ya establecido en el propio fichero. Las dos
+columnas se sacan de la fila antes de escribir el CSV (que ahora solo lleva `tiene_firma`) y la
+imagen viaja aparte, en una carpeta `firmas/` dentro del mismo ZIP, nombrada
+`{tabla}_{id}_{campo}.png`. `leerZip()` la reincorpora byte a byte al restaurar, exactamente como ya
+hacía con `fotos/`. No se pierde ningún dato: sigue estando en el mismo ZIP, solo que ya no en la
+hoja de cálculo.
+
+Verificado con una prueba de round-trip fuera del navegador (exportar → confirmar que el base64 no
+queda en el CSV → leer el ZIP → confirmar que las dos firmas de cada fila vuelven idénticas byte a
+byte, incluida la fila del recibo sin paciente y la del consentimiento sin firma). `npm run build`
+sigue en verde.
+
+⚠️ **No se tocó el CI ni ningún otro dato de `clientes`** — esa es una decisión de producto con un
+costo operativo real (recepción lo necesita a diario) y sigue pendiente de la respuesta del abogado
+(preguntas 4.1 a 4.3 del informe). Este cambio se limitó a lo que no tiene contrapartida: la firma no
+pierde ningún uso legítimo por viajar en una carpeta en vez de en la hoja.
+
 Con esto, las tres puertas del mismo problema —paciente, cita e internación— quedan cerradas.

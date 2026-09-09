@@ -71,7 +71,10 @@ export const SEPARADOR_CSV = ';'
  * `estudios` de Storage** y no se descargan aquí. Lo mismo con las fotos de
  * peluquería (`peluqueria_fotos`) y los comprobantes de pago. Restaurar deja la
  * ficha apuntando a un archivo que puede no estar. Las fotos de paciente sí
- * van, en la carpeta `fotos/`, porque viajan dentro de su propia fila.
+ * van, en la carpeta `fotos/`, porque viajan dentro de su propia fila — y desde
+ * esta corrección, las firmas manuscritas de `consentimientos_cirugia` e
+ * `informes_firmados` van igual, en `firmas/`: seguían viajando íntegras en
+ * el CSV, sin el mismo tratamiento que ya recibía la foto del paciente.
  */
 export const TABLAS_RESPALDO = [
   // 1. La estructura: sin sucursal no hay producto, ni turno, ni cita.
@@ -154,15 +157,21 @@ export async function construirZip(datosPorTabla: Record<string, any[]>): Promis
     const data = datosPorTabla[tabla]
     if (!data) continue
 
-    // La foto sale del CSV: es una cadena base64 de cientos de KB que dejaría
-    // la hoja ilegible. Va aparte, en `fotos/`, y el CSV solo dice si la hay.
+    // La foto y las firmas manuscritas salen del CSV: son cadenas base64 de
+    // cientos de KB que dejarían la hoja ilegible. Van aparte, en `fotos/` y
+    // `firmas/`, y el CSV solo dice si las hay.
     const exportData =
       tabla === 'pacientes'
         ? data.map((p: any) => {
             const { foto, ...rest } = p
             return { ...rest, tiene_foto: !!foto }
           })
-        : data
+        : tabla === 'consentimientos_cirugia' || tabla === 'informes_firmados'
+          ? data.map((f: any) => {
+              const { firma_tutor, firma_veterinario, ...rest } = f
+              return { ...rest, tiene_firma: !!(firma_tutor || firma_veterinario) }
+            })
+          : data
 
     zip.file(`${tabla}.csv`, objectToCSV(exportData))
   }
@@ -181,6 +190,30 @@ export async function construirZip(datosPorTabla: Record<string, any[]>): Promis
         const base64Data = partes.length > 1 ? partes[1] : partes[0]
         if (base64Data) {
           fotosFolder.file(`${paciente.codigo}.jpg`, base64Data, { base64: true })
+        }
+      }
+    }
+  }
+
+  // Firmas manuscritas de consentimientos e informes (el recibo es un
+  // `informes_firmados` más, con `tipo = 'recibo'`), indexadas por el `id` de
+  // su propia fila: mismo criterio que las fotos, mismo motivo (no son un
+  // dato menos sensible por venir en un CSV en vez de en una columna).
+  const firmasFolder = zip.folder('firmas')
+
+  if (firmasFolder) {
+    for (const tabla of ['consentimientos_cirugia', 'informes_firmados'] as const) {
+      const filas = datosPorTabla[tabla] ?? []
+      for (const fila of filas as any[]) {
+        for (const campo of ['firma_tutor', 'firma_veterinario'] as const) {
+          const valor = fila[campo]
+          if (valor && fila.id) {
+            const partes = String(valor).split(',')
+            const base64Data = partes.length > 1 ? partes[1] : partes[0]
+            if (base64Data) {
+              firmasFolder.file(`${tabla}_${fila.id}_${campo}.png`, base64Data, { base64: true })
+            }
+          }
         }
       }
     }
