@@ -1611,6 +1611,13 @@ queda en el CSV → leer el ZIP → confirmar que las dos firmas de cada fila vu
 byte, incluida la fila del recibo sin paciente y la del consentimiento sin firma). `npm run build`
 sigue en verde.
 
+⚠️ **Reverificado el 2026-09-09 contra un respaldo real de producción** (mismo ZIP del mini-retest
+de H-30): la cabecera de `consentimientos_cirugia.csv` es `id;clinica_id;cita_id;paciente_id;
+url_pdf;metodo_aceptacion;created_at;nombre_tutor;nombre_veterinario;veterinario_id;tiene_firma` —
+sin `firma_tutor` ni `firma_veterinario` — y `tiene_firma` sale `true` en la fila con
+`metodo_aceptacion = firma_digital`. Las imágenes están en la carpeta `firmas/`, junto a `fotos/`.
+No era solo la prueba sintética la que funcionaba.
+
 ⚠️ **No se tocó el CI ni ningún otro dato de `clientes`** — esa es una decisión de producto con un
 costo operativo real (recepción lo necesita a diario) y sigue pendiente de la respuesta del abogado
 (preguntas 4.1 a 4.3 del informe). Este cambio se limitó a lo que no tiene contrapartida: la firma no
