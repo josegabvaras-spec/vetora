@@ -1,5 +1,6 @@
 import { FieldGroup, Input, Select, Textarea } from '../../components/ui/Field'
 import { Seccion } from '../../components/ui/Seccion'
+import { redimensionarImagen } from '../../lib/imagen'
 import type { Especie, Sexo } from '../../types/database'
 import type { DatosPaciente } from './datosPaciente'
 
@@ -13,15 +14,20 @@ export function FormularioPaciente({
   const set = <K extends keyof DatosPaciente>(campo: K) => (valor: DatosPaciente[K]) =>
     onChange({ ...datos, [campo]: valor })
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Se guarda entera en la base (`pacientes.foto`, columna de texto, no un
+  // bucket de Storage): sin redimensionar, la foto de una cámara de celular
+  // —varios MB— se llevaba de un tirón una porción enorme de la cuota de base
+  // de datos. Mismo helper que ya usan estudios/catálogo/peluquería, con un
+  // lado máximo menor porque aquí es una miniatura, no un documento.
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        set('foto')(reader.result as string)
-      }
-      reader.readAsDataURL(file)
+    if (!file) return
+    const comprimida = await redimensionarImagen(file, 800, 0.8)
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      set('foto')(reader.result as string)
     }
+    reader.readAsDataURL(comprimida)
   }
 
   return (
