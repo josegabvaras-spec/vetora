@@ -1517,3 +1517,60 @@ Y una observación sobre el propio retest: **esto se detectó porque se estaba v
 suponer.** El MFA del superadmin llevaba horas desactivado a nivel de RLS y nada en la aplicación lo
 habría delatado — la pantalla del segundo factor sigue apareciendo igual, porque es usabilidad, no
 la barrera. Sin la consulta a `pg_proc` no se habría sabido.
+
+---
+
+### H-30 · La política de privacidad prometía trazabilidad del respaldo, y no existía — CORREGIDO (`0074`)
+
+Encontrado preparando el informe técnico para la revisión jurídica: la política dice, sobre la
+función que permite al operador extraer los datos de una clínica, que *«solo nosotros podemos
+ejecutarla, y cada uso queda registrado»*. Las dos primeras partes eran ciertas. La tercera no —
+`respaldo-clinica` nunca escribió un solo registro de auditoría. Se prometía al titular de los
+datos algo que no existía.
+
+**Corregido:** `registro_respaldos` (mismo patrón que `ia_uso`/`registro_errores`: solo INSERT,
+lectura solo del superadmin, sin UPDATE ni DELETE — una bitácora editable no es bitácora). La
+Edge Function ahora registra **quién, sobre qué clínica, qué acción, con qué resultado y cuántas
+filas**, en los tres puntos de salida de `exportar` y de `importar`, y también en el `catch`
+general si el fallo ocurrió después de identificar a quién y a qué clínica.
+
+⚠️ **`superadminActivo()` reemplaza a `esSuperadmin()`**: antes devolvía `boolean`, ahora devuelve
+el `id` de quien llama (o `null`). La bitácora necesita saber a quién atribuir la operación —
+llegar hasta aquí sin ese cambio habría dejado la tabla sin forma de rellenarse.
+
+Un fallo AL REGISTRAR no bloquea el respaldo: la bitácora es una garantía adicional sobre la
+operación, no una condición para que ocurra. Si el `insert` falla, queda en los logs de la
+función y se sigue adelante — mismo criterio que ya usa el `catch` general.
+
+---
+
+### H-31 · «El historial cerrado no se puede borrar» tenía dos puertas abiertas — CORREGIDO (`0075`, `0076`)
+
+Mismo origen que H-30: preparando el informe jurídico se revisó si la promesa de inmutabilidad
+del historial era literalmente cierta. No lo era, y por dos caminos distintos.
+
+**Puerta 1 — borrar el paciente.** `trg_paciente_sin_caja` (0049) solo contaba cobros en caja. Un
+paciente con historial **cerrado** y sin ningún cobro asociado se podía borrar igual, y la cascada
+de FK se llevaba `historial_clinico`, `recetas`, `vacunas_aplicadas`, `desparasitaciones_aplicadas`,
+`consentimientos_cirugia` e `informes_firmados`.
+
+**Puerta 2 — borrar la cita, no el paciente.** `historial_clinico.cita_id` es `on delete cascade`,
+y `citas_personal` (0004) era `for all` — DELETE incluido, para todo el personal. Borrar un
+paciente es una operación rara; **borrar una cita es rutinaria**. Es la puerta más grave de las
+dos, y era incoherente con `0053`: al peluquero se le prohíbe expresamente *leer* el historial,
+pero podía *destruirlo* borrando la cita de la que colgaba.
+
+**Corregido:**
+
+- `0075` quita el DELETE de `citas_personal` (mismo patrón que `0064` ya aplicó a otras tablas de
+  `for all`), conservando exactamente la misma condición en select/insert/update. La aplicación
+  nunca usó ese DELETE: cancelar una cita es `actualizarEstadoCita(id, 'cancelada')`.
+- `0076` extiende `paciente_sin_caja()` (mismo trigger, no uno nuevo) para que también cuente
+  historiales con `editable = false`.
+
+⚠️ **Bloquea solo lo cerrado, nunca un borrador abierto.** Un borrador es trabajo a medias, no el
+expediente que se promete inmutable — impedir borrar un paciente por un borrador suyo sin terminar
+convertiría un alta hecha por error en algo permanente, el problema contrario al que se corrige.
+
+Con esto, las dos observaciones marcadas en el informe para la revisión jurídica quedan cerradas
+técnicamente. El informe se actualiza en el mismo commit.

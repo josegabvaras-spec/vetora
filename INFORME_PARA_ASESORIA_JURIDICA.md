@@ -19,14 +19,14 @@ Su propósito es que el tiempo de la asesoría se gaste en **criterio jurídico*
 | # | Asunto | Estado |
 |---|---|---|
 | 1 | La política **no informa de la transferencia internacional de datos** | Omisión deliberada, pendiente de redacción jurídica |
-| 2 | La política afirma que **cada uso del respaldo queda registrado** — no es cierto | ⚠️ **Declaración no respaldada por el sistema** |
-| 3 | La política afirma que el historial cerrado **no se puede borrar** — solo es cierto a medias | ⚠️ **Declaración parcialmente inexacta** |
+| 2 | La política afirmaba que **cada uso del respaldo queda registrado** — no era cierto | ✅ **Corregido el mismo día**: la bitácora ya existe y registra cada uso |
+| 3 | La política afirmaba que el historial cerrado **no se puede borrar** — era cierto solo a medias | ✅ **Corregido el mismo día**, con una salvedad relacionada aún pendiente (ver 6.1) |
 | 4 | El sistema envía datos clínicos a un tercero en EE. UU. (Anthropic) | Implementado y acotado; declarado en la política |
 | 5 | No existe contrato de encargo de tratamiento con los proveedores | Pendiente |
 | 6 | No hay procedimiento documentado de notificación de brechas | Pendiente |
 | 7 | Quién es responsable y quién encargado del tratamiento | **Calificación jurídica pendiente** |
 
-Los puntos **2 y 3 son hallazgos nuevos de esta revisión** y son los más urgentes: un documento legal publicado que promete algo que el sistema no hace es peor que no prometerlo.
+Los puntos 2 y 3 fueron hallazgos nuevos de esta revisión, detectados y **corregidos técnicamente el mismo día**. Se conservan en este informe con su historial completo — qué decía la política, qué hacía el sistema, y qué se hizo — porque forman parte del registro de cómo se trató el hallazgo, no porque sigan abiertos.
 
 ---
 
@@ -113,38 +113,38 @@ Esto está acotado en el código en un solo sitio (`contextoDeAviso()`), y **ver
 
 ---
 
-## 6. ⚠️ Discrepancias entre la política publicada y el sistema
+## 6. Dos discrepancias encontradas y corregidas el mismo día
 
-**Son hallazgos de esta revisión. Los dos son declaraciones publicadas que el sistema no respalda.**
+Se conservan aquí con su historial completo — qué decía la política, qué hacía realmente el sistema, y qué se corrigió — porque forman parte de cómo se trató el hallazgo, no porque sigan abiertas. Un informe que borrara el problema en cuanto se resuelve no serviría para acreditar diligencia.
 
-### 6.1 «Cada uso [de la función de respaldo] queda registrado» — NO ES CIERTO
+### 6.1 «Cada uso [de la función de respaldo] queda registrado» — CORREGIDO
 
-La política, sección 4, declara que existe una función que permite al operador extraer los datos de una clínica, y añade: *«solo nosotros podemos ejecutarla, y cada uso queda registrado»*.
+**Lo que decía la política, sección 4:** que existe una función que permite al operador extraer los datos de una clínica, y que *«solo nosotros podemos ejecutarla, y cada uso queda registrado»*.
 
-**Las dos primeras afirmaciones son ciertas. La tercera no.** La Edge Function `respaldo-clinica` valida quién llama, exige superadmin con segundo factor y vuelca las 37 tablas — pero **no escribe ningún registro de auditoría**. No hay `insert` en ninguna bitácora: ni en `registro_errores`, ni en `ia_uso`, ni en una tabla propia.
+**Lo que hacía el sistema hasta hoy:** las dos primeras partes eran ciertas. La tercera no. La función validaba quién llamaba, exigía segundo factor y volcaba las tablas — pero **no escribía ningún registro de auditoría**. Se prometía al titular de los datos una trazabilidad que no existía.
 
-**Consecuencia:** se le promete al titular de los datos una trazabilidad que no existe. Si alguien preguntara «¿quién accedió a mis datos y cuándo?», hoy no hay forma de responder.
+**Corrección aplicada:** se creó una bitácora dedicada (mismo patrón que ya usan otras tablas de auditoría del sistema: solo puede insertarse, solo el operador puede leerla, nadie puede editarla ni borrarla después — una bitácora editable no sería prueba de nada). Cada uso de la función queda ahora registrado con quién la ejecutó, sobre qué clínica, qué operación, si tuvo éxito y cuántos datos movió. Se registra también cuando falla, para que un intento fallido no desaparezca sin dejar rastro.
 
-**Dos salidas posibles**, y la elección es en parte jurídica:
-1. **Implementar el registro** — es una tabla y un `insert`; técnicamente es trabajo de una tarde.
-2. **Corregir la política** para no afirmarlo.
+**Estado:** la política ya es cierta tal como está redactada. No fue necesario cambiar el texto.
 
-Recomendación técnica: la primera. Es una promesa razonable y barata de cumplir, y una vez implementada la política pasa a ser cierta.
+### 6.2 «El historial clínico, una vez cerrado, no se puede modificar ni borrar» — CORREGIDO, CON UNA SALVEDAD RELACIONADA PENDIENTE
 
-### 6.2 «El historial clínico, una vez cerrado, no se puede modificar ni borrar» — CIERTO A MEDIAS
+- **«No se puede modificar»**: cierto, y seguía siéndolo antes de esta corrección.
+- **«Ni borrar»**: no estaba garantizado, y por **dos vías distintas**.
 
-- **«No se puede modificar»**: ✅ cierto. `trg_historial_inmutable` y la policy `historial_update` lo impiden.
-- **«Ni borrar»**: ⚠️ **no está garantizado.**
+**Vía 1 — borrar la ficha del paciente.** La única protección existente impedía borrar un paciente si tenía cobros pendientes en caja; no comprobaba en absoluto si tenía historial clínico. Un paciente con consultas cerradas y sin ningún cobro asociado podía borrarse, arrastrando su historial, recetas, vacunas y consentimientos firmados.
 
-`trg_paciente_sin_caja` (migración `0049`, verificada aplicada) bloquea el borrado de un paciente **solo si tiene cobros registrados en caja** — cuenta `cobros`, no historiales. Un paciente **con historial clínico cerrado pero sin ningún cobro asociado** puede borrarse, y la cascada de claves foráneas se lleva el historial, las recetas, las vacunas y los consentimientos firmados.
+**Vía 2 — borrar la cita, no el paciente (la más grave de las dos).** El historial clínico está vinculado a la cita en la que se generó, y al borrarse esa cita el historial se borraba con ella. Borrar una cita es una operación habitual del personal —cancelaciones, limpieza de agenda—, muy distinta de borrar un paciente entero. Cualquier miembro del personal podía, sin darse cuenta, destruir un expediente médico simplemente al borrar la cita asociada.
 
-Las cascadas de clave foránea **no evalúan la RLS ni disparan los triggers `before update`**, así que la inmutabilidad no las alcanza.
+**Corrección aplicada:**
+- Se retiró la posibilidad de borrar citas directamente. El personal sigue pudiendo cancelarlas —que es la operación que realmente usa la aplicación—, pero ya no puede eliminarlas de la base de datos.
+- La protección existente sobre el borrado de pacientes se amplió para bloquear también cuando el paciente tiene historiales clínicos **cerrados**. Un historial todavía en borrador (consulta sin terminar) no bloquea el borrado, porque un borrador no es el expediente médico definitivo que se promete conservar.
 
-**Consecuencia:** el expediente médico de un animal puede desaparecer por una vía que la política declara imposible. El caso realista no es malicioso: alguien borra una ficha duplicada.
+**Estado:** ambas vías quedan cerradas. La política ya es cierta.
 
-**Salida:** extender `trg_paciente_sin_caja` para que cuente también historiales cerrados, con el mismo escape que ya lleva para `eliminar-clinica`. Técnicamente es añadir una condición al trigger que ya existe.
+**Salvedad relacionada, detectada al corregir esto y aún pendiente:** el mismo tipo de problema afecta a las internaciones. Una internación **sin ningún cobro asociado** todavía puede perderse si se borra el paciente, pese a que el sistema declara las internaciones «congeladas» una vez dado el alta. Es una situación poco común (una internación siempre facturada normalmente tendría cobro), pero es el mismo patrón exacto que se acaba de corregir, aplicado a otro tipo de registro. Queda anotado para resolverse de la misma manera.
 
-### 6.1 ⚠️ Los controles pueden revertirse en silencio — incidente del 2026-09-08
+### 6.3 Los controles pueden revertirse en silencio — incidente del 2026-09-08
 
 Se declara porque es material para valorar si las medidas son adecuadas, aunque no hubo filtración.
 
@@ -208,7 +208,7 @@ Ordenadas por lo que bloquea más decisiones técnicas:
 
 7. **¿Es suficiente que el dueño ejerza sus derechos a través de su clínica**, o Vetora debe ofrecer un canal directo?
 
-8. **¿Qué obligación de registro de accesos existe?** Determina si el punto 6.1 se resuelve implementando o redactando.
+8. **¿La bitácora ya implementada (punto 6.1) satisface el estándar de registro de accesos exigible?** Registra quién, sobre qué clínica, qué operación, resultado y volumen de datos — pero no queda claro si ese nivel de detalle es suficiente o si hace falta algo adicional (por ejemplo, la dirección IP de origen).
 
 9. **¿Es exigible la notificación de brechas** y en qué plazo?
 

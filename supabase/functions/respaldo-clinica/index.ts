@@ -132,13 +132,19 @@ function texto(valor: unknown): string {
   return typeof valor === 'string' ? valor.trim() : ''
 }
 
-/** Mismo criterio que `crear-cuenta`: el rol se lee en el servidor, no se cree. */
-async function esSuperadmin(peticion: Request): Promise<boolean> {
+/**
+ * Mismo criterio que `crear-cuenta`: el rol se lee en el servidor, no se cree.
+ *
+ * Devuelve el `id` de quien llama en vez de un `boolean` (como antes) porque
+ * `registrarUso()` necesita saber A QUIÉN atribuir la operación — es la
+ * bitácora de H-30, y una bitácora que no dice quién no dice nada.
+ */
+async function superadminActivo(peticion: Request): Promise<string | null> {
   const jwt = (peticion.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
-  if (!jwt) return false
+  if (!jwt) return null
 
   const { data, error } = await admin.auth.getUser(jwt)
-  if (error || !data.user) return false
+  if (error || !data.user) return null
 
   const { data: perfil } = await admin
     .from('usuarios')
@@ -146,7 +152,7 @@ async function esSuperadmin(peticion: Request): Promise<boolean> {
     .eq('id', data.user.id)
     .maybeSingle()
 
-  if (!perfil || perfil.activo !== true || perfil.rol !== 'superadmin') return false
+  if (!perfil || perfil.activo !== true || perfil.rol !== 'superadmin') return null
 
   // ⚠️ Segundo factor (migración 0072). Esta función corre con `service_role`,
   // que **no aplica RLS**, así que el `aal2` que ahora exige
@@ -159,9 +165,39 @@ async function esSuperadmin(peticion: Request): Promise<boolean> {
   // a quien todavía no lo configuró no se le puede exigir, o no podría entrar
   // a configurarlo.
   const { data: conMfa } = await admin.rpc('tiene_mfa_verificado', { p_usuario: data.user.id })
-  if (conMfa !== true) return true
+  if (conMfa !== true) return data.user.id
 
-  return nivelDelJwt(jwt) === 'aal2'
+  return nivelDelJwt(jwt) === 'aal2' ? data.user.id : null
+}
+
+/**
+ * Bitácora de H-30: la política de privacidad promete que «cada uso [de esta
+ * función] queda registrado», y hasta hoy no era cierto — no se escribía
+ * nada. Ver migración `0074_registro_respaldos.sql`.
+ *
+ * Un fallo AL REGISTRAR no debe impedir que el respaldo se entregue: la
+ * bitácora es una garantía adicional sobre la operación, no una condición
+ * para que la operación exista. Si falla, queda constancia en los logs de la
+ * función (que sí puede leer el operador desde el panel), y se sigue
+ * adelante — el mismo criterio que ya usa el `catch` general de más abajo.
+ */
+async function registrarUso(
+  usuarioId: string,
+  clinicaId: string,
+  accion: 'exportar' | 'importar',
+  resultado: 'ok' | 'error',
+  filas?: number,
+  detalle?: string,
+): Promise<void> {
+  const { error } = await admin.from('registro_respaldos').insert({
+    usuario_id: usuarioId,
+    clinica_id: clinicaId,
+    accion,
+    resultado,
+    filas: filas ?? null,
+    detalle: detalle ?? null,
+  })
+  if (error) console.error('respaldo-clinica: no se pudo registrar el uso en la bitácora', error)
 }
 
 /**
@@ -206,14 +242,24 @@ Deno.serve(async (peticion) => {
     return new Response(JSON.stringify(cuerpo), { status, headers: cabeceras })
   }
 
+  // Declarados ANTES del try, no dentro: si algo revienta a medio camino, el
+  // `catch` necesita saber quién llamaba y a qué clínica para poder
+  // registrar el fallo en la bitácora de H-30. Es el mismo escarmiento que
+  // ya documenta `asistente/index.ts` — ahí el catch no veía `jwt`/`perfil`
+  // porque se resolvían dentro del try, y un fallo real no dejaba rastro.
+  let usuarioId: string | null = null
+  let clinicaId = ''
+  let accion = ''
+
   try {
-    if (!await esSuperadmin(peticion)) {
+    usuarioId = await superadminActivo(peticion)
+    if (!usuarioId) {
       return responder({ error: 'No tienes permiso para respaldar clínicas' }, 403)
     }
 
     const cuerpo = await peticion.json()
-    const accion = texto(cuerpo.accion)
-    const clinicaId = texto(cuerpo.clinicaId)
+    accion = texto(cuerpo.accion)
+    clinicaId = texto(cuerpo.clinicaId)
     if (!clinicaId) return responder({ error: 'Falta la clínica' }, 400)
 
     // Que exista de verdad: sin esto, un id inventado devolvería once tablas
@@ -227,6 +273,7 @@ Deno.serve(async (peticion) => {
 
     if (accion === 'exportar') {
       const tablas: Record<string, unknown[]> = {}
+      let totalFilas = 0
       for (const tabla of TABLAS_EXPORTACION) {
         const { data, error } = await admin.from(tabla).select('*').eq('clinica_id', clinicaId)
         if (error) {
@@ -234,10 +281,13 @@ Deno.serve(async (peticion) => {
           // Solo lo ve un superadmin, pero las otras siete funciones ya redactan
           // sus errores y esta era la excepcion (VUL-33).
           console.error(`respaldo-clinica: leer ${tabla}`, error)
+          await registrarUso(usuarioId, clinicaId, 'exportar', 'error', undefined, `leer ${tabla}: ${error.message}`)
           return responder({ error: `No se pudo leer la tabla ${tabla}` }, 500)
         }
         tablas[tabla] = data ?? []
+        totalFilas += tablas[tabla].length
       }
+      await registrarUso(usuarioId, clinicaId, 'exportar', 'ok', totalFilas)
       return responder({ clinica: clinica.nombre, tablas })
     }
 
@@ -285,11 +335,16 @@ Deno.serve(async (peticion) => {
 
         if (errorLectura) {
           console.error(`respaldo-clinica: comprobar ${tabla}`, errorLectura)
+          await registrarUso(usuarioId, clinicaId, 'importar', 'error', undefined, `comprobar ${tabla}: ${errorLectura.message}`)
           return responder({ error: `No se pudo comprobar la tabla ${tabla} antes de importar` }, 500)
         }
 
         const ajenas = (existentes ?? []).filter((fila) => fila.clinica_id !== clinicaId)
         if (ajenas.length > 0) {
+          await registrarUso(
+            usuarioId, clinicaId, 'importar', 'error', undefined,
+            `${ajenas.length} fila(s) de ${tabla} ya pertenecen a otra clínica`,
+          )
           return responder(
             {
               error:
@@ -302,6 +357,7 @@ Deno.serve(async (peticion) => {
       }
 
       const fallidas: string[] = []
+      let totalFilas = 0
       for (const tabla of TABLAS_IMPORTACION) {
         const filas = tablas[tabla]
         if (!Array.isArray(filas) || filas.length === 0) continue
@@ -312,17 +368,28 @@ Deno.serve(async (peticion) => {
         if (error) {
           console.error(`respaldo-clinica: importar ${tabla}`, error)
           fallidas.push(tabla)
+        } else {
+          totalFilas += conDestino.length
         }
       }
 
       if (fallidas.length > 0) {
+        await registrarUso(usuarioId, clinicaId, 'importar', 'error', totalFilas, `fallaron: ${fallidas.join('; ')}`)
         return responder({ error: `No se pudieron importar: ${fallidas.join('; ')}` }, 500)
       }
+      await registrarUso(usuarioId, clinicaId, 'importar', 'ok', totalFilas)
       return responder({ ok: true })
     }
 
     return responder({ error: 'Acción no reconocida' }, 400)
   } catch (err) {
-    return responder({ error: err instanceof Error ? err.message : 'Error inesperado' }, 500)
+    const mensaje = err instanceof Error ? err.message : 'Error inesperado'
+    // Solo si ya se sabía quién y sobre qué clínica: un fallo ANTES de pasar
+    // el guard de superadmin (p. ej. `peticion.json()` con un cuerpo
+    // corrupto) no tiene a quién atribuírselo.
+    if (usuarioId && clinicaId) {
+      await registrarUso(usuarioId, clinicaId, accion === 'importar' ? 'importar' : 'exportar', 'error', undefined, mensaje)
+    }
+    return responder({ error: mensaje }, 500)
   }
 })
