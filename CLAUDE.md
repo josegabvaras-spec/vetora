@@ -347,7 +347,7 @@ Cada una tiene su barrera en el SQL y su réplica en un servicio; si escribes c�
 
 `eliminarPaciente()` ([services/clientesPacientes.ts](src/services/clientesPacientes.ts)) sigue comprobando los cobros como aviso temprano de servicio — pero la barrera real ya no depende de que quien llama pase por ahí: los dos triggers de arriba actúan aunque se llame a PostgREST directamente.
 
-⚠️ **Lo que queda sin cerrar, y no se tocó en esta corrección**: una `internación` **sin ningún cobro asociado** todavía se pierde en cascada al borrar el paciente. `paciente_sin_caja()` cuenta cobros vía `internacion_id`, no internaciones en sí — una internación gratuita o de cortesía, sin cobro, no la protege nada hoy, y `internaciones` se promete "congelada tras el alta" en la tabla de arriba. Es el mismo patrón que H-31 y previsiblemente el siguiente a cerrar.
+✅ **Tercera puerta, cerrada por `0077`.** Una `internación` **sin ningún cobro asociado** también se perdía en cascada al borrar el paciente: `paciente_sin_caja()` contaba cobros vía `internacion_id`, no internaciones en sí. `internaciones.estado = 'alta'` es el mismo concepto que `historial_clinico.editable = false` — es la propia condición que ya bloqueaba el UPDATE (`bloquear_internacion_cerrada`, 0001) — y ahora también bloquea el DELETE del paciente. Bloquea solo `'alta'`, nunca `'internado'`: una internación en curso no es el registro cerrado que se promete inmutable.
 
 Además:
 

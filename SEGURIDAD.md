@@ -1572,5 +1572,15 @@ pero podía *destruirlo* borrando la cita de la que colgaba.
 expediente que se promete inmutable — impedir borrar un paciente por un borrador suyo sin terminar
 convertiría un alta hecha por error en algo permanente, el problema contrario al que se corrige.
 
-Con esto, las dos observaciones marcadas en el informe para la revisión jurídica quedan cerradas
-técnicamente. El informe se actualiza en el mismo commit.
+**Tercera puerta, encontrada al cerrar las otras dos y corregida aparte (`0077`):** el mismo patrón
+alcanzaba a las internaciones. `internaciones.estado = 'alta'` es exactamente el mismo concepto que
+`historial_clinico.editable = false` —«congelada», en palabras del propio trigger que ya la
+protegía contra UPDATE (`bloquear_internacion_cerrada`, 0001)— pero nada la protegía contra borrar
+el paciente. Una internación **sin ningún cobro asociado** (el caso raro pero posible: cortesía, o
+un cobro todavía no emitido) se perdía en cascada igual que el historial. `0077` amplía
+`paciente_sin_caja()` una vez más para contar también internaciones dadas de alta, con el mismo
+criterio: bloquea `'alta'`, no `'internado'` — una internación en curso no es el registro cerrado
+que se promete inmutable. `internaciones.cita_id` es `on delete set null`, no `cascade`, así que no
+existe una "puerta 2" equivalente vía citas para esta tabla.
+
+Con esto, las tres puertas del mismo problema —paciente, cita e internación— quedan cerradas.
