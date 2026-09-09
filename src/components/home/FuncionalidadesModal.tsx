@@ -10,6 +10,12 @@ import {
   Store,
   Building2,
   LayoutGrid,
+  Bot,
+  PenLine,
+  BookOpen,
+  BarChart3,
+  Download,
+  Scissors,
   X,
 } from 'lucide-react'
 import { useBloqueoScroll } from '../../hooks/useBloqueoScroll'
@@ -18,13 +24,19 @@ const FUNCIONALIDADES = [
   { icon: CalendarCheck, titulo: 'Agenda y citas', detalle: 'Calendario sin cruces por veterinario.' },
   { icon: ClipboardList, titulo: 'Historial clínico', detalle: 'Consultas, recetas y estudios centralizados.' },
   { icon: Syringe, titulo: 'Esquema sanitario', detalle: 'Vacunas y desparasitación con refuerzos.' },
-  { icon: Boxes, titulo: 'Inventario', detalle: 'Stock con alerta de nivel bajo.' },
+  { icon: Boxes, titulo: 'Inventario', detalle: 'Stock con alerta de nivel bajo, lotes y vencimientos.' },
   { icon: Wallet, titulo: 'Caja y cobros', detalle: 'Cobros del día y recibos simples.' },
   { icon: BedDouble, titulo: 'Internación', detalle: 'Seguimiento de pacientes internados.' },
+  { icon: Bot, titulo: 'Asistente con IA', detalle: 'Redacta avisos y responde preguntas del negocio.' },
+  { icon: PenLine, titulo: 'Firma digital', detalle: 'Consentimientos, informes y recibos firmados en pantalla.' },
+  { icon: BookOpen, titulo: 'Vademécum propio', detalle: 'Dosis por peso, con el criterio de tu clínica.' },
   { icon: MessageCircle, titulo: 'Avisos por WhatsApp', detalle: 'Recordatorios de citas y refuerzos.' },
   { icon: Smartphone, titulo: 'Portal del cliente', detalle: 'El dueño ve el historial desde su celular.' },
   { icon: Store, titulo: 'Catálogo y Tienda', detalle: 'Vitrina de productos para petshops y clínicas.' },
+  { icon: Scissors, titulo: 'Peluquería y Petshop', detalle: 'Paneles propios, con su punto de venta.' },
+  { icon: BarChart3, titulo: 'Métricas', detalle: 'Comparativa mes a mes, para decidir con datos.' },
   { icon: Building2, titulo: 'Multi-sucursal', detalle: 'Varias sucursales bajo una sola cuenta.' },
+  { icon: Download, titulo: 'Tus datos, exportables', detalle: 'Respaldo completo cuando quieras, sin depender de nadie.' },
 ]
 
 export function FuncionalidadesModal({ onClose, onVerPlanes }: { onClose: () => void; onVerPlanes: () => void }) {
