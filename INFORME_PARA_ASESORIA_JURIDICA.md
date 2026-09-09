@@ -199,7 +199,7 @@ Se declara porque es material para valorar si las medidas son adecuadas, aunque 
 3. **Registro de actividades de tratamiento**, si la normativa lo exige. Sigue sin construirse; baja prioridad mientras no haya obligación confirmada.
 4. ~~Base de licitud del tratamiento documentada~~ ✅ **Añadida a la política de privacidad** (sección 3): el tratamiento se justifica por la ejecución del servicio contratado con la clínica.
 5. ~~Consentimiento informado para el tratamiento de datos, distinto del consentimiento quirúrgico.~~ Evaluado con criterio propio: no se considera necesario un consentimiento aparte, porque el tratamiento es inherente a la relación contractual con la clínica — así quedó declarado en la política.
-6. **Términos y condiciones** del servicio para las clínicas. Sigue sin existir como documento propio — es la pieza pendiente más concreta, y la natural siguiente ahora que se confirmó que Vetora es encargada y la clínica responsable.
+6. ~~Términos y condiciones del servicio para las clínicas.~~ ✅ **Borrador redactado** (`CONTRATO_VETORA_CLINICA.md`), con las cláusulas de encargo de tratamiento ya incorporadas. Pendiente solo de una revisión de forma del abogado antes de usarlo con una clínica real — el contenido de fondo ya está verificado contra el sistema.
 7. ~~Cláusula sobre menores.~~ ✅ **Añadida a la política de privacidad** (sección 1).
 
 ---
