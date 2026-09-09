@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase'
 import { DIAS_ANTICIPACION, diasDeDiferencia } from '../lib/asistente'
 import { TIPO_LABEL } from '../lib/citas'
 import { clinicDayIso, desdeFechaSola, formatClinicDate, fromClinicTime } from '../lib/datetime'
+import { COLUMNAS_PACIENTE_SIN_FOTO } from '../lib/paciente'
 import { enviarMensajeWhatsapp } from './whatsapp'
 import { listLotes } from './petshop'
 import type { Cita, Paciente } from '../types/database'
@@ -44,7 +45,18 @@ export async function listProgramados(sucursalId?: string): Promise<Programado[]
   // avisos de refuerzo de vacuna y de desparasitación. Si la lectura falla y se
   // devuelve vacío, la pantalla dice «no hay nada que avisar» y **nadie llama a
   // esos dueños** — un problema clínico, no de interfaz (VUL-41).
-  const { data: pacientes, error } = await supabase.from('pacientes').select('*').limit(TOPE_CARTERA)
+  //
+  // ⚠️ Sin `foto`, a propósito. Esta función se dispara con cada cita, cobro,
+  // vacuna o desparasitación que se registra (ver `useSuscripcionTabla` en
+  // `AsistentePage`), y `resumenDelDia()` la llama otra vez por dentro — dos
+  // descargas de la cartera completa por cada escritura del día. Con
+  // `select('*')` eso incluía la foto de cada paciente en base64 sin que nada
+  // de esta función la usara, y podía agotar el cupo de egress del proyecto
+  // con una sola clínica activa.
+  const { data: pacientes, error } = await supabase
+    .from('pacientes')
+    .select(COLUMNAS_PACIENTE_SIN_FOTO)
+    .limit(TOPE_CARTERA)
   if (error) throw new Error(`No se pudo leer la cartera de pacientes: ${error.message}`)
   const { data: clientes } = await supabase.from('clientes').select('*').limit(TOPE_CARTERA)
   const { data: servicios } = await supabase.from('servicios').select('*')

@@ -44,6 +44,15 @@ encargado ya la confirmó la asesoría.
 No es un bloqueo técnico ni de seguridad — es la pieza de papel que formaliza lo que el sistema ya
 hace correctamente.
 
+⚠️ **Añadido tras una revisión de escalabilidad separada, el mismo día: subir Vercel a un plan de
+pago no es opcional ni es solo una cuestión de capacidad — el plan gratuito (Hobby) prohíbe
+explícitamente el uso comercial en sus propios términos de servicio, con una definición amplia que
+cubre incluso una prueba piloto sin cobrar. El riesgo no es que el sistema vaya lento: es que Vercel
+puede pausar el sitio por incumplir sus términos, en cualquier momento.** Esto hay que resolverlo
+**antes** de que la primera clínica —pagada o de prueba— use el sistema, no cuando el tráfico lo
+justifique. Supabase sí permite uso comercial en su plan gratuito sin este problema; el techo ahí es
+solo técnico (ver el detalle en `SEGURIDAD.md`, revisión de escalabilidad del 2026-09-09).
+
 ---
 
 ## 2. Datos personales que trata el sistema

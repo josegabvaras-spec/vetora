@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { TABLAS_RESPALDO, construirZip, descargarZip } from '../lib/exportacion'
+import { traerTodo } from '../lib/paginacion'
 
 /**
  * El respaldo que se descarga la propia clínica.
@@ -39,17 +40,24 @@ export async function generarRespaldo() {
   const fallidas: string[] = []
 
   for (const tabla of TABLAS_RESPALDO) {
-    // `as any` acotado y con motivo: `tabla` recorre una lista de 37 nombres, y
-    // los tipos generados de supabase-js resuelven la forma de la fila a partir
-    // del literal concreto. Con una unión de 37 no puede, y el tipo de retorno
-    // colapsa. Aquí no se pierde nada real: las filas viajan a un CSV, donde
-    // todo es texto de todos modos.
-    const { data, error } = await supabase.from(tabla as any).select('*')
-    if (error) {
-      fallidas.push(`${tabla} (${error.message})`)
-      continue
+    try {
+      // `as any` acotado y con motivo: `tabla` recorre una lista de 37 nombres,
+      // y los tipos generados de supabase-js resuelven la forma de la fila a
+      // partir del literal concreto. Con una unión de 37 no puede, y el tipo
+      // de retorno colapsa. Aquí no se pierde nada real: las filas viajan a un
+      // CSV, donde todo es texto de todos modos.
+      //
+      // ⚠️ `traerTodo` (no `select('*')` suelto): PostgREST corta en 1000
+      // filas sin avisar, y esta es justo la función que `CLAUDE.md` describe
+      // como la que no puede quedarse corta en silencio — una clínica con más
+      // de mil citas o mil filas de historial se descargaba un ZIP incompleto
+      // que parecía completo.
+      datosPorTabla[tabla] = await traerTodo((desde, hasta) =>
+        supabase.from(tabla as any).select('*').range(desde, hasta),
+      )
+    } catch (e) {
+      fallidas.push(`${tabla} (${e instanceof Error ? e.message : String(e)})`)
     }
-    datosPorTabla[tabla] = data ?? []
   }
 
   if (fallidas.length > 0) {

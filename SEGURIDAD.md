@@ -1650,3 +1650,101 @@ Antes de dar el informe jurídico por definitivamente cerrado, se revisó puntua
 
 Con esto, todo lo aplicado después del retest grande del 2026-09-08 queda con evidencia en vivo,
 al mismo estándar que el resto. No queda ningún hallazgo de esta lista pendiente de prueba.
+
+## Revisión de escalabilidad del 2026-09-09
+
+El usuario preguntó si el sistema es escalable y a cuántas clínicas puede vender antes de subir a
+los planes de pago de Supabase y Vercel. Se encargó una revisión al agente `saas-architect`, con el
+foco puesto en rendimiento y límites de plan, no en aislamiento entre clínicas (eso ya está cerrado
+arriba). Encontró dos hallazgos técnicos reales, además de un hallazgo contractual que no es de
+seguridad pero condiciona directamente cuándo se puede empezar a vender — ver la sección 1 del
+informe jurídico, «Veredicto», donde queda anotado.
+
+### H-33 · `listProgramados()` traía la foto de toda la cartera en cada escritura de la clínica — CORREGIDO
+
+**Dónde:** `src/services/programados.ts:47`.
+
+**Qué:** `pacientes.foto` (base64, cientos de KB por paciente) viajaba en el `select('*')` de esta
+función, que nadie de la función usa —`base()` solo lee `id`, `nombre`, `especie` y `cliente_id`—.
+El problema no era el desperdicio en sí, era la frecuencia: `AsistentePage` engancha
+`useSuscripcionTabla` sobre `citas`, `vacunas_aplicadas`, `desparasitaciones_aplicadas` y `cobros`,
+así que **cualquier cita, cobro, vacuna o desparasitación que se registre** dispara `recargar()`,
+que llama a `listProgramados()` y a `resumenDelDia()` — y `resumenDelDia()` vuelve a llamar a
+`listProgramados()` por dentro, así que cada evento traía la cartera completa de pacientes **dos
+veces**, fotos incluidas.
+
+**Impacto:** con supuestos conservadores (350 pacientes, ~230 con foto, ~30 eventos de escritura al
+día), esto son del orden de 1-1.5 GB/día de tráfico **para una sola clínica activa** con la pantalla
+de Asistente abierta — suficiente para agotar el cupo mensual de egress del plan gratuito de
+Supabase (5 GB) en menos de una semana, sin que exista ninguna segunda clínica. No es un problema
+que aparezca "al crecer": aparece con la primera clínica real.
+
+**Corrección aplicada:** cambia a `COLUMNAS_PACIENTE_SIN_FOTO` (`lib/paciente.ts`), la misma
+constante que ya usan `citas.ts`, `clientesPacientes.ts` e `internacion.ts` — este era el único
+servicio que no la había adoptado.
+
+### H-34 · El respaldo podía descargarse incompleto sin avisar, en los dos caminos — CORREGIDO
+
+**Dónde:** `src/services/respaldo.ts:47` (camino de la clínica) y
+`supabase/functions/respaldo-clinica/index.ts:278` (camino de la plataforma).
+
+**Qué:** las dos rutas hacían `select('*')` sin `.range()` sobre cada una de las 37 tablas del
+respaldo. PostgREST corta en `max_rows = 1000` **sirviendo un `200 OK` normal** — no hay error ni
+aviso—, así que una clínica con más de mil citas, mil líneas de historial o mil de cualquier otra
+tabla del expediente se descargaba un ZIP con esa tabla truncada, sin ninguna señal de que faltaban
+filas. Es exactamente el mismo bug que ya se había encontrado y corregido en `metricas.ts` (ver su
+comentario en el propio archivo) y en `plataforma.ts` — el respaldo era el lugar donde seguía vivo,
+y es la funcionalidad que este mismo archivo describe como la que **no puede** fallar en silencio
+("un respaldo incompleto que se cree completo es peor que no tener respaldo").
+
+**Corrección aplicada:** se extrajo el helper de paginación ya existente en `plataforma.ts`
+(`traerTodo`, antes privado de ese archivo) a `src/lib/paginacion.ts`, y `services/respaldo.ts` lo
+usa ahora para las 37 tablas. La Edge Function no puede importar de `src/` (corre en Deno), así que
+lleva su propia versión local del mismo patrón (`traerTablaCompleta`), verificada con
+`deno check`. Ninguna clínica pierde datos de su respaldo por tener más de mil filas en una tabla.
+
+⚠️ **Pendiente, encontrado al revisar esta misma función y anotado aparte, prioridad baja:** la
+ruta de *importar* de `respaldo-clinica` también hace un `.in('id', ids)` sin trocear sobre el
+chequeo de conflicto entre clínicas — mismo problema en su forma de lista en vez de tabla completa.
+Solo afecta a restaurar (no a exportar) un respaldo con más de mil filas en una sola tabla; no
+bloquea vender ni usar el sistema hoy.
+
+### Hallazgo menor · Logo de la clínica sin comprimir — CORREGIDO
+
+`ClinicaDetalleModal.tsx` y `PlataformaClinicasPage.tsx` guardaban `clinicas.logo_url` con
+`readAsDataURL` directo, sin pasar por `redimensionarImagen` como sí hace la foto del paciente
+(H-32 de esta lista tiene su propio precedente, `pacientes.foto`) y el resto de imágenes del
+proyecto. Impacto bajo —un logo por clínica, no uno por paciente— pero se lee en cada sesión de
+cada usuario de esa clínica (`Topbar`, `PerfilModal`), así que sumaba egress de forma innecesaria.
+Corregido con el mismo helper, a 400px/calidad 0.85 (es un ícono pequeño, no necesita más).
+
+### Hallazgo contractual, no técnico · El plan gratuito de Vercel prohíbe uso comercial
+
+Verificado contra los términos de servicio vigentes de Vercel (Hobby plan): el uso comercial está
+explícitamente prohibido, con una definición amplia que cubre cualquier despliegue del que alguien
+involucrado en construirlo u operarlo busque ganancia — lo cual incluye, razonablemente, hasta una
+prueba piloto sin cobrar todavía. **Esto no es un límite de capacidad que se resuelve con
+optimización: es una condición contractual que se incumple desde la primera clínica real**, y el
+riesgo es que Vercel pause el sitio por violar sus términos, no que vaya lento. Supabase, en
+cambio, sí permite uso comercial explícitamente en su plan gratuito — ahí el techo es puramente
+técnico (ver más abajo). Anotado en el informe jurídico como acción previa a vender, no como nota
+técnica de rendimiento.
+
+### Cuántas clínicas caben en el plan gratuito de Supabase, con los hallazgos de arriba corregidos
+
+Estimación razonada, no una cifra exacta — el rango de incertidumbre es real:
+
+- **Por tamaño de base de datos (límite de 500 MB):** con la foto del paciente ya comprimida
+  (H-32/800px) y ~250 pacientes con foto por clínica a ~90 KB en base64 cada una, más los datos
+  transaccionales normales de un año de actividad, una clínica típica pesa del orden de 30-40 MB el
+  primer año. Eso da un orden de magnitud de **una decena de clínicas** antes de acercarse al
+  límite — no una cifra precisa, un rango.
+- **Por egress (5 GB/mes):** con H-33 corregido, deja de ser la restricción dominante que era antes
+  (podía agotarse con una sola clínica en días). Sin datos reales de uso todavía, no hay una cifra
+  fiable más allá de "ya no es el cuello de botella inmediato".
+- **Estas cifras se afinan solas con 2-4 semanas de uso real** de la primera clínica: cuánto pesa
+  de verdad el texto libre del historial clínico en esta base de usuarios concreta, y si alguna
+  clínica piloto carga fotos masivamente desde el primer día, son datos que hoy no existen.
+
+Detalle completo, con archivos y líneas exactas, en el reporte del agente `saas-architect`
+(2026-09-09) — no reproducido aquí en su totalidad para no duplicar contenido.

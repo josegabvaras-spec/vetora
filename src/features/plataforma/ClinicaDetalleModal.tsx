@@ -20,6 +20,7 @@ import { Badge } from '../../components/ui/Badge'
 import { Seccion } from '../../components/ui/Seccion'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { FieldGroup, Input, Select } from '../../components/ui/Field'
+import { redimensionarImagen } from '../../lib/imagen'
 import { useTable } from '../../mocks/useDb'
 import {
   actualizarClinica,
@@ -276,13 +277,17 @@ export function ClinicaDetalleModal({
                 <Input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0]
-                    if (file) {
-                      const reader = new FileReader()
-                      reader.onloadend = () => setLogoUrl(reader.result as string)
-                      reader.readAsDataURL(file)
-                    }
+                    if (!file) return
+                    // Se guarda en `clinicas.logo_url` (base64 en la base, no
+                    // Storage) y la lee cada usuario de la clínica en cada
+                    // sesión (Topbar, PerfilModal) — sin comprimir, un logo
+                    // subido desde un celular podía pesar varios MB.
+                    const comprimida = await redimensionarImagen(file, 400, 0.85)
+                    const reader = new FileReader()
+                    reader.onloadend = () => setLogoUrl(reader.result as string)
+                    reader.readAsDataURL(comprimida)
                   }}
                   className="flex-1"
                 />

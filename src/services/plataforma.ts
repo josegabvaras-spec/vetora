@@ -1,5 +1,6 @@
 import { motivoDelFallo, supabase } from '../lib/supabase'
 import { clinicDayIso, clinicMonth, desdeFechaSola, sumarMeses } from '../lib/datetime'
+import { traerTodo } from '../lib/paginacion'
 import type { Clinica, EstadoClinica, PagoSuscripcion, Rol, Sucursal, TipoNegocio, Usuario } from '../types/database'
 import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma, ResumenUsoIaClinica } from '../types/views'
 import { getPlan } from './planes'
@@ -22,40 +23,6 @@ import { enviadosEsteMes } from './whatsapp'
 function exigirFilaAfectada(filas: unknown[] | null, accion: string): void {
   if (!filas || filas.length === 0) {
     throw new Error(`No se pudo ${accion}: no tienes permiso o el registro ya no existe`)
-  }
-}
-
-/** Tamaño de página: `max_rows` de PostgREST (`supabase/config.toml`). */
-const PAGINA = 1000
-
-/**
- * Trae TODAS las filas de una consulta, por páginas.
- *
- * PostgREST corta en `max_rows = 1000` **sin error y sin ninguna señal**: la
- * consulta devuelve mil filas y parece completa. En las pantallas de plataforma
- * eso significaba usuarios y clínicas que sencillamente no existían para la
- * interfaz, y nadie podía saber que faltaban.
- *
- * `consulta` se pasa como fábrica porque un `PostgrestFilterBuilder` es
- * "thenable" de un solo uso: reutilizarlo entre páginas no vuelve a consultar.
- *
- * La fila llega sin tipar y se afirma como `T` en la frontera, igual que el
- * `as Usuario[]` que ya hace `listClinicas`: el tipo generado en
- * `types/supabase.ts` ensancha las uniones de literales (`rol: string` en vez
- * de `Rol`), así que casarlos aquí no aportaría seguridad, solo ruido.
- */
-async function traerTodo<T>(
-  consulta: (desde: number, hasta: number) => PromiseLike<{ data: unknown; error: unknown }>,
-): Promise<T[]> {
-  const acumulado: T[] = []
-  for (let desde = 0; ; desde += PAGINA) {
-    const { data, error } = await consulta(desde, desde + PAGINA - 1)
-    if (error) {
-      throw new Error((error as { message?: string }).message ?? 'No se pudieron cargar los datos')
-    }
-    const pagina = (data ?? []) as T[]
-    acumulado.push(...pagina)
-    if (pagina.length < PAGINA) return acumulado
   }
 }
 

@@ -55,6 +55,36 @@ function cabecerasCors(origen: string | null) {
 }
 
 /**
+ * Trae TODAS las filas de una tabla para una clínica, por páginas.
+ *
+ * Mismo problema y misma solución que `lib/paginacion.ts` en el frontend —no
+ * se puede compartir el módulo porque esta función corre en Deno, no en
+ * Vite—: PostgREST corta en `max_rows = 1000` sin error y sin ninguna señal,
+ * así que un `select('*')` suelto sobre `citas` o `historial_clinico` en una
+ * clínica con más de mil filas devolvía un respaldo incompleto que parecía
+ * completo.
+ */
+const PAGINA = 1000
+
+async function traerTablaCompleta(
+  tabla: string,
+  clinicaId: string,
+): Promise<{ data: unknown[]; error: { message: string } | null }> {
+  const acumulado: unknown[] = []
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data, error } = await admin
+      .from(tabla)
+      .select('*')
+      .eq('clinica_id', clinicaId)
+      .range(desde, desde + PAGINA - 1)
+    if (error) return { data: acumulado, error }
+    const pagina = data ?? []
+    acumulado.push(...pagina)
+    if (pagina.length < PAGINA) return { data: acumulado, error: null }
+  }
+}
+
+/**
  * Las 37 tablas de una clínica, **en orden de restauración** (cada una después
  * de aquellas a las que apunta). El orden sale del grafo real de claves
  * foráneas, consultado contra la base.
@@ -275,7 +305,7 @@ Deno.serve(async (peticion) => {
       const tablas: Record<string, unknown[]> = {}
       let totalFilas = 0
       for (const tabla of TABLAS_EXPORTACION) {
-        const { data, error } = await admin.from(tabla).select('*').eq('clinica_id', clinicaId)
+        const { data, error } = await traerTablaCompleta(tabla, clinicaId)
         if (error) {
           // El mensaje crudo de Postgres lleva nombres de constraint y de columna.
           // Solo lo ve un superadmin, pero las otras siete funciones ya redactan
