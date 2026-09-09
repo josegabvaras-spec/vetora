@@ -1583,6 +1583,8 @@ criterio: bloquea `'alta'`, no `'internado'` — una internación en curso no es
 que se promete inmutable. `internaciones.cita_id` es `on delete set null`, no `cascade`, así que no
 existe una "puerta 2" equivalente vía citas para esta tabla.
 
+Con esto, las tres puertas del mismo problema —paciente, cita e internación— quedan cerradas.
+
 ### H-32 · Las firmas manuscritas salían íntegras en el respaldo CSV — ENDURECIDO
 
 Encontrado ampliando el punto del informe jurídico sobre firmas manuscritas (`consentimientos_cirugia`
@@ -1614,4 +1616,27 @@ costo operativo real (recepción lo necesita a diario) y sigue pendiente de la r
 (preguntas 4.1 a 4.3 del informe). Este cambio se limitó a lo que no tiene contrapartida: la firma no
 pierde ningún uso legítimo por viajar en una carpeta en vez de en la hoja.
 
-Con esto, las tres puertas del mismo problema —paciente, cita e internación— quedan cerradas.
+## Mini-retest del 2026-09-09 — lo que cambió después del retest grande
+
+El retest del 2026-09-08 (arriba) cubrió H-1 a H-29. Desde entonces se aplicaron `0073`–`0077` y se
+modificó `respaldo-clinica/index.ts` (H-30) y `lib/exportacion.ts`/`lib/importacion.ts` (H-32) —
+verificados cada uno en su momento, pero no con el mismo estándar de prueba en vivo que el resto.
+Antes de dar el informe jurídico por definitivamente cerrado, se revisó puntualmente eso:
+
+- **`registro_respaldos` (H-30), probado en vivo con la clave anónima**: `GET` a la tabla devuelve
+  `200` con `[]` — existe, PostgREST la sirve, y la RLS la deja vacía para quien no es superadmin.
+  Confirma que `0074` está aplicada y que la tabla no quedó expuesta por accidente (el mismo tipo de
+  fuga que ya pasó una vez con las funciones de la Tienda, VUL-hallazgo de `0047`).
+- **`0075` (DELETE de `citas`), `0076`/`0077` (`paciente_sin_caja` con historial e internación) y
+  la forma de `registro_respaldos`**: no se pueden probar con la clave anónima —son policies y
+  funciones que solo actúan sobre una sesión de personal real—, así que se añadieron a
+  `supabase/verificacion/estado_rls.sql` cuatro controles nuevos (mismo patrón que ya usaba el
+  fichero: comprobar la *forma* de la policy/función contra el código, no su comportamiento en
+  vivo). **Pendiente de que el usuario los corra en el SQL Editor** y confirme `0 fallas`.
+- **Lo que ningún control de solo lectura puede confirmar, y sigue pendiente de una acción real**:
+  que `respaldo-clinica` esté **desplegada** con el código que ya tiene `registrarUso()` — un
+  `git push` no despliega Edge Functions, hace falta `supabase functions deploy respaldo-clinica`
+  — y que al ejecutar el respaldo una vez de verdad (Plataforma → Clínicas) aparezca una fila nueva
+  en `registro_respaldos`. Sin ese paso, H-30 está corregido en el repositorio pero no
+  necesariamente en producción, que es exactamente la distinción que este proyecto existe para no
+  perder de vista.

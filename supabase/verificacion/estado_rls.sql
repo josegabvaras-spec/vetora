@@ -172,6 +172,69 @@ where n.nspname = 'public'
   -- `start_time + interval '30 minutes'` y no resuelve ningún objeto (VUL-38).
   and p.proname <> 'get_citas_end_time'
 
+union all
+
+-- 0075: `citas_personal` perdió el DELETE (era `for all`). Ninguna policy de
+-- `citas` puede admitir DELETE — el personal cancela con `actualizarEstadoCita`,
+-- nunca borra. `citas_portal` (0004) tampoco lo tenía.
+select
+  'POLICY · ' || pol.tablename || '.' || pol.policyname,
+  'FALLA',
+  '0075 · ninguna policy de citas admite DELETE',
+  'cmd = ' || pol.cmd || ' — admite DELETE'
+from pg_policies pol
+where pol.schemaname = 'public' and pol.tablename = 'citas'
+  and pol.cmd in ('DELETE', 'ALL')
+
+union all
+
+-- 0076/0077: `paciente_sin_caja()` (trigger before delete en `pacientes`) tiene
+-- que seguir bloqueando por historial cerrado E internación de alta, además de
+-- los cobros que ya comprobaba desde 0049. Las tres condiciones en la misma
+-- función — si falta una, esa puerta vuelve a estar abierta sin que nada lo
+-- delate, igual que pasó con `0050`.
+select
+  'FUNCIÓN · paciente_sin_caja',
+  case
+    when p.prosrc is null then 'FALLA'
+    when p.prosrc not like '%historial_clinico%' or p.prosrc not like '%editable%' then 'FALLA'
+    when p.prosrc not like '%internaciones%' or p.prosrc not like '%alta%' then 'FALLA'
+    else 'ok'
+  end,
+  '0049 cobros + 0076 historial cerrado + 0077 internación de alta',
+  case
+    when p.prosrc is null then 'La función NO EXISTE'
+    else 'historial=' || (p.prosrc like '%historial_clinico%' and p.prosrc like '%editable%')::text
+       || ' internacion=' || (p.prosrc like '%internaciones%' and p.prosrc like '%alta%')::text
+  end
+from pg_proc p where p.proname = 'paciente_sin_caja'
+
+union all
+
+-- 0074: `registro_respaldos` es solo INSERT (vía service_role, que no pasa por
+-- RLS) y SELECT para el superadmin — ninguna policy debe darle INSERT, UPDATE
+-- ni DELETE a un rol de la API (authenticated/anon), o la bitácora dejaría de
+-- ser prueba de nada.
+select
+  'POLICY · ' || pol.tablename || '.' || pol.policyname,
+  'FALLA',
+  '0074 · registro_respaldos no admite escritura vía API, solo service_role',
+  'cmd = ' || pol.cmd || ' — permite escribir desde la API'
+from pg_policies pol
+where pol.schemaname = 'public' and pol.tablename = 'registro_respaldos'
+  and pol.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL')
+
+union all
+
+select
+  'RLS · registro_respaldos',
+  case when c.relrowsecurity then 'ok' else 'FALLA' end,
+  '0074 · RLS debe estar activado',
+  case when c.relrowsecurity then 'activado' else 'DESACTIVADO' end
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relname = 'registro_respaldos'
+
 -- ⚠️ Ascendente, no descendente, y el motivo no es obvio: en texto 'FALLA' va
 -- ANTES que 'ok' (la 'F' pesa menos que la 'o'), así que `asc` es lo que sube
 -- las fallas arriba. Este fichero salió con `2 desc` la primera vez y las
