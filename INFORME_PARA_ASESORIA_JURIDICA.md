@@ -28,6 +28,22 @@ Su propósito es que el tiempo de la asesoría se gaste en **criterio jurídico*
 
 Los puntos 2 y 3 fueron hallazgos nuevos de esta revisión, detectados y **corregidos técnicamente el mismo día**. Se conservan en este informe con su historial completo — qué decía la política, qué hacía el sistema, y qué se hizo — porque forman parte del registro de cómo se trató el hallazgo, no porque sigan abiertos.
 
+### Veredicto a 2026-09-09: sin impedimento para operar comercialmente
+
+De los siete puntos, los siete están cerrados o acotados a una acción de bajo riesgo. **No queda
+ningún hallazgo de seguridad crítico ni alto abierto** (ver el retest completo en `SEGURIDAD.md`,
+0 críticos y 9 altos, todos corregidos): lo único sin verificar en vivo son cuatro invariantes de
+caja e inventario (H-19 a H-24) que existen en el código y en producción, pero cuyo disparo real
+no se ha observado con dos clínicas simultáneas — no son un riesgo de que una clínica vea datos de
+otra, sino de que una regla de negocio interna falle silenciosamente. Legalmente, la política de
+privacidad es veraz, los tres proveedores tienen DPA vigente, y la calificación de responsable y
+encargado ya la confirmó la asesoría.
+
+**Lo único pendiente antes de firmar con una clínica de pago es completar y hacer revisar
+`CONTRATO_VETORA_CLINICA.md`** (los datos entre corchetes, y una revisión de forma del abogado).
+No es un bloqueo técnico ni de seguridad — es la pieza de papel que formaliza lo que el sistema ya
+hace correctamente.
+
 ---
 
 ## 2. Datos personales que trata el sistema
