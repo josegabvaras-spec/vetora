@@ -41,6 +41,15 @@ Los puntos 2 y 3 fueron hallazgos nuevos de esta revisión, detectados y **corre
 | **Cédula de identidad** | `ci` | No (nullable) | **El dato más sensible que se guarda de una persona** |
 | Correo electrónico | `usuarios.email` | Solo si abre cuenta en el portal | |
 
+⚠️ **El CI merece punto propio, por lo que representa y por lo poco que el sistema lo distingue del resto de la ficha.** Verificado contra el código, no supuesto:
+
+- **Qué es hoy, técnicamente:** la columna (`clientes.ci`, migración `0001`) es texto libre — sin `unique`, sin `check` de formato, sin dígito verificador. Nunca se valida ni la longitud ni la forma de lo escrito, solo se recorta el espacio en blanco. Es nullable: una ficha puede no tenerlo.
+- **Para qué se usa realmente:** nunca como control de acceso ni como prueba de identidad, sino como clave de coincidencia entre dos escrituras del mismo número, para dos decisiones concretas: vincular una cuenta nueva del portal a una ficha de cliente ya existente, y reusar la ficha de un dueño cuando se registra una segunda mascota a su nombre. El propio código lo dice sin rodeos: *"No es prueba de identidad —los dos son datos que un conocido podría saber—, sube el listón de «sé tu carnet» a «sé tu carnet y tu teléfono»."* Nadie en el sistema lo comprueba contra ningún documento ni servicio real —no hay integración con SEGIP ni con nada parecido—: es autodeclarado de principio a fin.
+- **Quién lo ve, sin ninguna restricción adicional a la de cualquier otro dato de la ficha:** los tres roles de personal por igual —admin, veterinario, recepción; la policy de la base no distingue esta columna de las demás—, el propio dueño desde su portal, seis documentos que se imprimen (cuatro de ellos accesibles también al dueño, porque es su propio dato), y el volcado completo del respaldo en CSV, que puede generar tanto el admin como recepción sin que esa columna se excluya. El operador de la plataforma también puede extraerlo clínica por clínica, pero eso ya está acotado con MFA y registrado en bitácora (punto 6.1).
+- **Lo que no cambia:** sigue sin enviarse nunca al asistente de IA — reverificado al ampliar este punto.
+
+Es "el dato más sensible que se guarda" por lo que representa —identifica a una persona de forma unívoca en Bolivia—, no porque el sistema lo trate con un régimen distinto al resto de la ficha del cliente. Esa distancia entre lo sensible que es y lo poco que se lo distingue es justo lo que las preguntas 4.1 a 4.3 de la sección 9 le piden a la asesoría.
+
 ### 2.2 Del personal de la clínica (tabla `usuarios`)
 
 Nombre, correo electrónico, WhatsApp y rol. La contraseña **no** está aquí: la gestiona Supabase Auth y la aplicación nunca la ve.
@@ -200,7 +209,10 @@ Ordenadas por lo que bloquea más decisiones técnicas:
 
 3. **¿Una firma manuscrita capturada en pantalla es dato biométrico** o de categoría especial? Afecta a tres tablas.
 
-4. **¿La cédula de identidad tiene régimen especial** en Bolivia? Es el identificador más sensible que se guarda, y se usa para vincular cuentas.
+4. **Sobre la cédula de identidad**, ampliado con los hechos verificados en la sección 2.1:
+   - 4.1. ¿Tiene el CI boliviano un **régimen jurídico especial** (dato sensible o de categoría reforzada) que exija medidas más allá de las que ya existen?
+   - 4.2. ¿Es jurídicamente aceptable que se use **solo como clave de coincidencia autodeclarada**, nunca verificada contra un documento real, tal como el propio sistema lo documenta y lo limita?
+   - 4.3. ¿El **nivel de exposición actual** —igual para los tres roles de personal, impreso en varios documentos, volcado íntegro en el respaldo en CSV— es adecuado para "el dato más sensible que se guarda", o debería acotarse (por ejemplo, ocultarlo a algún rol, excluirlo del CSV, o enmascararlo en lo impreso)?
 
 5. **¿Cuánto tiempo debe conservarse un expediente clínico veterinario?** Hoy es indefinido, sin justificación escrita.
 
