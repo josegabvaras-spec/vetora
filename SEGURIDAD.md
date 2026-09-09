@@ -1632,11 +1632,14 @@ Antes de dar el informe jurídico por definitivamente cerrado, se revisó puntua
   funciones que solo actúan sobre una sesión de personal real—, así que se añadieron a
   `supabase/verificacion/estado_rls.sql` cuatro controles nuevos (mismo patrón que ya usaba el
   fichero: comprobar la *forma* de la policy/función contra el código, no su comportamiento en
-  vivo). **Pendiente de que el usuario los corra en el SQL Editor** y confirme `0 fallas`.
-- **Lo que ningún control de solo lectura puede confirmar, y sigue pendiente de una acción real**:
-  que `respaldo-clinica` esté **desplegada** con el código que ya tiene `registrarUso()` — un
-  `git push` no despliega Edge Functions, hace falta `supabase functions deploy respaldo-clinica`
-  — y que al ejecutar el respaldo una vez de verdad (Plataforma → Clínicas) aparezca una fila nueva
-  en `registro_respaldos`. Sin ese paso, H-30 está corregido en el repositorio pero no
-  necesariamente en producción, que es exactamente la distinción que este proyecto existe para no
-  perder de vista.
+  vivo). **Ejecutado por el usuario: 0 fallas.**
+- **Lo que ningún control de solo lectura podía confirmar, y exigía una acción real: hecho.**
+  `respaldo-clinica` no estaba desplegada con el código de `registrarUso()` —un `git push` no
+  despliega Edge Functions— hasta que el usuario corrió `supabase functions deploy
+  respaldo-clinica` (2026-09-09). Tras el despliegue, se ejecutó un respaldo real desde
+  Plataforma → Clínicas y apareció la fila correspondiente en `registro_respaldos`
+  (`accion: exportar`, `resultado: OK`, con el `usuario_id` y la `clinica_id` correctos).
+  **H-30 queda verificado en producción, no solo en el repositorio.**
+
+Con esto, todo lo aplicado después del retest grande del 2026-09-08 queda con evidencia en vivo,
+al mismo estándar que el resto. No queda ningún hallazgo de esta lista pendiente de prueba.

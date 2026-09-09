@@ -157,6 +157,8 @@ Se conservan aquí con su historial completo — qué decía la política, qué 
 
 **Estado:** la política ya es cierta tal como está redactada. No fue necesario cambiar el texto.
 
+⚠️ **Verificado en vivo el 2026-09-09, no solo en el código.** La corrección se había aplicado en el repositorio, pero la Edge Function no estaba desplegada con ese código — `git push` no despliega Edge Functions, hace falta `supabase functions deploy`—, así que hasta ese día la bitácora existía en la base pero no se escribía nunca. Se desplegó, se ejecutó un respaldo real desde Plataforma → Clínicas, y apareció la fila correspondiente en `registro_respaldos` con el usuario, la clínica, la acción y el resultado correctos. Ver `SEGURIDAD.md`, «Mini-retest del 2026-09-09».
+
 ### 6.2 «El historial clínico, una vez cerrado, no se puede modificar ni borrar» — CORREGIDO (tres vías, las tres cerradas)
 
 - **«No se puede modificar»**: cierto, y seguía siéndolo antes de esta corrección.
