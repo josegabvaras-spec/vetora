@@ -20,7 +20,7 @@ Su propósito es que el tiempo de la asesoría se gaste en **criterio jurídico*
 |---|---|---|
 | 1 | La política **no informa de la transferencia internacional de datos** | Omisión deliberada, pendiente de redacción jurídica |
 | 2 | La política afirmaba que **cada uso del respaldo queda registrado** — no era cierto | ✅ **Corregido el mismo día**: la bitácora ya existe y registra cada uso |
-| 3 | La política afirmaba que el historial cerrado **no se puede borrar** — era cierto solo a medias | ✅ **Corregido el mismo día**, con una salvedad relacionada aún pendiente (ver 6.1) |
+| 3 | La política afirmaba que el historial cerrado **no se puede borrar** — era cierto solo a medias, por tres vías distintas | ✅ **Corregidas las tres vías el mismo día** |
 | 4 | El sistema envía datos clínicos a un tercero en EE. UU. (Anthropic) | Implementado y acotado; declarado en la política |
 | 5 | No existe contrato de encargo de tratamiento con los proveedores | Pendiente |
 | 6 | No hay procedimiento documentado de notificación de brechas | Pendiente |
@@ -127,22 +127,22 @@ Se conservan aquí con su historial completo — qué decía la política, qué 
 
 **Estado:** la política ya es cierta tal como está redactada. No fue necesario cambiar el texto.
 
-### 6.2 «El historial clínico, una vez cerrado, no se puede modificar ni borrar» — CORREGIDO, CON UNA SALVEDAD RELACIONADA PENDIENTE
+### 6.2 «El historial clínico, una vez cerrado, no se puede modificar ni borrar» — CORREGIDO (tres vías, las tres cerradas)
 
 - **«No se puede modificar»**: cierto, y seguía siéndolo antes de esta corrección.
-- **«Ni borrar»**: no estaba garantizado, y por **dos vías distintas**.
+- **«Ni borrar»**: no estaba garantizado, y por **tres vías distintas** — la tercera se descubrió al cerrar las dos primeras.
 
 **Vía 1 — borrar la ficha del paciente.** La única protección existente impedía borrar un paciente si tenía cobros pendientes en caja; no comprobaba en absoluto si tenía historial clínico. Un paciente con consultas cerradas y sin ningún cobro asociado podía borrarse, arrastrando su historial, recetas, vacunas y consentimientos firmados.
 
-**Vía 2 — borrar la cita, no el paciente (la más grave de las dos).** El historial clínico está vinculado a la cita en la que se generó, y al borrarse esa cita el historial se borraba con ella. Borrar una cita es una operación habitual del personal —cancelaciones, limpieza de agenda—, muy distinta de borrar un paciente entero. Cualquier miembro del personal podía, sin darse cuenta, destruir un expediente médico simplemente al borrar la cita asociada.
+**Vía 2 — borrar la cita, no el paciente (la más grave de las tres).** El historial clínico está vinculado a la cita en la que se generó, y al borrarse esa cita el historial se borraba con ella. Borrar una cita es una operación habitual del personal —cancelaciones, limpieza de agenda—, muy distinta de borrar un paciente entero. Cualquier miembro del personal podía, sin darse cuenta, destruir un expediente médico simplemente al borrar la cita asociada.
+
+**Vía 3 — borrar el paciente arrastrando una internación ya cerrada.** El mismo problema de la vía 1, aplicado a otro tipo de registro: una internación que ya había concluido (dado de alta el animal) se prometía «congelada», pero solo frente a modificaciones, no frente a que se borrara el paciente completo. Sin ningún cobro asociado a esa internación, se perdía igual que el historial de la vía 1.
 
 **Corrección aplicada:**
 - Se retiró la posibilidad de borrar citas directamente. El personal sigue pudiendo cancelarlas —que es la operación que realmente usa la aplicación—, pero ya no puede eliminarlas de la base de datos.
-- La protección existente sobre el borrado de pacientes se amplió para bloquear también cuando el paciente tiene historiales clínicos **cerrados**. Un historial todavía en borrador (consulta sin terminar) no bloquea el borrado, porque un borrador no es el expediente médico definitivo que se promete conservar.
+- La protección existente sobre el borrado de pacientes se amplió para bloquear también cuando el paciente tiene historiales clínicos **cerrados**, y también cuando tiene internaciones **ya concluidas**. En ambos casos, lo que sigue en curso —una consulta sin terminar, una internación activa— no bloquea el borrado: solo se protege lo que ya se cerró y se promete definitivo.
 
-**Estado:** ambas vías quedan cerradas. La política ya es cierta.
-
-**Salvedad relacionada, detectada al corregir esto y aún pendiente:** el mismo tipo de problema afecta a las internaciones. Una internación **sin ningún cobro asociado** todavía puede perderse si se borra el paciente, pese a que el sistema declara las internaciones «congeladas» una vez dado el alta. Es una situación poco común (una internación siempre facturada normalmente tendría cobro), pero es el mismo patrón exacto que se acaba de corregir, aplicado a otro tipo de registro. Queda anotado para resolverse de la misma manera.
+**Estado:** las tres vías quedan cerradas y verificadas en producción. La política ya es cierta en su totalidad.
 
 ### 6.3 Los controles pueden revertirse en silencio — incidente del 2026-09-08
 
@@ -170,7 +170,7 @@ Se declara porque es material para valorar si las medidas son adecuadas, aunque 
 |---|---|---|
 | **Acceso** | ✅ Portal: ve y descarga el expediente de sus mascotas | ✅ `/respaldo`: exporta 37 tablas en ZIP |
 | **Rectificación** | ⚠️ Indirecto — debe pedírselo a su clínica | ✅ Directo |
-| **Supresión** | ⚠️ Indirecto, y ver 6.2 | ✅ Baja completa e irreversible |
+| **Supresión** | ⚠️ Indirecto (debe solicitarse a la clínica) | ✅ Baja completa e irreversible |
 | **Portabilidad** | ⚠️ Parcial — puede imprimir, no exportar en formato estructurado | ✅ CSV en ZIP |
 | **Oposición** | ❌ No existe mecanismo | ❌ No existe |
 
