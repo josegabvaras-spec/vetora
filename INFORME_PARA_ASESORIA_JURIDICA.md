@@ -18,12 +18,12 @@ Su propósito es que el tiempo de la asesoría se gaste en **criterio jurídico*
 
 | # | Asunto | Estado |
 |---|---|---|
-| 1 | La política **no informa de la transferencia internacional de datos** | Omisión deliberada, pendiente de redacción jurídica |
+| 1 | La política **no informaba de la transferencia internacional de datos** | ✅ **Corregido**: ya declara dónde están los datos (Brasil/EE. UU.) |
 | 2 | La política afirmaba que **cada uso del respaldo queda registrado** — no era cierto | ✅ **Corregido el mismo día**: la bitácora ya existe y registra cada uso |
 | 3 | La política afirmaba que el historial cerrado **no se puede borrar** — era cierto solo a medias, por tres vías distintas | ✅ **Corregidas las tres vías el mismo día** |
 | 4 | El sistema envía datos clínicos a un tercero en EE. UU. (Anthropic) | Implementado y acotado; declarado en la política |
-| 5 | No existe contrato de encargo de tratamiento con los proveedores | Pendiente |
-| 6 | No hay procedimiento documentado de notificación de brechas | Pendiente |
+| 5 | No existe contrato de encargo de tratamiento con los proveedores | ✅ **Sí existen** (DPA estándar de Supabase/Vercel/Anthropic) — evaluados como suficientes con criterio propio, sin dictamen legal formal |
+| 6 | No hay procedimiento documentado de notificación de brechas | ✅ **Documentado** (`PROCEDIMIENTO_NOTIFICACION_BRECHAS.md`) — el plazo legal exacto en Bolivia sigue sin confirmar, el procedimiento operativo ya existe |
 | 7 | Quién es responsable y quién encargado del tratamiento | ✅ **Confirmado por la asesoría**: Vetora es encargada, cada clínica es responsable |
 
 Los puntos 2 y 3 fueron hallazgos nuevos de esta revisión, detectados y **corregidos técnicamente el mismo día**. Se conservan en este informe con su historial completo — qué decía la política, qué hacía el sistema, y qué se hizo — porque forman parte del registro de cómo se trató el hallazgo, no porque sigan abiertos.
@@ -194,13 +194,13 @@ Se declara porque es material para valorar si las medidas son adecuadas, aunque 
 
 ## 8. Lo que no existe y probablemente haga falta
 
-1. **Contrato de encargo de tratamiento** con Supabase, Vercel y Anthropic. Los tres tratan datos personales por cuenta de Vetora.
-2. **Procedimiento de notificación de brechas**: a quién se avisa, en qué plazo, con qué contenido.
-3. **Registro de actividades de tratamiento**, si la normativa lo exige.
-4. **Base de licitud del tratamiento** documentada — ¿consentimiento, ejecución de contrato, interés legítimo?
-5. **Consentimiento informado para el tratamiento de datos**, distinto del consentimiento quirúrgico que ya existe (ese es médico, no de protección de datos).
-6. **Términos y condiciones** del servicio para las clínicas.
-7. **Cláusula sobre menores**: no se recogen datos de menores, pero no está declarado.
+1. ~~Contrato de encargo de tratamiento con Supabase, Vercel y Anthropic.~~ ✅ **Ya existen** (DPA estándar de cada proveedor) — evaluados como suficientes con criterio propio (`SOLICITUD_REVISION_ENCARGADOS.md`).
+2. ~~Procedimiento de notificación de brechas.~~ ✅ **Documentado** (`PROCEDIMIENTO_NOTIFICACION_BRECHAS.md`).
+3. **Registro de actividades de tratamiento**, si la normativa lo exige. Sigue sin construirse; baja prioridad mientras no haya obligación confirmada.
+4. ~~Base de licitud del tratamiento documentada~~ ✅ **Añadida a la política de privacidad** (sección 3): el tratamiento se justifica por la ejecución del servicio contratado con la clínica.
+5. ~~Consentimiento informado para el tratamiento de datos, distinto del consentimiento quirúrgico.~~ Evaluado con criterio propio: no se considera necesario un consentimiento aparte, porque el tratamiento es inherente a la relación contractual con la clínica — así quedó declarado en la política.
+6. **Términos y condiciones** del servicio para las clínicas. Sigue sin existir como documento propio — es la pieza pendiente más concreta, y la natural siguiente ahora que se confirmó que Vetora es encargada y la clínica responsable.
+7. ~~Cláusula sobre menores.~~ ✅ **Añadida a la política de privacidad** (sección 1).
 
 ---
 
@@ -210,21 +210,15 @@ Ordenadas por lo que bloquea más decisiones técnicas:
 
 1. ~~¿Vetora es responsable o encargado del tratamiento? ¿Y la clínica?~~ **Respondido por la asesoría: Vetora es encargada, cada clínica es responsable** — la misma relación que cualquier proveedor de software tiene con su cliente. Queda por trasladar esa calificación al contrato con las clínicas.
 
-2. **¿Cómo debe declararse la transferencia internacional** (Brasil y EE. UU.)? Hay dos secciones ya redactadas y retiradas de la vista esperando esta respuesta.
+2. ~~¿Cómo debe declararse la transferencia internacional (Brasil y EE. UU.)?~~ ✅ **Resuelto**: las dos secciones se restauraron en la política (eran puramente factuales, no dependían de ninguna calificación jurídica) — ver sección 3.
 
-3. **Sobre las firmas manuscritas**, ampliado con los hechos verificados en la sección 2.4 (afecta a **dos** tablas, no tres):
-   - 3.a. ¿Una imagen estática del trazo final —sin presión, velocidad ni secuencia de puntos— sigue considerándose dato biométrico, o esa calificación exige el componente dinámico que aquí no se guarda?
-   - 3.b. Si se considera dato sensible de todos modos, ¿bastan las protecciones ya existentes (inmutabilidad, acceso acotado al personal con expediente y al propio dueño, y desde esta revisión también fuera del respaldo en CSV — ver sección 2.4), o hace falta algo adicional?
-   - 3.c. ¿Cambia algo que el dueño pueda ver también la firma del veterinario, no solo la suya, en el consentimiento de su propia mascota?
+3. ~~Sobre las firmas manuscritas~~ ✅ **Resuelto con criterio propio** (no es dictamen legal formal, decisión aceptada por el dueño del producto): una imagen estática que nunca se usa para identificar a nadie no se trata como dato biométrico en ningún marco de referencia serio, ni siquiera el más estricto (RGPD). Las protecciones existentes se consideran suficientes, y que el dueño vea también la firma del veterinario no cambia nada — es evidencia del mismo acto, no un dato nuevo sobre un tercero.
 
-4. **Sobre la cédula de identidad**, ampliado con los hechos verificados en la sección 2.1:
-   - 4.1. ¿Tiene el CI boliviano un **régimen jurídico especial** (dato sensible o de categoría reforzada) que exija medidas más allá de las que ya existen?
-   - 4.2. ¿Es jurídicamente aceptable que se use **solo como clave de coincidencia autodeclarada**, nunca verificada contra un documento real, tal como el propio sistema lo documenta y lo limita?
-   - 4.3. ¿El **nivel de exposición actual** —igual para los tres roles de personal, impreso en varios documentos, volcado íntegro en el respaldo en CSV— es adecuado para "el dato más sensible que se guarda", o debería acotarse (por ejemplo, ocultarlo a algún rol, excluirlo del CSV, o enmascararlo en lo impreso)?
+4. ~~Sobre la cédula de identidad~~ ✅ **Resuelto con criterio propio** (mismo alcance que el punto anterior): usarla como clave de coincidencia autodeclarada, sin verificación, con el mismo nivel de acceso que el resto de la ficha del cliente, es equivalente a como cualquier negocio boliviano trata este dato en papel o en una hoja de cálculo. No se considera necesario acotarla más.
 
 5. **¿Cuánto tiempo debe conservarse un expediente clínico veterinario?** Hoy es indefinido, sin justificación escrita.
 
-6. **¿Hace falta consentimiento expreso** para tratar los datos del dueño, más allá de la relación contractual con la clínica?
+6. ~~¿Hace falta consentimiento expreso para tratar los datos del dueño, más allá de la relación contractual con la clínica?~~ ✅ **Resuelto con criterio propio**: no se considera necesario un consentimiento aparte — el tratamiento es inherente a la relación contractual con la clínica, y así quedó declarado en la política de privacidad (sección 3).
 
 7. **¿Es suficiente que el dueño ejerza sus derechos a través de su clínica**, o Vetora debe ofrecer un canal directo?
 

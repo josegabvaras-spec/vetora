@@ -7,6 +7,14 @@ Este documento tiene dos partes: la solicitud en sí (qué se pide revisar y las
 y el formato sugerido para la respuesta, de modo que el informe de la asesoría cubra todo lo
 necesario sin ir y volver varias veces.
 
+✅ **RESUELTO CON CRITERIO PROPIO, sin llevarlo a la asesoría** (2026-09-09, decisión del dueño del
+producto): los tres son proveedores grandes y reconocidos, con DPA estándar de la industria que
+prácticamente ninguna empresa de este tamaño audita legalmente letra por letra — es la práctica
+habitual, no una excepción. Se consideran suficientes. **No es un dictamen legal formal**, y este
+documento se conserva como el análisis detallado por si algún día hace falta retomarlo con un
+especialista. Pendiente solo lo operativo: subir el plan de Vercel para activar su DPA, y guardar
+las capturas en `legal/encargados-de-tratamiento/`.
+
 ---
 
 ## PARTE 1 — Solicitud de revisión

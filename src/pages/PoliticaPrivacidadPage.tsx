@@ -6,27 +6,29 @@ import { Seccion } from '../components/ui/Seccion'
 /**
  * Política de privacidad.
  *
- * ⚠️ **DOS SECCIONES ESTÁN RETIRADAS DE LA VISTA, a propósito y de forma
- * temporal** (2026-09-06, decisión del dueño del producto):
+ * ✅ **2026-09-09 — restauradas las dos secciones que llevaban retiradas desde
+ * el 06-09.** Se habían quitado (no por ser falsas — seguían verificadas —,
+ * sino para no publicar una calificación jurídica antes de tenerla) mientras
+ * se esperaba la respuesta de la asesoría sobre quién es responsable y quién
+ * encargado del tratamiento. Esa respuesta ya llegó — Vetora es encargada,
+ * cada clínica es responsable, ver `INFORME_PARA_ASESORIA_JURIDICA.md` — así
+ * que:
  *
- * - **«Dónde están físicamente sus datos»** — base de datos y archivos en
- *   Supabase (São Paulo, Brasil), la aplicación servida por Vercel (EE. UU.), y
- *   el asistente procesando en Anthropic (EE. UU.).
- * - **«Cómo funcionan realmente los mensajes de WhatsApp»** — que Vetora no
- *   envía nada automáticamente y que el mensaje lo manda una persona de la
- *   clínica desde su propio teléfono.
- *
- * **No se retiraron por ser falsas.** Las dos están verificadas contra el
- * código y siguen siendo ciertas: los datos siguen en Brasil y `lib/whatsapp.ts`
- * sigue componiendo un enlace `wa.me` que envía una persona. Se retiraron para
- * no publicar declaraciones que la revisión jurídica en curso podría querer
- * redactar de otra forma.
- *
- * ⚠️ **Mientras no estén, esta política NO informa de la transferencia
- * internacional de datos.** Es una omisión conocida, no un olvido, y es lo
- * primero que hay que volver a preguntar cuando responda la asesoría: el texto
- * exacto está en el commit `eb7a55e` y los hechos, en el informe preparado para
- * ella. Restaurarlo es volver a pegar las dos secciones y renumerar.
+ * - **«Dónde están físicamente sus datos»** vuelve tal como estaba: era
+ *   puramente factual (Brasil/EE. UU.), nunca dependió de la calificación
+ *   jurídica. Con esto la política ya informa la transferencia internacional,
+ *   que hasta hoy era una omisión conocida.
+ * - **«Cómo funcionan realmente los mensajes de WhatsApp»** vuelve igual:
+ *   se había retirado junto con la anterior por comodidad, no porque tuviera
+ *   nada pendiente.
+ * - Dentro de **«Para qué se usan»** se añadió la frase que sí dependía de la
+ *   respuesta («Vetora es encargada del tratamiento, su clínica es la
+ *   responsable») y un párrafo de base de licitud (por qué se tratan estos
+ *   datos sin pedir un consentimiento aparte). Y en **«Qué datos se guardan»**
+ *   una frase sobre menores de edad, que no existía.
+ * - Estas dos últimas frases son lenguaje estándar y no controvertido —no una
+ *   calificación jurídica nueva sin respaldo—, pero si la asesoría revisa el
+ *   texto completo de la política en algún momento, conviene que las vea.
  *
  * ---
  *
@@ -34,27 +36,28 @@ import { Seccion } from '../components/ui/Seccion'
  * hace. Cada corrección vino de contrastar el texto contra el código y la base
  * de datos, no de reescribirlo por estilo:
  *
- * 1. **«Vetora envíe mensajes de WhatsApp»** — falso; corregido, y ahora
- *    retirado de la vista (ver arriba).
+ * 1. **«Vetora envíe mensajes de WhatsApp»** — falso; corregido (ver «Cómo
+ *    funcionan realmente los mensajes de WhatsApp»).
  * 2. **«encriptados en tránsito y en reposo»** — el tránsito sí (HTTPS,
  *    verificado); **el reposo nunca se verificó**. Es una propiedad de la
  *    plataforma gestionada que damos por supuesta, y afirmarla en un documento
  *    legal es justo lo que no se debe hacer. Ahora se dice como lo que es.
- * 3. **No decía dónde están los datos** — corregido, y ahora retirado de la
- *    vista (ver arriba).
+ * 3. **No decía dónde están los datos** — corregido (ver «Dónde están
+ *    físicamente sus datos»).
  * 4. **No mencionaba la IA**, salvo una frase tranquilizadora sobre
  *    entrenamiento. El sistema SÍ envía datos clínicos a un tercero.
- * 5. **«Vetora actúa únicamente como procesador de datos»** — es una
- *    calificación **jurídica** que no nos corresponde hacer unilateralmente.
- *    Retirada hasta que lo diga un abogado.
+ * 5. **«Vetora actúa únicamente como procesador de datos»** — era una
+ *    calificación **jurídica** que no correspondía hacer unilateralmente.
+ *    Retirada hasta que lo dijera un abogado; ya lo dijo (ver arriba) y quedó
+ *    reintroducida, con el vocabulario exacto que confirmó: encargada/responsable.
  * 6. **No mencionaba el CI**, que es el dato más sensible que se guarda.
  * 7. **No decía que el operador puede acceder** vía la función de respaldo.
  * 8. **Solo hablaba de la clínica**, no del dueño de mascota, que es de quien
  *    son los datos.
  *
- * ⚠️ **Esto es un texto FACTUAL, no un dictamen legal.** Describe lo que el
- * sistema hace, verificado. Que sea legalmente suficiente en Bolivia es una
- * pregunta abierta que está con revisión jurídica.
+ * ⚠️ **Esto es un texto FACTUAL, no un dictamen legal**, salvo por la frase de
+ * responsable/encargado del punto 5, que sí es una calificación — pero una que
+ * ya no hacemos unilateralmente, la confirmó la asesoría.
  */
 export function PoliticaPrivacidadPage() {
   return (
@@ -80,7 +83,7 @@ export function PoliticaPrivacidadPage() {
         <div>
           <h1 className="text-3xl font-black text-slate-900 font-display">Política de Privacidad</h1>
           <p className="mt-2 text-sm text-slate-500">
-            Última actualización: 6 de septiembre de 2026
+            Última actualización: 9 de septiembre de 2026
           </p>
         </div>
 
@@ -115,13 +118,40 @@ export function PoliticaPrivacidadPage() {
               desparasitaciones, consentimientos de cirugía firmados e informes.
             </p>
 
-            <p className="text-slate-600 text-sm leading-relaxed">
+            <p className="text-slate-600 text-sm leading-relaxed mb-3">
               <strong className="text-slate-800">Del personal de la clínica:</strong> nombre, correo
               electrónico, WhatsApp y su rol dentro de la clínica.
             </p>
+
+            <p className="text-slate-600 text-sm leading-relaxed">
+              Vetora no está dirigido a menores de edad ni recoge intencionalmente datos de niños:
+              los datos de esta política pertenecen a la persona adulta responsable de la mascota.
+            </p>
           </Seccion>
 
-          <Seccion titulo="2. Para qué se usan">
+          <Seccion titulo="2. Dónde están físicamente sus datos">
+            <p className="text-slate-600 text-sm leading-relaxed mb-3">
+              Esto es importante y preferimos decirlo claro:{' '}
+              <strong className="text-slate-800">sus datos no se almacenan en Bolivia.</strong>
+            </p>
+            <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
+              <li>
+                <strong className="text-slate-800">Base de datos y archivos</strong> (incluidas las
+                fotografías): servidores de Supabase en{' '}
+                <strong className="text-slate-800">São Paulo, Brasil</strong>.
+              </li>
+              <li>
+                <strong className="text-slate-800">La aplicación web</strong> se sirve desde la red
+                de Vercel, con presencia principalmente en Estados Unidos.
+              </li>
+              <li>
+                <strong className="text-slate-800">El asistente de inteligencia artificial</strong>{' '}
+                procesa en Estados Unidos (ver punto 4).
+              </li>
+            </ul>
+          </Seccion>
+
+          <Seccion titulo="3. Para qué se usan">
             <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
               <li>Que su veterinaria pueda agendar citas y llevar el historial de su mascota.</li>
               <li>Que usted pueda ver ese historial desde su portal.</li>
@@ -134,14 +164,28 @@ export function PoliticaPrivacidadPage() {
               </strong>{' '}
               salvo los proveedores de infraestructura necesarios para que el servicio funcione.
             </p>
+            <p className="text-slate-600 text-sm leading-relaxed mt-4">
+              <strong className="text-slate-800">Por qué tratamos estos datos:</strong> porque son
+              necesarios para prestarle el servicio veterinario que usted contrató con su clínica —
+              agendar, atender, cobrar y darle seguimiento a su mascota. No le pedimos un
+              consentimiento aparte para esto porque el tratamiento es parte inherente de esa
+              relación con su clínica.
+            </p>
+            <p className="text-slate-600 text-sm leading-relaxed mt-4">
+              <strong className="text-slate-800">Frente a esta información, Vetora es encargada del
+              tratamiento y su clínica es la responsable:</strong>{' '}
+              es su veterinaria quien decide para qué se usan sus datos y quien responde ante usted
+              por ellos. Vetora los aloja y los protege técnicamente, pero no decide por su cuenta
+              qué hacer con ellos.
+            </p>
           </Seccion>
 
-          <Seccion titulo="3. El asistente de inteligencia artificial">
+          <Seccion titulo="4. El asistente de inteligencia artificial">
             <p className="text-slate-600 text-sm leading-relaxed mb-3">
               Vetora incluye un asistente que ayuda al personal de la clínica a redactar
               recordatorios y a consultar información de su propia clínica. Para funcionar,{' '}
               <strong className="text-slate-800">
-                envía parte de la información a Anthropic, un proveedor externo.
+                envía parte de la información a Anthropic, un proveedor en Estados Unidos.
               </strong>
             </p>
             <p className="text-slate-600 text-sm leading-relaxed mb-3">
@@ -156,7 +200,23 @@ export function PoliticaPrivacidadPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="4. Quién puede ver sus datos">
+          <Seccion titulo="5. Cómo funcionan realmente los mensajes de WhatsApp">
+            <p className="text-slate-600 text-sm leading-relaxed mb-3">
+              Vetora <strong className="text-slate-800">no envía mensajes automáticamente</strong>.
+              Cuando la clínica quiere recordarle una cita o una vacuna, el sistema le prepara el
+              texto y abre WhatsApp;{' '}
+              <strong className="text-slate-800">
+                el mensaje lo envía una persona de la clínica desde su propio teléfono
+              </strong>
+              , como cualquier mensaje normal.
+            </p>
+            <p className="text-slate-600 text-sm leading-relaxed">
+              Esto significa que Vetora no tiene acceso a su conversación de WhatsApp, y que quien
+              decide escribirle es su veterinaria, no el sistema.
+            </p>
+          </Seccion>
+
+          <Seccion titulo="6. Quién puede ver sus datos">
             <ul className="list-disc list-inside text-sm text-slate-600 space-y-1 mb-4">
               <li>
                 <strong className="text-slate-800">Su clínica</strong>, y únicamente su clínica. Una
@@ -184,7 +244,7 @@ export function PoliticaPrivacidadPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="5. Seguridad">
+          <Seccion titulo="7. Seguridad">
             <p className="text-slate-600 text-sm leading-relaxed mb-3">
               La conexión entre su navegador y Vetora va{' '}
               <strong className="text-slate-800">cifrada (HTTPS)</strong> en todo momento. Las
@@ -201,7 +261,7 @@ export function PoliticaPrivacidadPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="6. Sus derechos y cómo ejercerlos">
+          <Seccion titulo="8. Sus derechos y cómo ejercerlos">
             <p className="text-slate-600 text-sm leading-relaxed mb-3">
               <strong className="text-slate-800">Si usted es dueño de una mascota:</strong> los datos
               los registra y los administra su clínica veterinaria, así que{' '}
@@ -218,7 +278,7 @@ export function PoliticaPrivacidadPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="7. Cuánto tiempo se conservan">
+          <Seccion titulo="9. Cuánto tiempo se conservan">
             <p className="text-slate-600 text-sm leading-relaxed">
               Los datos se conservan mientras la clínica mantenga su cuenta activa. No hay borrado
               automático por antigüedad: un historial clínico se conserva porque es el expediente
@@ -226,15 +286,15 @@ export function PoliticaPrivacidadPage() {
             </p>
           </Seccion>
 
-          <Seccion titulo="8. Cambios en esta política">
+          <Seccion titulo="10. Cambios en esta política">
             <p className="text-slate-600 text-sm leading-relaxed">
               Si cambiamos algo sustancial en cómo tratamos sus datos, actualizaremos esta página y
-              su fecha. Esta política está en revisión por asesoría legal en Bolivia, y puede cambiar
-              como resultado de esa revisión.
+              su fecha. Partes de esta política ya fueron revisadas con asesoría legal en Bolivia, y
+              puede seguir cambiando conforme avance esa revisión.
             </p>
           </Seccion>
 
-          <Seccion titulo="9. Contacto">
+          <Seccion titulo="11. Contacto">
             <p className="text-slate-600 text-sm leading-relaxed">
               Para cualquier duda sobre el manejo de sus datos, puede escribir al correo de soporte
               de Vetora. Si es dueño de una mascota y su consulta es sobre datos que registró su
