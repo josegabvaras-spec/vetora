@@ -109,8 +109,8 @@ abogado va a pedir primero si hay que decidir si se notifica a una autoridad.
 ⚠️ **El orden 2 antes que 3 no es arbitrario.** La clínica es quien tiene la relación directa con
 el dueño de la mascota — es su cliente, no el de Vetora. Que Vetora notifique directamente a un
 dueño de mascota sin pasar por su clínica sería raro salvo que la clínica sea inlocalizable o el
-riesgo sea urgente. Esto depende de cómo se resuelva la pregunta 1 del informe principal (quién es
-responsable y quién encargado) — si la asesoría concluye algo distinto, este orden se revisa.
+riesgo sea urgente. ✅ **Confirmado por la asesoría** (Vetora es encargada, cada clínica es
+responsable — ver el informe principal): este orden queda tal como está.
 
 ### Plazos
 

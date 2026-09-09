@@ -6,6 +6,11 @@ proveedores de infraestructura, en el tratamiento de los datos personales que pa
 Igual que el documento sobre los contratos de encargo: dos partes en un solo archivo — la solicitud
 con los hechos y las preguntas, y el formato sugerido para la respuesta.
 
+✅ **RESUELTO.** La asesoría confirmó, por una consulta directa y más corta que este documento:
+Vetora es encargada del tratamiento, cada clínica es responsable. Ver el resumen ejecutivo del
+`INFORME_PARA_ASESORIA_JURIDICA.md`. Este documento se conserva como el análisis detallado que
+sustenta esa respuesta, no porque siga pendiente.
+
 ---
 
 ## PARTE 1 — Solicitud de calificación

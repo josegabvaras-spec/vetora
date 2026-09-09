@@ -24,7 +24,7 @@ Su propósito es que el tiempo de la asesoría se gaste en **criterio jurídico*
 | 4 | El sistema envía datos clínicos a un tercero en EE. UU. (Anthropic) | Implementado y acotado; declarado en la política |
 | 5 | No existe contrato de encargo de tratamiento con los proveedores | Pendiente |
 | 6 | No hay procedimiento documentado de notificación de brechas | Pendiente |
-| 7 | Quién es responsable y quién encargado del tratamiento | **Calificación jurídica pendiente** |
+| 7 | Quién es responsable y quién encargado del tratamiento | ✅ **Confirmado por la asesoría**: Vetora es encargada, cada clínica es responsable |
 
 Los puntos 2 y 3 fueron hallazgos nuevos de esta revisión, detectados y **corregidos técnicamente el mismo día**. Se conservan en este informe con su historial completo — qué decía la política, qué hacía el sistema, y qué se hizo — porque forman parte del registro de cómo se trató el hallazgo, no porque sigan abiertos.
 
@@ -208,7 +208,7 @@ Se declara porque es material para valorar si las medidas son adecuadas, aunque 
 
 Ordenadas por lo que bloquea más decisiones técnicas:
 
-1. **¿Vetora es responsable o encargado del tratamiento?** ¿Y la clínica? La política tenía una afirmación al respecto y **se retiró precisamente porque es una calificación jurídica que no nos corresponde hacer**. De la respuesta depende quién responde ante el titular.
+1. ~~¿Vetora es responsable o encargado del tratamiento? ¿Y la clínica?~~ **Respondido por la asesoría: Vetora es encargada, cada clínica es responsable** — la misma relación que cualquier proveedor de software tiene con su cliente. Queda por trasladar esa calificación al contrato con las clínicas.
 
 2. **¿Cómo debe declararse la transferencia internacional** (Brasil y EE. UU.)? Hay dos secciones ya redactadas y retiradas de la vista esperando esta respuesta.
 
