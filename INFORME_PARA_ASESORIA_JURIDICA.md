@@ -60,13 +60,18 @@ Historial clínico, diagnósticos, tratamientos, recetas, vacunas, desparasitaci
 
 ### 2.4 Firmas manuscritas — merece punto propio
 
-Tres tablas guardan **firmas capturadas en el dispositivo, en base64**:
+**Dos tablas** guardan **firmas capturadas en el dispositivo, en base64** — no tres, como decía una versión anterior de este informe: `consentimientos_cirugia.firma_tutor`/`.firma_veterinario`, e `informes_firmados.firma_tutor`/`.firma_veterinario`, donde también vive la firma de recibos. La migración `0017` no crea una tabla propia para el recibo: añade `'recibo'` como un valor más de `tipo` en `informes_firmados`, con `paciente_id` opcional para la venta de mostrador.
 
-- `consentimientos_cirugia.firma_tutor` y `.firma_veterinario`
-- `informes_firmados.firma_tutor` y `.firma_veterinario`
-- La firma de recibos (`0017`)
+⚠️ **Verificado contra el código, no supuesto:**
 
-⚠️ **Una firma manuscrita puede tener consideración de dato biométrico o de categoría especial en algunas jurisdicciones.** Es una pregunta directa para la asesoría, y no se había planteado antes.
+- **Qué es exactamente lo que se guarda:** un único componente en todo el sistema captura el trazo sobre un `<canvas>` y, al soltar, lo convierte en una imagen PNG (`toDataURL()`). Solo se persiste **la imagen final rasterizada** — nunca la secuencia de puntos, la velocidad ni la presión del trazo, que existen momentáneamente en pantalla mientras se dibuja pero se descartan de inmediato y no llegan a guardarse en ningún campo. Es el equivalente digital de una foto de una firma en papel, no un dato biométrico dinámico.
+- **Cuándo es obligatoria:** para el consentimiento firmado digitalmente (uno de sus tres métodos posibles; los otros dos —firma física escaneada, aceptación verbal registrada— no producen ningún trazo), y como condición para **imprimir** un informe, un historial o un recibo: el botón de imprimir permanece deshabilitado sin firma. No es obligatoria para cerrar una consulta ni para cobrar — firmar es un paso posterior y separado, solo para poder emitir el papel.
+- **Inmutabilidad:** las dos tablas son solo INSERT y SELECT — no existe ninguna policy de UPDATE ni DELETE sobre una firma ya guardada, con la misma salvedad de las cascadas por FK que ya se explica en el punto 6.2 de este informe.
+- **Quién la ve:** el personal con acceso al expediente clínico (admin, veterinario, recepción; el peluquero queda fuera desde `0053`), y el propio dueño desde su portal —incluida la firma del veterinario, no solo la suya— para los consentimientos e informes de su mascota. La **única excepción es el recibo**: al no llevar paciente asociado, la política de acceso del portal no puede resolverlo, y esa firma queda estructuralmente invisible para el dueño aunque conozca la dirección del documento.
+- **Sale íntegra en el respaldo CSV** de ambas tablas, sin ningún filtro —al contrario que la fotografía del paciente, que sí se excluye del CSV y se mueve a una carpeta aparte—, y nunca se envía al asistente de IA.
+- **Nunca se compara contra ninguna firma de referencia.** Se guarda y se muestra, pero no hay ningún proceso de verificación: es evidencia de que alguien trazó algo en el dispositivo en ese momento, no una comprobación de identidad.
+
+Es sensible en un sentido distinto al del CI (punto 2.1): no identifica por sí sola a nadie de forma unívoca, pero su naturaleza —un trazo manuscrito capturado digitalmente— es justo lo que algunas jurisdicciones tratan como dato biométrico o de categoría especial, sin que el sistema le dé hoy ningún tratamiento reforzado frente al resto del expediente.
 
 ### 2.5 Documentos e imágenes
 
@@ -207,7 +212,10 @@ Ordenadas por lo que bloquea más decisiones técnicas:
 
 2. **¿Cómo debe declararse la transferencia internacional** (Brasil y EE. UU.)? Hay dos secciones ya redactadas y retiradas de la vista esperando esta respuesta.
 
-3. **¿Una firma manuscrita capturada en pantalla es dato biométrico** o de categoría especial? Afecta a tres tablas.
+3. **Sobre las firmas manuscritas**, ampliado con los hechos verificados en la sección 2.4 (afecta a **dos** tablas, no tres):
+   - 3.a. ¿Una imagen estática del trazo final —sin presión, velocidad ni secuencia de puntos— sigue considerándose dato biométrico, o esa calificación exige el componente dinámico que aquí no se guarda?
+   - 3.b. Si se considera dato sensible de todos modos, ¿bastan las protecciones ya existentes (inmutabilidad, acceso acotado al personal con expediente y al propio dueño), o hace falta algo adicional —por ejemplo, excluirla del respaldo en CSV, como ya se hace con la fotografía del paciente?
+   - 3.c. ¿Cambia algo que el dueño pueda ver también la firma del veterinario, no solo la suya, en el consentimiento de su propia mascota?
 
 4. **Sobre la cédula de identidad**, ampliado con los hechos verificados en la sección 2.1:
    - 4.1. ¿Tiene el CI boliviano un **régimen jurídico especial** (dato sensible o de categoría reforzada) que exija medidas más allá de las que ya existen?
