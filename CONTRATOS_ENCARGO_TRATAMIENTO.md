@@ -51,12 +51,23 @@ para eso: el propio commit lleva fecha y no se puede alterar después sin que se
 
 ### Anthropic
 
-- **Contrato:** incorporado en los *Commercial Terms* de la API (no en la versión de consumidor de
-  Claude — Vetora usa la API, así que aplica).
-- **Se activa:** automáticamente al aceptar esos términos comerciales, sin firma aparte.
-- **Importante:** solo aplica si la cuenta usada es la de la **API comercial**, no una cuenta
-  personal de consumidor. Confirmar que la clave `ANTHROPIC_API_KEY` del proyecto sale de una
-  cuenta de ese tipo, no de una suscripción personal.
+- **Contrato:** [anthropic.com/legal/data-processing-addendum](https://www.anthropic.com/legal/data-processing-addendum)
+  (vigente desde el 24 de febrero de 2025). ⚠️ A diferencia de Supabase y Vercel, no basta con este
+  enlace solo: hay que confirmar que tus *Commercial Terms of Service* lo incorporan por referencia
+  — el propio documento lo dice así, y en la práctica lo incorporan salvo que se use por una vía de
+  terceros. Los términos comerciales están en
+  [anthropic.com/legal/commercial-terms](https://www.anthropic.com/legal/commercial-terms), sección C.
+- **Se activa:** automáticamente al aceptar esos términos comerciales, sin firma aparte — **solo si
+  la cuenta es de API comercial, no una suscripción personal de Claude** (esa va por otros términos,
+  de consumidor, sin este DPA). Confirmar que `ANTHROPIC_API_KEY` sale de esa cuenta comercial.
+- **Subencargados:** puede añadirlos con «aviso razonable»; 15 días para objetar antes de que se
+  entienda aceptado en silencio — más corto que los 30+5 días de Supabase y Vercel.
+- **Notificación de brecha:** por escrito, «sin dilación indebida, y en cualquier caso dentro de 48
+  horas» — igual que Supabase.
+- **Al terminar el contrato:** 30 días para devolver o borrar tus datos por completo, salvo
+  obligación legal de conservarlos o disputa en curso.
+- **Certificaciones:** SOC 2 y otras, públicas en `trust.anthropic.com`, si hace falta acreditar
+  algo sin pedir una auditoría propia.
 
 ---
 
