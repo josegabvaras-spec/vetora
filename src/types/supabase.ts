@@ -2805,6 +2805,22 @@ export type Database = {
       consumir_cuota_ia: { Args: { p_tarea: string }; Returns: number }
       espacio_estudios_bytes: { Args: never; Returns: number }
       get_citas_end_time: { Args: { start_time: string }; Returns: string }
+      // Migración 0079. Las reglas de detección. INVOKER, no DEFINER: la RLS
+      // de `eventos_seguridad` acota sola quién ve qué, así que la misma
+      // llamada sirve al superadmin (todo) y al admin (su clínica).
+      analizar_eventos_seguridad: {
+        Args: { p_horas?: number }
+        Returns: {
+          regla: string
+          severidad: string
+          clinica_id: string | null
+          usuario_id: string | null
+          eventos: number
+          primero: string
+          ultimo: string
+          detalle: Json
+        }[]
+      }
       // Migración 0078. Añadida a mano, mismo motivo que las de 0028/0038.
       // ⚠️ No lleva `p_usuario_id` ni `p_clinica_id` a propósito: el actor lo
       // deriva la función del JWT. Si algún día aparecen aquí como parámetros,

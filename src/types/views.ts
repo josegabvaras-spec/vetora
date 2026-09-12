@@ -7,6 +7,7 @@ import type {
   Clinica,
   Cliente,
   Cobro,
+  SeveridadEvento,
   ConsentimientoCirugia,
   DesparasitacionAplicada,
   Especie,
@@ -570,4 +571,30 @@ export interface RespuestaCopiloto {
   requiere_accion_humana: boolean
   /** Qué herramientas se consultaron para responder. */
   fuentes: string[]
+}
+
+/**
+ * Una anomalía detectada por las reglas determinísticas (migración `0079`).
+ *
+ * No es una fila de tabla: la compone `analizar_eventos_seguridad()` agrupando
+ * eventos, así que vive aquí y no en `database.ts`.
+ *
+ * ⚠️ **Una anomalía no es un incidente.** Es un patrón que merece que alguien
+ * lo mire: tres exportaciones seguidas pueden ser una fuga o pueden ser una
+ * clínica migrando de computadora. Quien decide eso es una persona — lo que
+ * hace el sistema es no dejar que pase inadvertido.
+ */
+export interface AnomaliaSeguridad {
+  /** `exportaciones_repetidas`, `escalada_a_admin`, `bajas_en_rafaga`… */
+  regla: string
+  severidad: SeveridadEvento
+  /** Null cuando quien actuó fue el superadmin, que no tiene clínica. */
+  clinica_id: string | null
+  usuario_id: string | null
+  /** Cuántos eventos componen el patrón. */
+  eventos: number
+  primero: string
+  ultimo: string
+  /** Umbrales de la regla y contexto agregado. Nunca datos clínicos. */
+  detalle: Record<string, unknown>
 }

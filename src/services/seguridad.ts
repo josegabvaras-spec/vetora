@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { traerTodo } from '../lib/paginacion'
 import type { EventoSeguridad, SeveridadEvento, TipoEventoSeguridad } from '../types/database'
+import type { AnomaliaSeguridad } from '../types/views'
 
 /**
  * Bitácora de eventos de seguridad (migración `0078`).
@@ -96,4 +97,24 @@ export async function eventosDesde(desdeIso: string): Promise<EventoSeguridad[]>
       .order('created_at', { ascending: false })
       .range(desde, hasta),
   )
+}
+
+/**
+ * Corre las reglas determinísticas sobre las últimas `horas` de eventos.
+ *
+ * Cero anomalías es la respuesta normal, no un fallo — y por eso esto **sí**
+ * lanza si la consulta falla, al revés que `registrarEvento()`: ahí un error
+ * silencioso solo pierde un registro, pero aquí una lista vacía por un fallo
+ * de red se leería como «no hay nada raro», que es la peor mentira que puede
+ * decir una pantalla de seguridad. Es el mismo criterio que ya obligó a que
+ * `listProgramados` no se tragara sus errores (VUL-41).
+ *
+ * Quién ve qué lo decide la RLS dentro de la función (`0079`, INVOKER): la
+ * plataforma analiza todo, el `admin` solo su clínica.
+ */
+export async function analizarEventos(horas = 24): Promise<AnomaliaSeguridad[]> {
+  const { data, error } = await supabase.rpc('analizar_eventos_seguridad', { p_horas: horas })
+
+  if (error) throw new Error(`No se pudo analizar la seguridad: ${error.message}`)
+  return (data ?? []) as AnomaliaSeguridad[]
 }
