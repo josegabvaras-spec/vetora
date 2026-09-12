@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
-import { Building2, LayoutDashboard, LogOut, Menu, ShieldCheck, Sparkles, Tags, Users, X } from 'lucide-react'
+import { Building2, LayoutDashboard, LogOut, Menu, ShieldAlert, ShieldCheck, Sparkles, Tags, Users, X } from 'lucide-react'
 import { useAuth } from '../../context/useAuth'
 import { PanelLateral } from './PanelLateral'
 import { useEsEscritorio } from '../../hooks/useMediaQuery'
@@ -18,6 +18,9 @@ const links = [
   { to: '/plataforma/clinicas', label: 'Clínicas', icon: Building2, end: false },
   { to: '/plataforma/usuarios', label: 'Usuarios', icon: Users, end: false },
   { to: '/plataforma/planes', label: 'Planes', icon: Tags, end: false },
+  // Fase 4 de Vetora Security AI. Va al final porque no es una tarea del dia
+  // a dia: se entra cuando hay algo que revisar, no cada manana.
+  { to: '/plataforma/seguridad', label: 'Seguridad', icon: ShieldAlert, end: false },
 ]
 
 export function PlataformaLayout() {

@@ -34,6 +34,7 @@ import { PlataformaAsistentePage } from './pages/plataforma/PlataformaAsistenteP
 import { PlataformaClinicasPage } from './pages/plataforma/PlataformaClinicasPage'
 import { PlataformaUsuariosPage } from './pages/plataforma/PlataformaUsuariosPage'
 import { PlataformaPlanesPage } from './pages/plataforma/PlataformaPlanesPage'
+import { PlataformaSeguridadPage } from './pages/plataforma/PlataformaSeguridadPage'
 import { InicioSegunRol } from './components/layout/InicioSegunRol'
 import { CatalogoPage } from './pages/CatalogoPage'
 
@@ -143,6 +144,7 @@ export default function App() {
                 <Route path="/plataforma/clinicas" element={<PlataformaClinicasPage />} />
                 <Route path="/plataforma/usuarios" element={<PlataformaUsuariosPage />} />
                 <Route path="/plataforma/planes" element={<PlataformaPlanesPage />} />
+                <Route path="/plataforma/seguridad" element={<PlataformaSeguridadPage />} />
               </Route>
             </Route>
 
