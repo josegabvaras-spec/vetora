@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { traerTodo } from '../lib/paginacion'
 import type { EventoSeguridad, SeveridadEvento, TipoEventoSeguridad } from '../types/database'
-import type { AnomaliaSeguridad } from '../types/views'
+import type { AnomaliaSeguridad, ResultadoAnalisisSeguridad } from '../types/views'
 
 /**
  * Bitácora de eventos de seguridad (migración `0078`).
@@ -117,4 +117,31 @@ export async function analizarEventos(horas = 24): Promise<AnomaliaSeguridad[]> 
 
   if (error) throw new Error(`No se pudo analizar la seguridad: ${error.message}`)
   return (data ?? []) as AnomaliaSeguridad[]
+}
+
+/**
+ * Pide el análisis con IA de lo que las reglas hayan marcado (fase 3).
+ *
+ * ⚠️ **Solo el superadmin.** La Edge Function lo exige, y no es una decisión de
+ * pantalla: el gasto en Anthropic lo paga la plataforma y no consume la cuota
+ * del plan de ninguna clínica. Un admin no se queda sin nada — `analizarEventos()`
+ * de arriba le da las mismas anomalías, gratis y acotadas a su clínica; lo que
+ * es solo del operador es la narrativa del modelo.
+ *
+ * Si no hay anomalías, la función devuelve `motivo: 'sin_anomalias'` **sin
+ * llamar al modelo**. Ese corte es lo que hace que esto se pueda ejecutar todos
+ * los días sin que cueste nada los días tranquilos, que son casi todos.
+ */
+export async function analizarConIa(horas = 24): Promise<ResultadoAnalisisSeguridad> {
+  const { data, error } = await supabase.functions.invoke<
+    ResultadoAnalisisSeguridad & { error?: string }
+  >('analisis-seguridad', { body: { horas } })
+
+  // `invoke` da un error genérico ante cualquier 4xx/5xx; el motivo real viene
+  // en el cuerpo, así que se prefiere ese (mismo patrón que respaldoPlataforma).
+  if (data?.error) throw new Error(data.error)
+  if (error) throw new Error(`No se pudo contactar con el análisis de seguridad: ${error.message}`)
+  if (!data) throw new Error('El análisis de seguridad no devolvió nada')
+
+  return data
 }

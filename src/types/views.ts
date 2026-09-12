@@ -598,3 +598,59 @@ export interface AnomaliaSeguridad {
   /** Umbrales de la regla y contexto agregado. Nunca datos clínicos. */
   detalle: Record<string, unknown>
 }
+
+/**
+ * Un hallazgo del análisis con IA: el mismo patrón, leído de las dos maneras.
+ *
+ * ⚠️ Las dos lecturas son obligatorias en el esquema de la herramienta a
+ * propósito. Un análisis que solo dé la versión preocupante entrena a quien lo
+ * lee a ignorarlo —porque casi siempre la explicación aburrida es la cierta—, y
+ * uno que solo dé la aburrida no sirve para nada. `que_lo_distinguiria` es lo
+ * accionable: qué preguntar o comprobar para saber cuál de las dos es.
+ */
+export interface HallazgoSeguridad {
+  patron: string
+  explicacion_probable: string
+  explicacion_preocupante: string
+  que_lo_distinguiria: string
+}
+
+/**
+ * El veredicto del análisis con IA sobre las anomalías que marcaron las reglas
+ * (Edge Function `analisis-seguridad`, fase 3).
+ *
+ * **No es texto libre**: la estructura la valida el `input_schema` de la
+ * herramienta `reportar_analisis`, igual que `RespuestaCopiloto`. O viene así,
+ * o no viene.
+ *
+ * ⚠️ **Nada de esto se ejecuta solo.** `recomendaciones` son pasos para una
+ * persona; la función que produce este veredicto no tiene con qué desactivar
+ * una cuenta ni suspender una clínica, y eso es una propiedad del código, no
+ * una promesa del prompt.
+ */
+export interface AnalisisSeguridadIa {
+  resumen: string
+  severidad: SeveridadEvento
+  /** 0 a 100: cuánto merece la atención de una persona ahora mismo. */
+  riesgo: number
+  /** 0 a 1: qué tan seguro está el modelo con los datos que tuvo. */
+  confianza: number
+  hallazgos: HallazgoSeguridad[]
+  /** Del paso menos invasivo al más. */
+  recomendaciones: string[]
+  requiere_revision_humana: boolean
+}
+
+/** Lo que devuelve la Edge Function `analisis-seguridad`. */
+export interface ResultadoAnalisisSeguridad {
+  anomalias: AnomaliaSeguridad[]
+  /**
+   * Null cuando no hubo nada que analizar (`sin_anomalias`) o cuando el modelo
+   * no devolvió un veredicto utilizable (`sin_respuesta_del_modelo`). En los
+   * dos casos la pantalla dice qué pasó — no se inventa un análisis, igual que
+   * el copiloto no tiene plantilla de respaldo.
+   */
+  analisis: AnalisisSeguridadIa | null
+  motivo: 'sin_anomalias' | 'analizado' | 'sin_respuesta_del_modelo'
+  horas: number
+}
