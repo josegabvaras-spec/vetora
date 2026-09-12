@@ -828,6 +828,43 @@ export type Database = {
         }
         Relationships: []
       }
+      // Migración 0078. Añadida a mano, mismo motivo que los RPC de más abajo:
+      // este fichero se genera desde la base y hasta que alguien lo regenere,
+      // `supabase.from()` rechaza por tipos cualquier tabla que no esté aquí.
+      //
+      // `Insert`/`Update` se declaran por la forma del tipo generado, pero no
+      // hay forma de usarlos: la tabla no tiene policy de INSERT ni de UPDATE
+      // para nadie. Se escribe solo con `registrar_evento_seguridad()`.
+      eventos_seguridad: {
+        Row: {
+          clinica_id: string | null
+          created_at: string
+          detalle: Json
+          id: string
+          severidad: string
+          tipo: string
+          usuario_id: string | null
+        }
+        Insert: {
+          clinica_id?: string | null
+          created_at?: string
+          detalle?: Json
+          id?: string
+          severidad?: string
+          tipo: string
+          usuario_id?: string | null
+        }
+        Update: {
+          clinica_id?: string | null
+          created_at?: string
+          detalle?: Json
+          id?: string
+          severidad?: string
+          tipo?: string
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       registro_errores: {
         Row: {
           clinica_id: string | null
@@ -2768,6 +2805,19 @@ export type Database = {
       consumir_cuota_ia: { Args: { p_tarea: string }; Returns: number }
       espacio_estudios_bytes: { Args: never; Returns: number }
       get_citas_end_time: { Args: { start_time: string }; Returns: string }
+      // Migración 0078. Añadida a mano, mismo motivo que las de 0028/0038.
+      // ⚠️ No lleva `p_usuario_id` ni `p_clinica_id` a propósito: el actor lo
+      // deriva la función del JWT. Si algún día aparecen aquí como parámetros,
+      // es que alguien rompió la garantía de que la bitácora no se falsifica.
+      registrar_evento_seguridad: {
+        Args: {
+          p_tipo: string
+          p_severidad?: string
+          p_detalle?: Json
+          p_clinica_afectada?: string | null
+        }
+        Returns: undefined
+      }
       // Migración 0028. Añadidas a mano: este fichero se genera desde la base,
       // y hasta que alguien vuelva a generarlo `supabase.rpc()` rechaza por
       // tipos cualquier función que no esté en esta unión.

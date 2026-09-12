@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { registrarEvento } from './seguridad'
 import type { Usuario } from '../types/database'
 
 /**
@@ -167,6 +168,20 @@ export async function verificarCredenciales(email: string, password: string): Pr
     await supabase.auth.signOut()
     throw new Error('No se encontró el perfil del usuario')
   }
+
+  // Bitácora de seguridad (`0078`). Va DESPUÉS de resolver el perfil, no justo
+  // tras `signInWithPassword`: aquí ya se sabe que la sesión es de alguien con
+  // perfil real, y `auth.uid()` resuelve dentro de la función SQL.
+  //
+  // ⚠️ El fallo de login NO se registra aquí, y no es un olvido: ocurre sin
+  // sesión, así que registrarlo obligaría a abrir la bitácora a `anon` y
+  // cualquiera podría fabricar «fallo de fulano». Ver la cabecera de `0078`.
+  //
+  // Sin `await`: registrar es efecto secundario y no puede retrasar —ni mucho
+  // menos romper— la entrada de alguien que ya se autenticó bien.
+  void registrarEvento('login_exitoso', {
+    detalle: { rol: (usuario as Usuario).rol },
+  })
 
   return usuario as Usuario
 }

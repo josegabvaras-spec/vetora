@@ -1049,3 +1049,68 @@ export interface IaUso {
   created_at: string
 }
 
+
+/** Severidad de un evento de seguridad. Ver `eventos_seguridad` (migración 0078). */
+export type SeveridadEvento = 'info' | 'baja' | 'media' | 'alta' | 'critica'
+
+/**
+ * Los tipos de evento que `eventos_seguridad` acepta.
+ *
+ * ⚠️ La lista tiene que decir **exactamente** lo mismo que el `check` de la
+ * migración `0078`: si aquí aparece uno que allí no está, el `insert` lo
+ * rechaza en tiempo de ejecución y el evento se pierde en silencio (la función
+ * se traga el error a propósito, para no tumbar la operación que registraba).
+ */
+export type TipoEventoSeguridad =
+  | 'login_exitoso'
+  | 'password_cambiado'
+  | 'mfa_activado'
+  | 'mfa_desactivado'
+  | 'sesion_bloqueada'
+  | 'rol_cambiado'
+  | 'usuario_activado'
+  | 'usuario_desactivado'
+  | 'usuario_borrado'
+  | 'usuario_creado'
+  | 'clinica_suspendida'
+  | 'clinica_reactivada'
+  | 'clinica_borrada'
+  | 'respaldo_exportado'
+  | 'cuenta_portal_vinculada'
+  | 'cuenta_portal_desvinculada'
+
+/**
+ * Un acto con significado de seguridad (migración 0078).
+ *
+ * **Solo INSERT**, como `registro_errores`, `ia_uso` y `registro_respaldos`, y
+ * por el mismo motivo. Lo escribe únicamente `registrar_evento_seguridad()`,
+ * que es `security definer` y **deriva el actor del JWT**: `usuario_id` y
+ * `clinica_id` no son parámetros, así que nadie puede registrar un evento a
+ * nombre de otro.
+ *
+ * Lo lee la plataforma (todo) y el `admin` de cada clínica (lo suyo) — para
+ * esta última es una función real, no telemetría: la clínica es la responsable
+ * del tratamiento y tiene que poder responder «quién exportó mis datos».
+ *
+ * ⚠️ **No registra logins fallidos**: ocurren sin sesión, y aceptarlos
+ * obligaría a abrir la escritura a `anon`, que es tanto como dejar que
+ * cualquiera fabrique el registro que sirve para detectar ataques. Ese abuso
+ * lo corta `consumir_intento_publico()` (0068), que cuenta sin guardar nada
+ * falsificable.
+ */
+export interface EventoSeguridad {
+  id: string
+  /** Nulo solo si el evento lo generó el sistema sin actor identificable. */
+  usuario_id?: string | null
+  /** La clínica del ACTOR; nula cuando actúa el superadmin, que no tiene. */
+  clinica_id?: string | null
+  tipo: TipoEventoSeguridad
+  severidad: SeveridadEvento
+  /**
+   * Contexto mínimo de la acción: qué rol se cambió, cuántas filas salieron,
+   * sobre qué clínica actuó la plataforma (`clinica_afectada`). **Nunca** el
+   * contenido de lo que se tocó — mismo criterio que `ia_uso`.
+   */
+  detalle: Record<string, unknown>
+  created_at: string
+}

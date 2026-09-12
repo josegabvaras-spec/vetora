@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { TABLAS_RESPALDO, construirZip, descargarZip } from '../lib/exportacion'
 import { traerTodo } from '../lib/paginacion'
+import { registrarEvento } from './seguridad'
 
 /**
  * El respaldo que se descarga la propia clínica.
@@ -68,4 +69,22 @@ export async function generarRespaldo() {
 
   const contenido = await construirZip(datosPorTabla)
   descargarZip(contenido, `respaldo_${new Date().toISOString().split('T')[0]}.zip`)
+
+  // Bitácora de seguridad (`0078`). El respaldo de la PLATAFORMA ya se
+  // registraba en `registro_respaldos` (H-30), pero este —el que se descarga
+  // la propia clínica— no dejaba rastro de ninguna clase: es el camino por el
+  // que el expediente completo de una clínica sale del sistema en un archivo,
+  // y hasta ahora nadie podía responder «¿quién se lo llevó y cuándo?».
+  //
+  // Son dos bitácoras distintas a propósito, no una duplicada: `registro_respaldos`
+  // responde ante el TITULAR de los datos («el operador entró a mi clínica»),
+  // y esta responde ante la CLÍNICA («alguien de mi equipo exportó todo»), que
+  // es quien tiene que dar esa explicación como responsable del tratamiento.
+  void registrarEvento('respaldo_exportado', {
+    severidad: 'media',
+    detalle: {
+      tablas: Object.keys(datosPorTabla).length,
+      filas: Object.values(datosPorTabla).reduce((n, filas) => n + filas.length, 0),
+    },
+  })
 }

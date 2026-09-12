@@ -1,6 +1,7 @@
 import { motivoDelFallo, supabase } from '../lib/supabase'
 import { clinicDayIso, clinicMonth, desdeFechaSola, sumarMeses } from '../lib/datetime'
 import { traerTodo } from '../lib/paginacion'
+import { registrarEvento } from './seguridad'
 import type { Clinica, EstadoClinica, PagoSuscripcion, Rol, Sucursal, TipoNegocio, Usuario } from '../types/database'
 import type { ClinicaConDetalle, LimitesClinica, ResumenPlataforma, ResumenUsoIaClinica } from '../types/views'
 import { getPlan } from './planes'
@@ -709,6 +710,16 @@ export async function cambiarEstadoClinica(clinicaId: string, estado: EstadoClin
     .select('id')
   if (error) throw new Error(`Error al cambiar estado: ${error.message}`)
   exigirFilaAfectada(data, 'cambiar el estado de la clínica')
+
+  // Suspender saca a TODOS los usuarios de esa clínica (`0067` lo aplica en la
+  // RLS, no solo en la pantalla): es de las pocas acciones de una sola persona
+  // que dejan sin servicio a una clínica entera, así que va como alta.
+  if (estado === 'suspendida' || estado === 'activa') {
+    void registrarEvento(estado === 'suspendida' ? 'clinica_suspendida' : 'clinica_reactivada', {
+      severidad: estado === 'suspendida' ? 'alta' : 'media',
+      clinicaAfectada: clinicaId,
+    })
+  }
 }
 
 export interface ResultadoBorrado {
@@ -940,6 +951,18 @@ export async function actualizarUsuario(usuarioId: string, datos: DatosUsuario):
 
   if (error) throw new Error(`Error al actualizar usuario: ${error.message}`)
   exigirFilaAfectada(data, 'actualizar el usuario')
+
+  // Solo se registra el cambio de ROL, no el de nombre o teléfono: la bitácora
+  // de seguridad es para lo que altera qué puede hacer alguien, no para todo
+  // cambio de un formulario. Subir a `admin` es la escalada que importa, así
+  // que sube también la severidad.
+  if (usuario.rol !== datos.rol) {
+    void registrarEvento('rol_cambiado', {
+      severidad: datos.rol === 'admin' ? 'alta' : 'media',
+      detalle: { usuario_afectado: usuarioId, rol_anterior: usuario.rol, rol_nuevo: datos.rol },
+      clinicaAfectada: usuario.clinica_id ?? undefined,
+    })
+  }
 }
 
 /**
@@ -968,6 +991,15 @@ export async function alternarActivoUsuario(usuarioId: string): Promise<void> {
 
   if (error) throw new Error(`Error al cambiar estado del usuario: ${error.message}`)
   exigirFilaAfectada(data, 'cambiar el estado del usuario')
+
+  // Desactivar es la acción que corta el acceso de verdad desde `0050`, así
+  // que es la que interesa ver en una secuencia («desactivaron a tres personas
+  // a las 3 de la mañana»). Reactivar se registra igual, con menos severidad.
+  void registrarEvento(usuario.activo ? 'usuario_desactivado' : 'usuario_activado', {
+    severidad: usuario.activo ? 'media' : 'baja',
+    detalle: { usuario_afectado: usuarioId, rol: usuario.rol },
+    clinicaAfectada: usuario.clinica_id ?? undefined,
+  })
 }
 
 export interface ResultadoBorradoUsuario {
